@@ -6,8 +6,10 @@ var _require = require("firebase-admin/app"),
   applicationDefault = _require.applicationDefault;
 var _require2 = require("firebase-admin/firestore"),
   getFirestore = _require2.getFirestore;
-initializeApp({
-  credential: applicationDefault()
+var admin = require('firebase-admin');
+var serviceAccount = require('../firebase.json');
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
 });
 var db = getFirestore();
 module.exports = {

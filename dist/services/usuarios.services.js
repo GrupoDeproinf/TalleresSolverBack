@@ -34,13 +34,14 @@ var getUsuarios = /*#__PURE__*/function () {
             return doc.data();
           });
           res.send(usuarios);
-          _context.next = 13;
+          _context.next = 14;
           break;
         case 10:
           _context.prev = 10;
           _context.t0 = _context["catch"](0);
-          res.status(500).send("Error al obtener usuarios");
-        case 13:
+          console.error("Error al obtener usuarios:", _context.t0); // Muestra el error en la consola del servidor
+          res.status(500).send("Error al obtener usuarios: ".concat(_context.t0.message)); // Muestra el mensaje del error
+        case 14:
         case "end":
           return _context.stop();
       }

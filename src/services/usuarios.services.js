@@ -15,9 +15,11 @@ const getUsuarios = async (req, res) => {
 
     res.send(usuarios);
   } catch (error) {
-    res.status(500).send("Error al obtener usuarios");
+    console.error("Error al obtener usuarios:", error); // Muestra el error en la consola del servidor
+    res.status(500).send(`Error al obtener usuarios: ${error.message}`); // Muestra el mensaje del error
   }
 };
+
 
 const SaveClient = async (req, res) => {
   try {
