@@ -371,8 +371,11 @@ const getTalleres = async (req, res) => {
   try {
     const result = await db
       .collection("Usuarios")
+      .where("status", "!=", "Aprobado")
       .where("typeUser", "==", "Taller") // Filtrar documentos por typeUser
       .get();
+
+      
 
     if (result.empty) {
       return res

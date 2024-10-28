@@ -576,7 +576,7 @@ var getTalleres = /*#__PURE__*/function () {
         case 0:
           _context9.prev = 0;
           _context9.next = 3;
-          return db.collection("Usuarios").where("typeUser", "==", "Taller") // Filtrar documentos por typeUser
+          return db.collection("Usuarios").where("status", "!=", "Aprobado").where("typeUser", "==", "Taller") // Filtrar documentos por typeUser
           .get();
         case 3:
           result = _context9.sent;
