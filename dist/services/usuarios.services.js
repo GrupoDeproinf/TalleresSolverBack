@@ -12,6 +12,18 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
 var admin = require("firebase-admin");
 var _require = require("../firebase"),
   db = _require.db;
+var _require2 = require("firebase/auth"),
+  getAuth = _require2.getAuth,
+  signInWithEmailAndPassword = _require2.signInWithEmailAndPassword;
+var _require3 = require("firebase-admin/firestore"),
+  getFirestore = _require3.getFirestore;
+var _require4 = require('../../firebaseConfig'),
+  app = _require4.app; // Asegúrate de la ruta correcta
+
+// Inicializar Firebase Auth y Firestore
+var auth = getAuth(app); // Obtener la instancia de autenticación
+// const db = getFirestore(); // Inicializar Firestore
+
 var nodemailer = require("nodemailer");
 var getUsuarios = /*#__PURE__*/function () {
   var _ref = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee(req, res) {
@@ -59,19 +71,39 @@ var SaveClient = /*#__PURE__*/function () {
         case 0:
           _context2.prev = 0;
           // Recibir los datos del cliente desde el cuerpo de la solicitud
-          _req$body = req.body, Nombre = _req$body.Nombre, cedula = _req$body.cedula, phone = _req$body.phone, email = _req$body.email, password = _req$body.password; // Validar la entrada
-          // if (!Nombre || !cedula || !phone || !email || !password) {
-          //     return res.status(400).send('Todos los campos son requeridos');
-          // }
-          // Validar el formato del teléfono (ejemplo: debe tener 10 dígitos)
-          phoneRegex = /^\d{10}$/; // Cambiar a la longitud deseada
+          _req$body = req.body, Nombre = _req$body.Nombre, cedula = _req$body.cedula, phone = _req$body.phone, email = _req$body.email, password = _req$body.password; // Validar el formato del teléfono (ejemplo: debe tener 10 dígitos)
+          phoneRegex = /^\d{10}$/;
           if (phoneRegex.test(phone)) {
             _context2.next = 5;
             break;
           }
           return _context2.abrupt("return", res.status(400).send("El teléfono debe contener 10 caracteres numéricos"));
         case 5:
-          _context2.next = 7;
+          _context2.prev = 5;
+          _context2.next = 8;
+          return admin.auth().getUserByEmail(email);
+        case 8:
+          userRecord = _context2.sent;
+          _context2.next = 11;
+          return admin.auth().updateUser(userRecord.uid, {
+            email: email,
+            password: password,
+            phoneNumber: "+58".concat(phone),
+            displayName: Nombre,
+            disabled: false
+          });
+        case 11:
+          userRecord = _context2.sent;
+          _context2.next = 23;
+          break;
+        case 14:
+          _context2.prev = 14;
+          _context2.t0 = _context2["catch"](5);
+          if (!(_context2.t0.code === "auth/user-not-found")) {
+            _context2.next = 22;
+            break;
+          }
+          _context2.next = 19;
           return admin.auth().createUser({
             email: email,
             password: password,
@@ -79,10 +111,15 @@ var SaveClient = /*#__PURE__*/function () {
             displayName: Nombre,
             disabled: false
           });
-        case 7:
+        case 19:
           userRecord = _context2.sent;
-          // Obtener el UID generado por Firebase Authentication
-          uid = userRecord.uid; // Crear el objeto que se guardará en la colección "Usuarios"
+          _context2.next = 23;
+          break;
+        case 22:
+          throw _context2.t0;
+        case 23:
+          // Obtener el UID del usuario
+          uid = userRecord.uid; // Crear o actualizar el documento en la colección "Usuarios"
           infoUserCreated = {
             uid: uid,
             nombre: Nombre,
@@ -90,62 +127,64 @@ var SaveClient = /*#__PURE__*/function () {
             phone: phone,
             typeUser: "Cliente",
             email: email
-          }; // Guardar el objeto en la colección "Usuarios"
-          _context2.next = 12;
-          return db.collection("Usuarios").doc(uid).set(infoUserCreated);
-        case 12:
-          // Responder con el ID del documento creado y un mensaje de éxito
+          };
+          _context2.next = 27;
+          return db.collection("Usuarios").doc(uid).set(infoUserCreated, {
+            merge: true
+          });
+        case 27:
+          // Responder con el ID del documento creado o actualizado
           res.status(201).send({
-            message: "Usuario creado con éxito",
+            message: "Usuario guardado con éxito",
             uid: uid
           });
-          _context2.next = 33;
+          _context2.next = 48;
           break;
-        case 15:
-          _context2.prev = 15;
-          _context2.t0 = _context2["catch"](0);
-          console.error("Error al guardar el usuario:", _context2.t0);
+        case 30:
+          _context2.prev = 30;
+          _context2.t1 = _context2["catch"](0);
+          console.error("Error al guardar el usuario:", _context2.t1);
 
           // Manejar errores específicos de Firebase
-          if (!(_context2.t0.code === "auth/email-already-exists")) {
-            _context2.next = 22;
+          if (!(_context2.t1.code === "auth/email-already-exists")) {
+            _context2.next = 37;
             break;
           }
           return _context2.abrupt("return", res.status(400).send({
             message: "El correo electrónico ya está en uso"
           }));
-        case 22:
-          if (!(_context2.t0.code === "auth/invalid-email")) {
-            _context2.next = 26;
+        case 37:
+          if (!(_context2.t1.code === "auth/invalid-email")) {
+            _context2.next = 41;
             break;
           }
           return _context2.abrupt("return", res.status(400).send({
             message: "El correo electrónico proporcionado no es válido"
           }));
-        case 26:
-          if (!(_context2.t0.code === "auth/weak-password")) {
-            _context2.next = 30;
+        case 41:
+          if (!(_context2.t1.code === "auth/weak-password")) {
+            _context2.next = 45;
             break;
           }
           return _context2.abrupt("return", res.status(400).send({
             message: "La contraseña es demasiado débil"
           }));
-        case 30:
-          if (!(_context2.t0.code === "auth/phone-number-already-exists")) {
-            _context2.next = 32;
+        case 45:
+          if (!(_context2.t1.code === "auth/phone-number-already-exists")) {
+            _context2.next = 47;
             break;
           }
           return _context2.abrupt("return", res.status(400).send({
-            message: "El numero telefonico ya existe"
+            message: "El número telefónico ya existe"
           }));
-        case 32:
+        case 47:
           // En caso de un error inesperado
           res.status(500).send("Error al guardar el usuario");
-        case 33:
+        case 48:
         case "end":
           return _context2.stop();
       }
-    }, _callee2, null, [[0, 15]]);
+    }, _callee2, null, [[0, 30], [5, 14]]);
   }));
   return function SaveClient(_x3, _x4) {
     return _ref2.apply(this, arguments);
@@ -279,41 +318,57 @@ var SaveTaller = /*#__PURE__*/function () {
     return _ref3.apply(this, arguments);
   };
 }();
+
+// Función para autenticar usuarios
 var authenticateUser = /*#__PURE__*/function () {
   var _ref4 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee4(req, res) {
-    var email, result, resultAdmin, adminData, userData;
+    var _req$body3, email, password, userCredential, user, result, resultAdmin, adminData, userData;
     return _regeneratorRuntime().wrap(function _callee4$(_context4) {
       while (1) switch (_context4.prev = _context4.next) {
         case 0:
           _context4.prev = 0;
-          email = req.body.email;
-          console.log(email);
-          console.log(req.body);
-
-          // Buscar en la colección "Usuarios" por email
-          _context4.next = 6;
-          return db.collection("Usuarios").where("email", "==", email).get();
-        case 6:
-          result = _context4.sent;
-          if (!result.empty) {
-            _context4.next = 20;
+          _req$body3 = req.body, email = _req$body3.email, password = _req$body3.password; // Validar que se proporcione el email y la contraseña
+          if (!(!email || !password)) {
+            _context4.next = 4;
             break;
           }
-          console.log("No se encontró el usuario en la colección Usuarios");
-
-          // Buscar en la colección "Admins" si no se encuentra en "Usuarios"
-          _context4.next = 11;
+          return _context4.abrupt("return", res.status(400).send({
+            message: "Email y contraseña son requeridos"
+          }));
+        case 4:
+          _context4.next = 6;
+          return signInWithEmailAndPassword(auth, email, password);
+        case 6:
+          userCredential = _context4.sent;
+          user = userCredential.user; // Verificar si el usuario está autenticado
+          if (user) {
+            _context4.next = 10;
+            break;
+          }
+          return _context4.abrupt("return", res.status(404).send({
+            message: "Usuario no encontrado"
+          }));
+        case 10:
+          _context4.next = 12;
+          return db.collection("Usuarios").where("email", "==", email).get();
+        case 12:
+          result = _context4.sent;
+          if (!result.empty) {
+            _context4.next = 25;
+            break;
+          }
+          _context4.next = 16;
           return db.collection("Admins").where("email", "==", email).get();
-        case 11:
+        case 16:
           resultAdmin = _context4.sent;
           if (!resultAdmin.empty) {
-            _context4.next = 16;
+            _context4.next = 21;
             break;
           }
           return _context4.abrupt("return", res.status(404).send({
             message: "Usuario no encontrado ni en Usuarios ni en Admins"
           }));
-        case 16:
+        case 21:
           // Si se encuentra en "Admins", devolver los datos del usuario y el UID del documento
           adminData = resultAdmin.docs.map(function (doc) {
             return _objectSpread({
@@ -324,10 +379,10 @@ var authenticateUser = /*#__PURE__*/function () {
             message: "Usuario autenticado exitosamente como Admin",
             userData: adminData[0] // Enviar el primer documento encontrado con el UID
           }));
-        case 18:
-          _context4.next = 22;
+        case 23:
+          _context4.next = 27;
           break;
-        case 20:
+        case 25:
           // Si se encuentra en "Usuarios", devolver los datos del usuario y el UID del documento
           userData = result.docs.map(function (doc) {
             return _objectSpread({
@@ -338,30 +393,39 @@ var authenticateUser = /*#__PURE__*/function () {
             message: "Usuario autenticado exitosamente",
             userData: userData[0] // Enviar el primer documento encontrado con el UID
           }));
-        case 22:
-          _context4.next = 32;
+        case 27:
+          _context4.next = 41;
           break;
-        case 24:
-          _context4.prev = 24;
+        case 29:
+          _context4.prev = 29;
           _context4.t0 = _context4["catch"](0);
+          // Manejo de errores
+          console.error("Error al autenticar al usuario:", _context4.t0);
           if (!(_context4.t0.code === "auth/user-not-found")) {
-            _context4.next = 30;
+            _context4.next = 36;
             break;
           }
           return _context4.abrupt("return", res.status(404).send({
             message: "Usuario no encontrado en Firebase Authentication"
           }));
-        case 30:
-          console.error("Error al autenticar al usuario:", _context4.t0);
+        case 36:
+          if (!(_context4.t0.code === "auth/wrong-password")) {
+            _context4.next = 40;
+            break;
+          }
+          return _context4.abrupt("return", res.status(401).send({
+            message: "Contraseña incorrecta"
+          }));
+        case 40:
           return _context4.abrupt("return", res.status(500).send({
             message: "Error al autenticar al usuario",
             error: _context4.t0.message // Incluir detalles para depuración
           }));
-        case 32:
+        case 41:
         case "end":
           return _context4.stop();
       }
-    }, _callee4, null, [[0, 24]]);
+    }, _callee4, null, [[0, 29]]);
   }));
   return function authenticateUser(_x7, _x8) {
     return _ref4.apply(this, arguments);
@@ -609,13 +673,13 @@ var getTalleres = /*#__PURE__*/function () {
 }();
 var actualizarStatusUsuario = /*#__PURE__*/function () {
   var _ref10 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee10(req, res) {
-    var _req$body3, uid, nuevoStatus;
+    var _req$body4, uid, nuevoStatus;
     return _regeneratorRuntime().wrap(function _callee10$(_context10) {
       while (1) switch (_context10.prev = _context10.next) {
         case 0:
           _context10.prev = 0;
           // Obtener el UID y el nuevo estado desde el cuerpo de la solicitud
-          _req$body3 = req.body, uid = _req$body3.uid, nuevoStatus = _req$body3.nuevoStatus; // Verificar que se haya proporcionado un UID y un nuevo estado
+          _req$body4 = req.body, uid = _req$body4.uid, nuevoStatus = _req$body4.nuevoStatus; // Verificar que se haya proporcionado un UID y un nuevo estado
           if (!(!uid || !nuevoStatus)) {
             _context10.next = 4;
             break;
@@ -652,13 +716,13 @@ var actualizarStatusUsuario = /*#__PURE__*/function () {
 }();
 var UpdateTaller = /*#__PURE__*/function () {
   var _ref11 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee11(req, res) {
-    var _req$body4, uid, nombre, rif, phone, email, Direccion, RegComercial, Caracteristicas, Tarifa, Experiencia, LinkFacebook, LinkInstagram, LinkTiktok, Garantia, seguro, agenteAutorizado, updatedUserInfo;
+    var _req$body5, uid, nombre, rif, phone, email, Direccion, RegComercial, Caracteristicas, Tarifa, Experiencia, LinkFacebook, LinkInstagram, LinkTiktok, Garantia, seguro, agenteAutorizado, updatedUserInfo;
     return _regeneratorRuntime().wrap(function _callee11$(_context11) {
       while (1) switch (_context11.prev = _context11.next) {
         case 0:
           _context11.prev = 0;
           // Recibir los datos del cliente desde el cuerpo de la solicitud
-          _req$body4 = req.body, uid = _req$body4.uid, nombre = _req$body4.nombre, rif = _req$body4.rif, phone = _req$body4.phone, email = _req$body4.email, Direccion = _req$body4.Direccion, RegComercial = _req$body4.RegComercial, Caracteristicas = _req$body4.Caracteristicas, Tarifa = _req$body4.Tarifa, Experiencia = _req$body4.Experiencia, LinkFacebook = _req$body4.LinkFacebook, LinkInstagram = _req$body4.LinkInstagram, LinkTiktok = _req$body4.LinkTiktok, Garantia = _req$body4.Garantia, seguro = _req$body4.seguro, agenteAutorizado = _req$body4.agenteAutorizado; // Crear el objeto con los datos que se actualizarán en la colección "Usuarios"
+          _req$body5 = req.body, uid = _req$body5.uid, nombre = _req$body5.nombre, rif = _req$body5.rif, phone = _req$body5.phone, email = _req$body5.email, Direccion = _req$body5.Direccion, RegComercial = _req$body5.RegComercial, Caracteristicas = _req$body5.Caracteristicas, Tarifa = _req$body5.Tarifa, Experiencia = _req$body5.Experiencia, LinkFacebook = _req$body5.LinkFacebook, LinkInstagram = _req$body5.LinkInstagram, LinkTiktok = _req$body5.LinkTiktok, Garantia = _req$body5.Garantia, seguro = _req$body5.seguro, agenteAutorizado = _req$body5.agenteAutorizado; // Crear el objeto con los datos que se actualizarán en la colección "Usuarios"
           updatedUserInfo = {
             uid: uid,
             nombre: nombre == undefined ? '' : nombre,
@@ -710,13 +774,13 @@ var UpdateTaller = /*#__PURE__*/function () {
 }();
 var UpdateClient = /*#__PURE__*/function () {
   var _ref12 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee12(req, res) {
-    var _req$body5, uid, Nombre, cedula, phone, email, updatedUserInfo;
+    var _req$body6, uid, Nombre, cedula, phone, email, updatedUserInfo;
     return _regeneratorRuntime().wrap(function _callee12$(_context12) {
       while (1) switch (_context12.prev = _context12.next) {
         case 0:
           _context12.prev = 0;
           // Recibir los datos del cliente desde el cuerpo de la solicitud
-          _req$body5 = req.body, uid = _req$body5.uid, Nombre = _req$body5.Nombre, cedula = _req$body5.cedula, phone = _req$body5.phone, email = _req$body5.email; // Crear el objeto que se actualizará en la colección "Usuarios"
+          _req$body6 = req.body, uid = _req$body6.uid, Nombre = _req$body6.Nombre, cedula = _req$body6.cedula, phone = _req$body6.phone, email = _req$body6.email; // Crear el objeto que se actualizará en la colección "Usuarios"
           updatedUserInfo = {
             nombre: Nombre,
             cedula: cedula,

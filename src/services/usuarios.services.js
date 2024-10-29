@@ -1,6 +1,15 @@
 const admin = require("firebase-admin");
 const { db } = require("../firebase");
 
+const { getAuth, signInWithEmailAndPassword } = require("firebase/auth");
+const { getFirestore } = require("firebase-admin/firestore");
+const { app } = require('../../firebaseConfig'); // Asegúrate de la ruta correcta
+
+// Inicializar Firebase Auth y Firestore
+const auth = getAuth(app); // Obtener la instancia de autenticación
+// const db = getFirestore(); // Inicializar Firestore
+
+
 const nodemailer = require("nodemailer");
 
 const getUsuarios = async (req, res) => {
@@ -26,32 +35,47 @@ const SaveClient = async (req, res) => {
     // Recibir los datos del cliente desde el cuerpo de la solicitud
     const { Nombre, cedula, phone, email, password } = req.body;
 
-    // Validar la entrada
-    // if (!Nombre || !cedula || !phone || !email || !password) {
-    //     return res.status(400).send('Todos los campos son requeridos');
-    // }
-
     // Validar el formato del teléfono (ejemplo: debe tener 10 dígitos)
-    const phoneRegex = /^\d{10}$/; // Cambiar a la longitud deseada
+    const phoneRegex = /^\d{10}$/;
     if (!phoneRegex.test(phone)) {
       return res
         .status(400)
         .send("El teléfono debe contener 10 caracteres numéricos");
     }
 
-    // Crear el usuario en Firebase Authentication
-    const userRecord = await admin.auth().createUser({
-      email: email,
-      password: password,
-      phoneNumber: `+58${phone}`,
-      displayName: Nombre,
-      disabled: false,
-    });
+    let userRecord;
+    try {
+      // Intentar obtener el usuario por email
+      userRecord = await admin.auth().getUserByEmail(email);
 
-    // Obtener el UID generado por Firebase Authentication
+      // Si existe, actualizar la clave y otros detalles
+      userRecord = await admin.auth().updateUser(userRecord.uid, {
+        email: email,
+        password: password,
+        phoneNumber: `+58${phone}`,
+        displayName: Nombre,
+        disabled: false,
+      });
+    } catch (error) {
+      if (error.code === "auth/user-not-found") {
+        // Si no existe, crearlo
+        userRecord = await admin.auth().createUser({
+          email: email,
+          password: password,
+          phoneNumber: `+58${phone}`,
+          displayName: Nombre,
+          disabled: false,
+        });
+      } else {
+        // Si otro error ocurre, lanzarlo
+        throw error;
+      }
+    }
+
+    // Obtener el UID del usuario
     const uid = userRecord.uid;
 
-    // Crear el objeto que se guardará en la colección "Usuarios"
+    // Crear o actualizar el documento en la colección "Usuarios"
     const infoUserCreated = {
       uid: uid,
       nombre: Nombre,
@@ -61,37 +85,29 @@ const SaveClient = async (req, res) => {
       email: email,
     };
 
-    // Guardar el objeto en la colección "Usuarios"
-    await db.collection("Usuarios").doc(uid).set(infoUserCreated);
+    await db.collection("Usuarios").doc(uid).set(infoUserCreated, { merge: true });
 
-    // Responder con el ID del documento creado y un mensaje de éxito
-    res.status(201).send({ message: "Usuario creado con éxito", uid: uid });
+    // Responder con el ID del documento creado o actualizado
+    res.status(201).send({ message: "Usuario guardado con éxito", uid: uid });
   } catch (error) {
     console.error("Error al guardar el usuario:", error);
 
     // Manejar errores específicos de Firebase
     if (error.code === "auth/email-already-exists") {
-      return res
-        .status(400)
-        .send({ message: "El correo electrónico ya está en uso" });
+      return res.status(400).send({ message: "El correo electrónico ya está en uso" });
     } else if (error.code === "auth/invalid-email") {
-      return res
-        .status(400)
-        .send({ message: "El correo electrónico proporcionado no es válido" });
+      return res.status(400).send({ message: "El correo electrónico proporcionado no es válido" });
     } else if (error.code === "auth/weak-password") {
-      return res
-        .status(400)
-        .send({ message: "La contraseña es demasiado débil" });
+      return res.status(400).send({ message: "La contraseña es demasiado débil" });
     } else if (error.code === "auth/phone-number-already-exists") {
-      return res
-        .status(400)
-        .send({ message: "El numero telefonico ya existe" });
+      return res.status(400).send({ message: "El número telefónico ya existe" });
     }
 
     // En caso de un error inesperado
     res.status(500).send("Error al guardar el usuario");
   }
 };
+
 
 const SaveTaller = async (req, res) => {
   try {
@@ -177,27 +193,31 @@ const SaveTaller = async (req, res) => {
   }
 };
 
+// Función para autenticar usuarios
 const authenticateUser = async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, password } = req.body;
 
-    console.log(email)
-    console.log(req.body)
+    // Validar que se proporcione el email y la contraseña
+    if (!email || !password) {
+      return res.status(400).send({ message: "Email y contraseña son requeridos" });
+    }
+
+    // Autenticar al usuario con Firebase
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
+
+    // Verificar si el usuario está autenticado
+    if (!user) {
+      return res.status(404).send({ message: "Usuario no encontrado" });
+    }
 
     // Buscar en la colección "Usuarios" por email
-    const result = await db
-      .collection("Usuarios")
-      .where("email", "==", email)
-      .get();
+    const result = await db.collection("Usuarios").where("email", "==", email).get();
 
     if (result.empty) {
-      console.log("No se encontró el usuario en la colección Usuarios");
-
-      // Buscar en la colección "Admins" si no se encuentra en "Usuarios"
-      const resultAdmin = await db
-        .collection("Admins")
-        .where("email", "==", email)
-        .get();
+      // Si no se encuentra en "Usuarios", buscar en "Admins"
+      const resultAdmin = await db.collection("Admins").where("email", "==", email).get();
 
       if (resultAdmin.empty) {
         // Si tampoco se encuentra en "Admins", devolver un error 404
@@ -207,7 +227,7 @@ const authenticateUser = async (req, res) => {
       } else {
         // Si se encuentra en "Admins", devolver los datos del usuario y el UID del documento
         const adminData = resultAdmin.docs.map((doc) => ({
-          uid: doc.id, // Incluye el UID del documento
+          uid: doc.id, // Incluir el UID del documento
           ...doc.data(),
         }));
         return res.status(200).send({
@@ -218,7 +238,7 @@ const authenticateUser = async (req, res) => {
     } else {
       // Si se encuentra en "Usuarios", devolver los datos del usuario y el UID del documento
       const userData = result.docs.map((doc) => ({
-        uid: doc.id, // Incluye el UID del documento
+        uid: doc.id, // Incluir el UID del documento
         ...doc.data(),
       }));
       return res.status(200).send({
@@ -228,12 +248,16 @@ const authenticateUser = async (req, res) => {
     }
   } catch (error) {
     // Manejo de errores
+    console.error("Error al autenticar al usuario:", error);
     if (error.code === "auth/user-not-found") {
       return res.status(404).send({
         message: "Usuario no encontrado en Firebase Authentication",
       });
+    } else if (error.code === "auth/wrong-password") {
+      return res.status(401).send({
+        message: "Contraseña incorrecta",
+      });
     } else {
-      console.error("Error al autenticar al usuario:", error);
       return res.status(500).send({
         message: "Error al autenticar al usuario",
         error: error.message, // Incluir detalles para depuración
