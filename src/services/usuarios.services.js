@@ -3,12 +3,11 @@ const { db } = require("../firebase");
 
 const { getAuth, signInWithEmailAndPassword } = require("firebase/auth");
 const { getFirestore } = require("firebase-admin/firestore");
-const { app } = require('../../firebaseConfig'); // Asegúrate de la ruta correcta
+const { app } = require("../../firebaseConfig"); // Asegúrate de la ruta correcta
 
 // Inicializar Firebase Auth y Firestore
 const auth = getAuth(app); // Obtener la instancia de autenticación
 // const db = getFirestore(); // Inicializar Firestore
-
 
 const nodemailer = require("nodemailer");
 
@@ -28,7 +27,6 @@ const getUsuarios = async (req, res) => {
     res.status(500).send(`Error al obtener usuarios: ${error.message}`); // Muestra el mensaje del error
   }
 };
-
 
 const SaveClient = async (req, res) => {
   try {
@@ -85,7 +83,10 @@ const SaveClient = async (req, res) => {
       email: email,
     };
 
-    await db.collection("Usuarios").doc(uid).set(infoUserCreated, { merge: true });
+    await db
+      .collection("Usuarios")
+      .doc(uid)
+      .set(infoUserCreated, { merge: true });
 
     // Responder con el ID del documento creado o actualizado
     res.status(201).send({ message: "Usuario guardado con éxito", uid: uid });
@@ -94,20 +95,27 @@ const SaveClient = async (req, res) => {
 
     // Manejar errores específicos de Firebase
     if (error.code === "auth/email-already-exists") {
-      return res.status(400).send({ message: "El correo electrónico ya está en uso" });
+      return res
+        .status(400)
+        .send({ message: "El correo electrónico ya está en uso" });
     } else if (error.code === "auth/invalid-email") {
-      return res.status(400).send({ message: "El correo electrónico proporcionado no es válido" });
+      return res
+        .status(400)
+        .send({ message: "El correo electrónico proporcionado no es válido" });
     } else if (error.code === "auth/weak-password") {
-      return res.status(400).send({ message: "La contraseña es demasiado débil" });
+      return res
+        .status(400)
+        .send({ message: "La contraseña es demasiado débil" });
     } else if (error.code === "auth/phone-number-already-exists") {
-      return res.status(400).send({ message: "El número telefónico ya existe" });
+      return res
+        .status(400)
+        .send({ message: "El número telefónico ya existe" });
     }
 
     // En caso de un error inesperado
     res.status(500).send("Error al guardar el usuario");
   }
 };
-
 
 const SaveTaller = async (req, res) => {
   try {
@@ -200,11 +208,17 @@ const authenticateUser = async (req, res) => {
 
     // Validar que se proporcione el email y la contraseña
     if (!email || !password) {
-      return res.status(400).send({ message: "Email y contraseña son requeridos" });
+      return res
+        .status(400)
+        .send({ message: "Email y contraseña son requeridos" });
     }
 
     // Autenticar al usuario con Firebase
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const userCredential = await signInWithEmailAndPassword(
+      auth,
+      email,
+      password
+    );
     const user = userCredential.user;
 
     // Verificar si el usuario está autenticado
@@ -213,11 +227,17 @@ const authenticateUser = async (req, res) => {
     }
 
     // Buscar en la colección "Usuarios" por email
-    const result = await db.collection("Usuarios").where("email", "==", email).get();
+    const result = await db
+      .collection("Usuarios")
+      .where("email", "==", email)
+      .get();
 
     if (result.empty) {
       // Si no se encuentra en "Usuarios", buscar en "Admins"
-      const resultAdmin = await db.collection("Admins").where("email", "==", email).get();
+      const resultAdmin = await db
+        .collection("Admins")
+        .where("email", "==", email)
+        .get();
 
       if (resultAdmin.empty) {
         // Si tampoco se encuentra en "Admins", devolver un error 404
@@ -278,17 +298,17 @@ const getUserByUid = async (req, res) => {
 
     // Verificar si el documento existe
     if (userDoc.exists) {
-      console.log("Existe")
-      console.log(userDoc)
-      console.log("***********************************************")
-      console.log(userDoc.data())
+      console.log("Existe");
+      console.log(userDoc);
+      console.log("***********************************************");
+      console.log(userDoc.data());
       // Si el documento existe, devolver los datos del usuario
       return res.status(200).send({
         message: "Usuario encontrado",
         userData: userDoc.data(), // Devuelve los datos del documento
       });
     } else {
-      console.log("No Existe")
+      console.log("No Existe");
       // Si el documento no existe, devolver un mensaje de error
       return res.status(404).send({
         message: "No se encontró el usuario con el UID proporcionado",
@@ -296,7 +316,7 @@ const getUserByUid = async (req, res) => {
     }
   } catch (error) {
     console.error("Error al obtener el usuario por UID:", error);
-    console.log("Dio errro")
+    console.log("Dio errro");
     res.status(500).send("Error al obtener el usuario");
   }
 };
@@ -399,8 +419,6 @@ const getTalleres = async (req, res) => {
       .where("typeUser", "==", "Taller") // Filtrar documentos por typeUser
       .get();
 
-      
-
     if (result.empty) {
       return res
         .status(404)
@@ -446,54 +464,75 @@ const actualizarStatusUsuario = async (req, res) => {
   }
 };
 
-
 const UpdateTaller = async (req, res) => {
   try {
     // Recibir los datos del cliente desde el cuerpo de la solicitud
-    const { uid, nombre, rif, phone, email, Direccion, RegComercial, Caracteristicas, Tarifa, Experiencia, LinkFacebook, LinkInstagram, LinkTiktok, Garantia, seguro, agenteAutorizado } = req.body;
+    const {
+      uid,
+      nombre,
+      rif,
+      phone,
+      email,
+      Direccion,
+      RegComercial,
+      Caracteristicas,
+      Tarifa,
+      Experiencia,
+      LinkFacebook,
+      LinkInstagram,
+      LinkTiktok,
+      Garantia,
+      seguro,
+      agenteAutorizado,
+    } = req.body;
 
     // Crear el objeto con los datos que se actualizarán en la colección "Usuarios"
     const updatedUserInfo = {
       uid: uid,
-      nombre: nombre == undefined ? '' : nombre,
-      rif: rif == undefined ? '' : rif,
-      phone: phone == undefined ? '' : phone,
-      typeUser: 'Taller',
-      email: email == undefined ? '' : email,
-      Direccion: Direccion == undefined ? '' : Direccion,
-      RegComercial: RegComercial == undefined ? '' : RegComercial,
-      Caracteristicas: Caracteristicas == undefined ? '' : Caracteristicas,
-      Tarifa: Tarifa == undefined ? '' : Tarifa,
-      Experiencia: Experiencia == undefined ? '' : Experiencia,
-      LinkFacebook: LinkFacebook == undefined ? '' : LinkFacebook,
-      LinkInstagram: LinkInstagram == undefined ? '' : LinkInstagram,
-      LinkTiktok: LinkTiktok == undefined ? '' : LinkTiktok,
-      Garantia: Garantia == undefined ? '' : Garantia,
-      seguro: seguro == undefined ? '' : seguro,
-      agenteAutorizado: agenteAutorizado == undefined ? false : agenteAutorizado,
+      nombre: nombre == undefined ? "" : nombre,
+      rif: rif == undefined ? "" : rif,
+      phone: phone == undefined ? "" : phone,
+      typeUser: "Taller",
+      email: email == undefined ? "" : email,
+      Direccion: Direccion == undefined ? "" : Direccion,
+      RegComercial: RegComercial == undefined ? "" : RegComercial,
+      Caracteristicas: Caracteristicas == undefined ? "" : Caracteristicas,
+      Tarifa: Tarifa == undefined ? "" : Tarifa,
+      Experiencia: Experiencia == undefined ? "" : Experiencia,
+      LinkFacebook: LinkFacebook == undefined ? "" : LinkFacebook,
+      LinkInstagram: LinkInstagram == undefined ? "" : LinkInstagram,
+      LinkTiktok: LinkTiktok == undefined ? "" : LinkTiktok,
+      Garantia: Garantia == undefined ? "" : Garantia,
+      seguro: seguro == undefined ? "" : seguro,
+      agenteAutorizado:
+        agenteAutorizado == undefined ? false : agenteAutorizado,
     };
 
     // Actualizar el documento en la colección "Usuarios" con el UID proporcionado
     await db.collection("Usuarios").doc(uid).update(updatedUserInfo);
 
     // Responder con un mensaje de éxito
-    res.status(200).send({ message: "Usuario actualizado con éxito", uid: uid });
+    res
+      .status(200)
+      .send({ message: "Usuario actualizado con éxito", uid: uid });
   } catch (error) {
     console.error("Error al actualizar el usuario:", error);
 
     // En caso de error, responder con el mensaje correspondiente
-    res.status(500).send({ message: "Error al actualizar el usuario", error: error.message });
+    res
+      .status(500)
+      .send({
+        message: "Error al actualizar el usuario",
+        error: error.message,
+      });
   }
 };
-
-
 
 const UpdateClient = async (req, res) => {
   try {
     // Recibir los datos del cliente desde el cuerpo de la solicitud
     const { uid, Nombre, cedula, phone, email } = req.body;
 
-  
     // Crear el objeto que se actualizará en la colección "Usuarios"
     const updatedUserInfo = {
       nombre: Nombre,
@@ -501,14 +540,16 @@ const UpdateClient = async (req, res) => {
       phone: phone,
       typeUser: "Cliente",
       email: email,
-      uid:uid
+      uid: uid,
     };
 
     // Actualizar el documento en la colección "Usuarios" con el UID proporcionado
     await db.collection("Usuarios").doc(uid).update(updatedUserInfo);
 
     // Responder con un mensaje de éxito
-    res.status(200).send({ message: "Usuario actualizado con éxito", uid: uid });
+    res
+      .status(200)
+      .send({ message: "Usuario actualizado con éxito", uid: uid });
   } catch (error) {
     console.error("Error al actualizar el usuario:", error);
 
@@ -516,6 +557,159 @@ const UpdateClient = async (req, res) => {
     res.status(500).send("Error al actualizar el usuario");
   }
 };
+
+const getServicesByTalleruid = async (req, res) => {
+  try {
+    // Obtener el UID_TALLER desde el cuerpo de la solicitud
+    const { uid_taller } = req.body;
+
+    console.log(uid_taller);
+
+    // Buscar en la colección "Servicios" los documentos donde uid_taller coincide
+    const servicesSnapshot = await db
+      .collection("Servicios")
+      .where("uid_taller", "==", uid_taller)
+      .get();
+
+    // Verificar si existen documentos con el uid_taller proporcionado
+    if (servicesSnapshot.empty) {
+      console.log(
+        "No se encontraron servicios para el UID_TALLER proporcionado"
+      );
+      return res.status(404).send({
+        message: "No se encontraron servicios para el UID_TALLER proporcionado",
+      });
+    }
+
+    // Mapear los datos de los documentos encontrados en un array
+    const services = servicesSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    // Enviar los servicios encontrados
+    return res.status(200).send({
+      message: "Servicios encontrados",
+      services,
+    });
+  } catch (error) {
+    console.error("Error al obtener los servicios por UID_TALLER:", error);
+    res.status(500).send("Error al obtener los servicios");
+  }
+};
+
+const getServiceByUid = async (req, res) => {
+  try {
+    // Obtener el UID del servicio desde el cuerpo de la solicitud
+    const { uid } = req.body;
+
+    console.log("UID del servicio:", uid);
+
+    // Buscar el documento en la colección "Servicios" donde el campo "uid" coincide
+    const serviceSnapshot = await db
+      .collection("Servicios")
+      .doc(uid)
+      .get();
+
+    // Verificar si el documento existe
+    if (!serviceSnapshot.exists) {
+      console.log("No se encontró el servicio con el UID proporcionado");
+      return res.status(404).send({
+        message: "No se encontró el servicio con el UID proporcionado",
+      });
+    }
+
+    // Obtener los datos del documento encontrado
+    const serviceData = {
+      id: serviceSnapshot.id,
+      ...serviceSnapshot.data(),
+    };
+
+    // Enviar el servicio encontrado
+    return res.status(200).send({
+      message: "Servicio encontrado",
+      service: serviceData,
+    });
+  } catch (error) {
+    console.error("Error al obtener el servicio por UID:", error);
+    res.status(500).send("Error al obtener el servicio");
+  }
+};
+
+const getActiveCategories = async (req, res) => {
+  try {
+    // Consultar la colección "Categorias" donde el campo "estatus" es true
+    const categoriesSnapshot = await db
+      .collection("Categorias")
+      .where("estatus", "==", true)
+      .get();
+
+    // Verificar si existen documentos con estatus true
+    if (categoriesSnapshot.empty) {
+      console.log("No se encontraron categorías activas");
+      return res.status(404).send({
+        message: "No se encontraron categorías activas",
+      });
+    }
+
+    // Mapear los datos de los documentos encontrados en un array
+    const categories = categoriesSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    // Enviar las categorías activas encontradas
+    return res.status(200).send({
+      message: "Categorías activas encontradas",
+      categories,
+    });
+  } catch (error) {
+    console.error("Error al obtener las categorías activas:", error);
+    res.status(500).send("Error al obtener las categorías activas");
+  }
+};
+
+const getSubcategoriesByCategoryUid = async (req, res) => {
+  try {
+    // Obtener el UID de la categoría desde el cuerpo de la solicitud
+    const { uid_categoria } = req.body;
+
+    console.log(`UID de la categoría: ${uid_categoria}`);
+
+    // Referencia a la subcolección "Subcategoría" dentro del documento de la categoría especificada
+    const subcategoriesSnapshot = await db
+      .collection("Categorias")
+      .doc(uid_categoria)
+      .collection("Subcategorias")
+      .where("estatus", "==", true) // Filtro para obtener solo subcategorías activas
+      .get();
+
+    // Verificar si existen documentos en la subcolección
+    if (subcategoriesSnapshot.empty) {
+      console.log("No se encontraron subcategorías para la categoría proporcionada");
+      return res.status(404).send({
+        message: "No se encontraron subcategorías para la categoría proporcionada",
+      });
+    }
+
+    // Mapear los datos de los documentos encontrados en un array
+    const subcategories = subcategoriesSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    // Enviar las subcategorías encontradas
+    return res.status(200).send({
+      message: "Subcategorías encontradas",
+      subcategories,
+    });
+  } catch (error) {
+    console.error("Error al obtener las subcategorías por UID de categoría:", error);
+    res.status(500).send("Error al obtener las subcategorías");
+  }
+};
+
+
 
 
 module.exports = {
@@ -529,5 +723,9 @@ module.exports = {
   getTalleres,
   actualizarStatusUsuario,
   UpdateClient,
-  UpdateTaller
+  UpdateTaller,
+  getServicesByTalleruid,
+  getServiceByUid,
+  getActiveCategories,
+  getSubcategoriesByCategoryUid
 };

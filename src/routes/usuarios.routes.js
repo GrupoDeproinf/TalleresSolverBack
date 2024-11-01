@@ -11,7 +11,7 @@ router.post('/SaveTaller', Usuarios.SaveTaller);
 
 router.post('/authenticateUser', Usuarios.authenticateUser);  
 
-router.post('/getUserByUid', Usuarios.getUserByUid);  
+router.post('/getUserByUid', Usuarios.getUserByUid);
 
 router.post('/SaveTallerAll', Usuarios.SaveTallerAll); 
 
@@ -23,7 +23,15 @@ router.post('/actualizarStatusUsuario', Usuarios.actualizarStatusUsuario);
 
 router.post('/UpdateClient', Usuarios.UpdateClient);     
 
-router.post('/UpdateTaller', Usuarios.UpdateTaller);     
+router.post('/UpdateTaller', Usuarios.UpdateTaller);   
+
+router.post('/getServicesByTalleruid', Usuarios.getServicesByTalleruid); 
+
+router.post('/getServiceByUid', Usuarios.getServiceByUid); 
+
+router.get('/getActiveCategories', Usuarios.getActiveCategories);   
+
+router.get('/getSubcategoriesByCategoryUid', Usuarios.getSubcategoriesByCategoryUid);   
 
 
 

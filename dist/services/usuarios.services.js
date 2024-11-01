@@ -17,7 +17,7 @@ var _require2 = require("firebase/auth"),
   signInWithEmailAndPassword = _require2.signInWithEmailAndPassword;
 var _require3 = require("firebase-admin/firestore"),
   getFirestore = _require3.getFirestore;
-var _require4 = require('../../firebaseConfig'),
+var _require4 = require("../../firebaseConfig"),
   app = _require4.app; // Asegúrate de la ruta correcta
 
 // Inicializar Firebase Auth y Firestore
@@ -725,21 +725,21 @@ var UpdateTaller = /*#__PURE__*/function () {
           _req$body5 = req.body, uid = _req$body5.uid, nombre = _req$body5.nombre, rif = _req$body5.rif, phone = _req$body5.phone, email = _req$body5.email, Direccion = _req$body5.Direccion, RegComercial = _req$body5.RegComercial, Caracteristicas = _req$body5.Caracteristicas, Tarifa = _req$body5.Tarifa, Experiencia = _req$body5.Experiencia, LinkFacebook = _req$body5.LinkFacebook, LinkInstagram = _req$body5.LinkInstagram, LinkTiktok = _req$body5.LinkTiktok, Garantia = _req$body5.Garantia, seguro = _req$body5.seguro, agenteAutorizado = _req$body5.agenteAutorizado; // Crear el objeto con los datos que se actualizarán en la colección "Usuarios"
           updatedUserInfo = {
             uid: uid,
-            nombre: nombre == undefined ? '' : nombre,
-            rif: rif == undefined ? '' : rif,
-            phone: phone == undefined ? '' : phone,
-            typeUser: 'Taller',
-            email: email == undefined ? '' : email,
-            Direccion: Direccion == undefined ? '' : Direccion,
-            RegComercial: RegComercial == undefined ? '' : RegComercial,
-            Caracteristicas: Caracteristicas == undefined ? '' : Caracteristicas,
-            Tarifa: Tarifa == undefined ? '' : Tarifa,
-            Experiencia: Experiencia == undefined ? '' : Experiencia,
-            LinkFacebook: LinkFacebook == undefined ? '' : LinkFacebook,
-            LinkInstagram: LinkInstagram == undefined ? '' : LinkInstagram,
-            LinkTiktok: LinkTiktok == undefined ? '' : LinkTiktok,
-            Garantia: Garantia == undefined ? '' : Garantia,
-            seguro: seguro == undefined ? '' : seguro,
+            nombre: nombre == undefined ? "" : nombre,
+            rif: rif == undefined ? "" : rif,
+            phone: phone == undefined ? "" : phone,
+            typeUser: "Taller",
+            email: email == undefined ? "" : email,
+            Direccion: Direccion == undefined ? "" : Direccion,
+            RegComercial: RegComercial == undefined ? "" : RegComercial,
+            Caracteristicas: Caracteristicas == undefined ? "" : Caracteristicas,
+            Tarifa: Tarifa == undefined ? "" : Tarifa,
+            Experiencia: Experiencia == undefined ? "" : Experiencia,
+            LinkFacebook: LinkFacebook == undefined ? "" : LinkFacebook,
+            LinkInstagram: LinkInstagram == undefined ? "" : LinkInstagram,
+            LinkTiktok: LinkTiktok == undefined ? "" : LinkTiktok,
+            Garantia: Garantia == undefined ? "" : Garantia,
+            seguro: seguro == undefined ? "" : seguro,
             agenteAutorizado: agenteAutorizado == undefined ? false : agenteAutorizado
           }; // Actualizar el documento en la colección "Usuarios" con el UID proporcionado
           _context11.next = 5;
@@ -816,6 +816,200 @@ var UpdateClient = /*#__PURE__*/function () {
     return _ref12.apply(this, arguments);
   };
 }();
+var getServicesByTalleruid = /*#__PURE__*/function () {
+  var _ref13 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee13(req, res) {
+    var uid_taller, servicesSnapshot, services;
+    return _regeneratorRuntime().wrap(function _callee13$(_context13) {
+      while (1) switch (_context13.prev = _context13.next) {
+        case 0:
+          _context13.prev = 0;
+          // Obtener el UID_TALLER desde el cuerpo de la solicitud
+          uid_taller = req.body.uid_taller;
+          console.log(uid_taller);
+
+          // Buscar en la colección "Servicios" los documentos donde uid_taller coincide
+          _context13.next = 5;
+          return db.collection("Servicios").where("uid_taller", "==", uid_taller).get();
+        case 5:
+          servicesSnapshot = _context13.sent;
+          if (!servicesSnapshot.empty) {
+            _context13.next = 9;
+            break;
+          }
+          console.log("No se encontraron servicios para el UID_TALLER proporcionado");
+          return _context13.abrupt("return", res.status(404).send({
+            message: "No se encontraron servicios para el UID_TALLER proporcionado"
+          }));
+        case 9:
+          // Mapear los datos de los documentos encontrados en un array
+          services = servicesSnapshot.docs.map(function (doc) {
+            return _objectSpread({
+              id: doc.id
+            }, doc.data());
+          }); // Enviar los servicios encontrados
+          return _context13.abrupt("return", res.status(200).send({
+            message: "Servicios encontrados",
+            services: services
+          }));
+        case 13:
+          _context13.prev = 13;
+          _context13.t0 = _context13["catch"](0);
+          console.error("Error al obtener los servicios por UID_TALLER:", _context13.t0);
+          res.status(500).send("Error al obtener los servicios");
+        case 17:
+        case "end":
+          return _context13.stop();
+      }
+    }, _callee13, null, [[0, 13]]);
+  }));
+  return function getServicesByTalleruid(_x26, _x27) {
+    return _ref13.apply(this, arguments);
+  };
+}();
+var getServiceByUid = /*#__PURE__*/function () {
+  var _ref14 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee14(req, res) {
+    var uid, serviceSnapshot, serviceData;
+    return _regeneratorRuntime().wrap(function _callee14$(_context14) {
+      while (1) switch (_context14.prev = _context14.next) {
+        case 0:
+          _context14.prev = 0;
+          // Obtener el UID del servicio desde el cuerpo de la solicitud
+          uid = req.body.uid;
+          console.log("UID del servicio:", uid);
+
+          // Buscar el documento en la colección "Servicios" donde el campo "uid" coincide
+          _context14.next = 5;
+          return db.collection("Servicios").doc(uid).get();
+        case 5:
+          serviceSnapshot = _context14.sent;
+          if (serviceSnapshot.exists) {
+            _context14.next = 9;
+            break;
+          }
+          console.log("No se encontró el servicio con el UID proporcionado");
+          return _context14.abrupt("return", res.status(404).send({
+            message: "No se encontró el servicio con el UID proporcionado"
+          }));
+        case 9:
+          // Obtener los datos del documento encontrado
+          serviceData = _objectSpread({
+            id: serviceSnapshot.id
+          }, serviceSnapshot.data()); // Enviar el servicio encontrado
+          return _context14.abrupt("return", res.status(200).send({
+            message: "Servicio encontrado",
+            service: serviceData
+          }));
+        case 13:
+          _context14.prev = 13;
+          _context14.t0 = _context14["catch"](0);
+          console.error("Error al obtener el servicio por UID:", _context14.t0);
+          res.status(500).send("Error al obtener el servicio");
+        case 17:
+        case "end":
+          return _context14.stop();
+      }
+    }, _callee14, null, [[0, 13]]);
+  }));
+  return function getServiceByUid(_x28, _x29) {
+    return _ref14.apply(this, arguments);
+  };
+}();
+var getActiveCategories = /*#__PURE__*/function () {
+  var _ref15 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee15(req, res) {
+    var categoriesSnapshot, categories;
+    return _regeneratorRuntime().wrap(function _callee15$(_context15) {
+      while (1) switch (_context15.prev = _context15.next) {
+        case 0:
+          _context15.prev = 0;
+          _context15.next = 3;
+          return db.collection("Categorias").where("estatus", "==", true).get();
+        case 3:
+          categoriesSnapshot = _context15.sent;
+          if (!categoriesSnapshot.empty) {
+            _context15.next = 7;
+            break;
+          }
+          console.log("No se encontraron categorías activas");
+          return _context15.abrupt("return", res.status(404).send({
+            message: "No se encontraron categorías activas"
+          }));
+        case 7:
+          // Mapear los datos de los documentos encontrados en un array
+          categories = categoriesSnapshot.docs.map(function (doc) {
+            return _objectSpread({
+              id: doc.id
+            }, doc.data());
+          }); // Enviar las categorías activas encontradas
+          return _context15.abrupt("return", res.status(200).send({
+            message: "Categorías activas encontradas",
+            categories: categories
+          }));
+        case 11:
+          _context15.prev = 11;
+          _context15.t0 = _context15["catch"](0);
+          console.error("Error al obtener las categorías activas:", _context15.t0);
+          res.status(500).send("Error al obtener las categorías activas");
+        case 15:
+        case "end":
+          return _context15.stop();
+      }
+    }, _callee15, null, [[0, 11]]);
+  }));
+  return function getActiveCategories(_x30, _x31) {
+    return _ref15.apply(this, arguments);
+  };
+}();
+var getSubcategoriesByCategoryUid = /*#__PURE__*/function () {
+  var _ref16 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee16(req, res) {
+    var uid_categoria, subcategoriesSnapshot, subcategories;
+    return _regeneratorRuntime().wrap(function _callee16$(_context16) {
+      while (1) switch (_context16.prev = _context16.next) {
+        case 0:
+          _context16.prev = 0;
+          // Obtener el UID de la categoría desde el cuerpo de la solicitud
+          uid_categoria = req.body.uid_categoria;
+          console.log("UID de la categor\xEDa: ".concat(uid_categoria));
+
+          // Referencia a la subcolección "Subcategoría" dentro del documento de la categoría especificada
+          _context16.next = 5;
+          return db.collection("Categorias").doc(uid_categoria).collection("Subcategorias").where("estatus", "==", true) // Filtro para obtener solo subcategorías activas
+          .get();
+        case 5:
+          subcategoriesSnapshot = _context16.sent;
+          if (!subcategoriesSnapshot.empty) {
+            _context16.next = 9;
+            break;
+          }
+          console.log("No se encontraron subcategorías para la categoría proporcionada");
+          return _context16.abrupt("return", res.status(404).send({
+            message: "No se encontraron subcategorías para la categoría proporcionada"
+          }));
+        case 9:
+          // Mapear los datos de los documentos encontrados en un array
+          subcategories = subcategoriesSnapshot.docs.map(function (doc) {
+            return _objectSpread({
+              id: doc.id
+            }, doc.data());
+          }); // Enviar las subcategorías encontradas
+          return _context16.abrupt("return", res.status(200).send({
+            message: "Subcategorías encontradas",
+            subcategories: subcategories
+          }));
+        case 13:
+          _context16.prev = 13;
+          _context16.t0 = _context16["catch"](0);
+          console.error("Error al obtener las subcategorías por UID de categoría:", _context16.t0);
+          res.status(500).send("Error al obtener las subcategorías");
+        case 17:
+        case "end":
+          return _context16.stop();
+      }
+    }, _callee16, null, [[0, 13]]);
+  }));
+  return function getSubcategoriesByCategoryUid(_x32, _x33) {
+    return _ref16.apply(this, arguments);
+  };
+}();
 module.exports = {
   getUsuarios: getUsuarios,
   SaveClient: SaveClient,
@@ -827,5 +1021,9 @@ module.exports = {
   getTalleres: getTalleres,
   actualizarStatusUsuario: actualizarStatusUsuario,
   UpdateClient: UpdateClient,
-  UpdateTaller: UpdateTaller
+  UpdateTaller: UpdateTaller,
+  getServicesByTalleruid: getServicesByTalleruid,
+  getServiceByUid: getServiceByUid,
+  getActiveCategories: getActiveCategories,
+  getSubcategoriesByCategoryUid: getSubcategoriesByCategoryUid
 };

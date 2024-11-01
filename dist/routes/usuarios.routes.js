@@ -15,4 +15,8 @@ router.get('/getTalleres', Usuarios.getTalleres);
 router.post('/actualizarStatusUsuario', Usuarios.actualizarStatusUsuario);
 router.post('/UpdateClient', Usuarios.UpdateClient);
 router.post('/UpdateTaller', Usuarios.UpdateTaller);
+router.post('/getServicesByTalleruid', Usuarios.getServicesByTalleruid);
+router.post('/getServiceByUid', Usuarios.getServiceByUid);
+router.get('/getActiveCategories', Usuarios.getActiveCategories);
+router.get('/getSubcategoriesByCategoryUid', Usuarios.getSubcategoriesByCategoryUid);
 module.exports = router;
