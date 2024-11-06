@@ -31,7 +31,9 @@ router.post('/getServiceByUid', Usuarios.getServiceByUid);
 
 router.get('/getActiveCategories', Usuarios.getActiveCategories);   
 
-router.get('/getSubcategoriesByCategoryUid', Usuarios.getSubcategoriesByCategoryUid);   
+router.post('/getSubcategoriesByCategoryUid', Usuarios.getSubcategoriesByCategoryUid);
+
+router.post('/saveOrUpdateService', Usuarios.saveOrUpdateService);    
 
 
 

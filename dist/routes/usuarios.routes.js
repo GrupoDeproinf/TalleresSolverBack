@@ -18,5 +18,6 @@ router.post('/UpdateTaller', Usuarios.UpdateTaller);
 router.post('/getServicesByTalleruid', Usuarios.getServicesByTalleruid);
 router.post('/getServiceByUid', Usuarios.getServiceByUid);
 router.get('/getActiveCategories', Usuarios.getActiveCategories);
-router.get('/getSubcategoriesByCategoryUid', Usuarios.getSubcategoriesByCategoryUid);
+router.post('/getSubcategoriesByCategoryUid', Usuarios.getSubcategoriesByCategoryUid);
+router.post('/saveOrUpdateService', Usuarios.saveOrUpdateService);
 module.exports = router;

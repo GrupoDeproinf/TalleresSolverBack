@@ -1010,6 +1010,88 @@ var getSubcategoriesByCategoryUid = /*#__PURE__*/function () {
     return _ref16.apply(this, arguments);
   };
 }();
+var saveOrUpdateService = /*#__PURE__*/function () {
+  var _ref17 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee17(req, res) {
+    var _req$body7, id, categoria, descripcion, estatus, garantia, nombre_servicio, precio, subcategoria, taller, uid_categoria, uid_servicio, uid_subcategoria, uid_taller, puntuacion, serviceData, serviceRef, serviceSnapshot, newServiceRef;
+    return _regeneratorRuntime().wrap(function _callee17$(_context17) {
+      while (1) switch (_context17.prev = _context17.next) {
+        case 0:
+          _context17.prev = 0;
+          // Obtener los datos del servicio desde el cuerpo de la solicitud
+          _req$body7 = req.body, id = _req$body7.id, categoria = _req$body7.categoria, descripcion = _req$body7.descripcion, estatus = _req$body7.estatus, garantia = _req$body7.garantia, nombre_servicio = _req$body7.nombre_servicio, precio = _req$body7.precio, subcategoria = _req$body7.subcategoria, taller = _req$body7.taller, uid_categoria = _req$body7.uid_categoria, uid_servicio = _req$body7.uid_servicio, uid_subcategoria = _req$body7.uid_subcategoria, uid_taller = _req$body7.uid_taller, puntuacion = _req$body7.puntuacion;
+          console.log("Datos del servicio:", req.body);
+          serviceData = {
+            categoria: categoria,
+            descripcion: descripcion,
+            estatus: estatus,
+            garantia: garantia,
+            nombre_servicio: nombre_servicio,
+            precio: precio,
+            subcategoria: subcategoria,
+            taller: taller,
+            uid_categoria: uid_categoria,
+            uid_servicio: uid_servicio,
+            uid_subcategoria: uid_subcategoria,
+            uid_taller: uid_taller,
+            puntuacion: puntuacion
+          }; // Si `id` tiene un valor, editar el documento en la colección "Servicios"
+          if (!id) {
+            _context17.next = 17;
+            break;
+          }
+          serviceRef = db.collection("Servicios").doc(id);
+          _context17.next = 8;
+          return serviceRef.get();
+        case 8:
+          serviceSnapshot = _context17.sent;
+          if (serviceSnapshot.exists) {
+            _context17.next = 11;
+            break;
+          }
+          return _context17.abrupt("return", res.status(404).send({
+            message: "No se encontró el servicio con el ID proporcionado para actualizar"
+          }));
+        case 11:
+          _context17.next = 13;
+          return serviceRef.update(serviceData);
+        case 13:
+          console.log("Servicio actualizado:", id);
+          return _context17.abrupt("return", res.status(200).send({
+            message: "Servicio actualizado exitosamente",
+            service: _objectSpread({
+              id: id
+            }, serviceData)
+          }));
+        case 17:
+          _context17.next = 19;
+          return db.collection("Servicios").add(serviceData);
+        case 19:
+          newServiceRef = _context17.sent;
+          console.log("Servicio creado con ID:", newServiceRef.id);
+          return _context17.abrupt("return", res.status(201).send({
+            message: "Servicio creado exitosamente",
+            service: _objectSpread({
+              id: newServiceRef.id
+            }, serviceData)
+          }));
+        case 22:
+          _context17.next = 28;
+          break;
+        case 24:
+          _context17.prev = 24;
+          _context17.t0 = _context17["catch"](0);
+          console.error("Error al guardar o actualizar el servicio:", _context17.t0);
+          res.status(500).send("Error al guardar o actualizar el servicio");
+        case 28:
+        case "end":
+          return _context17.stop();
+      }
+    }, _callee17, null, [[0, 24]]);
+  }));
+  return function saveOrUpdateService(_x34, _x35) {
+    return _ref17.apply(this, arguments);
+  };
+}();
 module.exports = {
   getUsuarios: getUsuarios,
   SaveClient: SaveClient,
@@ -1025,5 +1107,6 @@ module.exports = {
   getServicesByTalleruid: getServicesByTalleruid,
   getServiceByUid: getServiceByUid,
   getActiveCategories: getActiveCategories,
-  getSubcategoriesByCategoryUid: getSubcategoriesByCategoryUid
+  getSubcategoriesByCategoryUid: getSubcategoriesByCategoryUid,
+  saveOrUpdateService: saveOrUpdateService
 };

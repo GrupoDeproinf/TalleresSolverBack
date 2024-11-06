@@ -709,6 +709,77 @@ const getSubcategoriesByCategoryUid = async (req, res) => {
   }
 };
 
+const saveOrUpdateService = async (req, res) => {
+  try {
+    // Obtener los datos del servicio desde el cuerpo de la solicitud
+    const {
+      id,
+      categoria,
+      descripcion,
+      estatus,
+      garantia,
+      nombre_servicio,
+      precio,
+      subcategoria,
+      taller,
+      uid_categoria,
+      uid_servicio,
+      uid_subcategoria,
+      uid_taller,
+      puntuacion
+    } = req.body;
+
+    console.log("Datos del servicio:", req.body);
+
+    const serviceData = {
+      categoria,
+      descripcion,
+      estatus,
+      garantia,
+      nombre_servicio,
+      precio,
+      subcategoria,
+      taller,
+      uid_categoria,
+      uid_servicio,
+      uid_subcategoria,
+      uid_taller,
+      puntuacion
+    };
+
+    // Si `id` tiene un valor, editar el documento en la colección "Servicios"
+    if (id) {
+      const serviceRef = db.collection("Servicios").doc(id);
+      const serviceSnapshot = await serviceRef.get();
+
+      if (!serviceSnapshot.exists) {
+        return res.status(404).send({
+          message: "No se encontró el servicio con el ID proporcionado para actualizar",
+        });
+      }
+
+      await serviceRef.update(serviceData);
+      console.log("Servicio actualizado:", id);
+
+      return res.status(200).send({
+        message: "Servicio actualizado exitosamente",
+        service: { id, ...serviceData },
+      });
+    } else {
+      // Si `id` está vacío, crear un nuevo documento en la colección "Servicios"
+      const newServiceRef = await db.collection("Servicios").add(serviceData);
+      console.log("Servicio creado con ID:", newServiceRef.id);
+
+      return res.status(201).send({
+        message: "Servicio creado exitosamente",
+        service: { id: newServiceRef.id, ...serviceData },
+      });
+    }
+  } catch (error) {
+    console.error("Error al guardar o actualizar el servicio:", error);
+    res.status(500).send("Error al guardar o actualizar el servicio");
+  }
+};
 
 
 
@@ -727,5 +798,6 @@ module.exports = {
   getServicesByTalleruid,
   getServiceByUid,
   getActiveCategories,
-  getSubcategoriesByCategoryUid
+  getSubcategoriesByCategoryUid,
+  saveOrUpdateService
 };
