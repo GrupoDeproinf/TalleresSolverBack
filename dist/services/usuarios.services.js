@@ -1085,6 +1085,45 @@ var saveOrUpdateService = /*#__PURE__*/function () {
     return _ref17.apply(this, arguments);
   };
 }();
+var getPlanes = /*#__PURE__*/function () {
+  var _ref18 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee18(req, res) {
+    var result, planes;
+    return _regeneratorRuntime().wrap(function _callee18$(_context18) {
+      while (1) switch (_context18.prev = _context18.next) {
+        case 0:
+          _context18.prev = 0;
+          _context18.next = 3;
+          return db.collection("Planes").where("status", "==", "Activo") // Filtrar documentos por status "Activo"
+          .get();
+        case 3:
+          result = _context18.sent;
+          if (!result.empty) {
+            _context18.next = 6;
+            break;
+          }
+          return _context18.abrupt("return", res.status(404).send('No se encontraron planes con el estado "Activo"'));
+        case 6:
+          planes = result.docs.map(function (doc) {
+            return doc.data();
+          });
+          res.send(planes);
+          _context18.next = 14;
+          break;
+        case 10:
+          _context18.prev = 10;
+          _context18.t0 = _context18["catch"](0);
+          console.error("Error al obtener planes:", _context18.t0);
+          res.status(500).send("Error al obtener planes");
+        case 14:
+        case "end":
+          return _context18.stop();
+      }
+    }, _callee18, null, [[0, 10]]);
+  }));
+  return function getPlanes(_x36, _x37) {
+    return _ref18.apply(this, arguments);
+  };
+}();
 module.exports = {
   getUsuarios: getUsuarios,
   SaveClient: SaveClient,
@@ -1101,5 +1140,6 @@ module.exports = {
   getServiceByUid: getServiceByUid,
   getActiveCategories: getActiveCategories,
   getSubcategoriesByCategoryUid: getSubcategoriesByCategoryUid,
-  saveOrUpdateService: saveOrUpdateService
+  saveOrUpdateService: saveOrUpdateService,
+  getPlanes: getPlanes
 };

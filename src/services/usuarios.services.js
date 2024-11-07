@@ -777,6 +777,29 @@ const saveOrUpdateService = async (req, res) => {
 };
 
 
+const getPlanes = async (req, res) => {
+  try {
+    const result = await db
+      .collection("Planes")
+      .where("status", "==", "Activo") // Filtrar documentos por status "Activo"
+      .get();
+
+    if (result.empty) {
+      return res
+        .status(404)
+        .send('No se encontraron planes con el estado "Activo"');
+    }
+
+    const planes = result.docs.map((doc) => doc.data());
+
+    res.send(planes);
+  } catch (error) {
+    console.error("Error al obtener planes:", error);
+    res.status(500).send("Error al obtener planes");
+  }
+};
+
+
 
 module.exports = {
   getUsuarios,
@@ -794,5 +817,6 @@ module.exports = {
   getServiceByUid,
   getActiveCategories,
   getSubcategoriesByCategoryUid,
-  saveOrUpdateService
+  saveOrUpdateService,
+  getPlanes
 };

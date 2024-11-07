@@ -20,4 +20,5 @@ router.post('/getServiceByUid', Usuarios.getServiceByUid);
 router.get('/getActiveCategories', Usuarios.getActiveCategories);
 router.post('/getSubcategoriesByCategoryUid', Usuarios.getSubcategoriesByCategoryUid);
 router.post('/saveOrUpdateService', Usuarios.saveOrUpdateService);
+router.get('/getPlanes', Usuarios.getPlanes);
 module.exports = router;
