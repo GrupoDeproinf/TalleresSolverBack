@@ -192,52 +192,38 @@ var SaveClient = /*#__PURE__*/function () {
 }();
 var SaveTaller = /*#__PURE__*/function () {
   var _ref3 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee3(req, res) {
-    var _req$body2, Nombre, rif, phone, email, password, userByEmail, userByPhone, userRecord, uid, infoUserCreated;
+    var _req$body2, Nombre, rif, phone, email, password, userRecord, uid, infoUserCreated;
     return _regeneratorRuntime().wrap(function _callee3$(_context3) {
       while (1) switch (_context3.prev = _context3.next) {
         case 0:
           _context3.prev = 0;
-          // Recibir los datos del cliente desde el cuerpo de la solicitud
-          _req$body2 = req.body, Nombre = _req$body2.Nombre, rif = _req$body2.rif, phone = _req$body2.phone, email = _req$body2.email, password = _req$body2.password; // Verificar si ya existe un usuario con ese email en Firebase Authentication
+          // Recibir los datos del taller desde el cuerpo de la solicitud
+          _req$body2 = req.body, Nombre = _req$body2.Nombre, rif = _req$body2.rif, phone = _req$body2.phone, email = _req$body2.email, password = _req$body2.password;
           _context3.prev = 2;
           _context3.next = 5;
           return admin.auth().getUserByEmail(email);
         case 5:
-          userByEmail = _context3.sent;
-          if (!userByEmail) {
-            _context3.next = 8;
-            break;
-          }
-          return _context3.abrupt("return", res.status(400).send({
-            message: "Ya existe un usuario con este email."
-          }));
+          userRecord = _context3.sent;
+          _context3.next = 8;
+          return admin.auth().updateUser(userRecord.uid, {
+            email: email,
+            password: password,
+            phoneNumber: "+58".concat(phone),
+            displayName: Nombre,
+            disabled: false
+          });
         case 8:
-          _context3.next = 12;
+          userRecord = _context3.sent;
+          _context3.next = 20;
           break;
-        case 10:
-          _context3.prev = 10;
+        case 11:
+          _context3.prev = 11;
           _context3.t0 = _context3["catch"](2);
-        case 12:
-          _context3.prev = 12;
-          _context3.next = 15;
-          return admin.auth().getUserByPhoneNumber("+58".concat(phone));
-        case 15:
-          userByPhone = _context3.sent;
-          if (!userByPhone) {
-            _context3.next = 18;
+          if (!(_context3.t0.code === "auth/user-not-found")) {
+            _context3.next = 19;
             break;
           }
-          return _context3.abrupt("return", res.status(400).send({
-            message: "Ya existe un usuario con este número de teléfono."
-          }));
-        case 18:
-          _context3.next = 22;
-          break;
-        case 20:
-          _context3.prev = 20;
-          _context3.t1 = _context3["catch"](12);
-        case 22:
-          _context3.next = 24;
+          _context3.next = 16;
           return admin.auth().createUser({
             email: email,
             password: password,
@@ -245,10 +231,15 @@ var SaveTaller = /*#__PURE__*/function () {
             displayName: Nombre,
             disabled: false
           });
-        case 24:
+        case 16:
           userRecord = _context3.sent;
-          // Obtener el UID generado por Firebase Authentication
-          uid = userRecord.uid; // Crear el objeto que se guardará en la colección "Usuarios"
+          _context3.next = 20;
+          break;
+        case 19:
+          throw _context3.t0;
+        case 20:
+          // Obtener el UID del usuario
+          uid = userRecord.uid; // Crear o actualizar el documento en la colección "Usuarios"
           infoUserCreated = {
             uid: uid,
             nombre: Nombre,
@@ -257,62 +248,64 @@ var SaveTaller = /*#__PURE__*/function () {
             typeUser: "Taller",
             email: email,
             status: "Pendiente"
-          }; // Guardar el objeto en la colección "Usuarios"
-          _context3.next = 29;
-          return db.collection("Usuarios").doc(uid).set(infoUserCreated);
-        case 29:
-          // Responder con el ID del documento creado y un mensaje de éxito
+          };
+          _context3.next = 24;
+          return db.collection("Usuarios").doc(uid).set(infoUserCreated, {
+            merge: true
+          });
+        case 24:
+          // Responder con el ID del documento creado o actualizado
           res.status(201).send({
-            message: "Usuario creado con éxito",
+            message: "Usuario guardado con éxito",
             uid: uid
           });
-          _context3.next = 52;
+          _context3.next = 45;
           break;
-        case 32:
-          _context3.prev = 32;
-          _context3.t2 = _context3["catch"](0);
-          if (!(_context3.t2.code === "auth/email-already-exists")) {
-            _context3.next = 38;
+        case 27:
+          _context3.prev = 27;
+          _context3.t1 = _context3["catch"](0);
+          console.error("Error al guardar el usuario:", _context3.t1);
+
+          // Manejar errores específicos de Firebase
+          if (!(_context3.t1.code === "auth/email-already-exists")) {
+            _context3.next = 34;
             break;
           }
           return _context3.abrupt("return", res.status(400).send({
             message: "Este email ya está registrado."
           }));
-        case 38:
-          if (!(_context3.t2.code === "auth/phone-number-already-exists")) {
-            _context3.next = 42;
+        case 34:
+          if (!(_context3.t1.code === "auth/phone-number-already-exists")) {
+            _context3.next = 38;
             break;
           }
           return _context3.abrupt("return", res.status(400).send({
             message: "Este número de teléfono ya está registrado."
           }));
-        case 42:
-          if (!(_context3.t2.code === "auth/invalid-phone-number")) {
-            _context3.next = 46;
+        case 38:
+          if (!(_context3.t1.code === "auth/invalid-phone-number")) {
+            _context3.next = 42;
             break;
           }
           return _context3.abrupt("return", res.status(400).send({
             message: "El número de teléfono no es válido."
           }));
-        case 46:
-          if (!(_context3.t2.code === "auth/invalid-password")) {
-            _context3.next = 50;
+        case 42:
+          if (!(_context3.t1.code === "auth/invalid-password")) {
+            _context3.next = 44;
             break;
           }
           return _context3.abrupt("return", res.status(400).send({
             message: "La contraseña es inválida."
           }));
-        case 50:
-          console.error("Error al guardar el usuario:", _context3.t2);
-          res.status(500).send({
-            message: "Error al guardar el usuario",
-            error: _context3.t2.message
-          });
-        case 52:
+        case 44:
+          // En caso de un error inesperado
+          res.status(500).send("Error al guardar el usuario");
+        case 45:
         case "end":
           return _context3.stop();
       }
-    }, _callee3, null, [[0, 32], [2, 10], [12, 20]]);
+    }, _callee3, null, [[0, 27], [2, 11]]);
   }));
   return function SaveTaller(_x5, _x6) {
     return _ref3.apply(this, arguments);
@@ -567,7 +560,7 @@ var restorePass = /*#__PURE__*/function () {
           email = req.body.email; // Generar el enlace de restablecimiento de contraseña
           _context7.next = 3;
           return admin.auth().generatePasswordResetLink(email).then(function (link) {
-            return sendResetPasswordEmail(email, link, req);
+            return sendResetPasswordEmail(email, link, res);
           })["catch"](function (error) {
             // Some error occurred.
             console.log(error);
@@ -587,7 +580,7 @@ var restorePass = /*#__PURE__*/function () {
   };
 }();
 var sendResetPasswordEmail = /*#__PURE__*/function () {
-  var _ref8 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee8(email, resetLink, req) {
+  var _ref8 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee8(email, resetLink, res) {
     var transporter, mailOptions;
     return _regeneratorRuntime().wrap(function _callee8$(_context8) {
       while (1) switch (_context8.prev = _context8.next) {

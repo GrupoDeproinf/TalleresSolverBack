@@ -111,48 +111,43 @@ const SaveClient = async (req, res) => {
 
 const SaveTaller = async (req, res) => {
   try {
-    // Recibir los datos del cliente desde el cuerpo de la solicitud
+    // Recibir los datos del taller desde el cuerpo de la solicitud
     const { Nombre, rif, phone, email, password } = req.body;
 
-    // Verificar si ya existe un usuario con ese email en Firebase Authentication
-    try {
-      const userByEmail = await admin.auth().getUserByEmail(email);
-      if (userByEmail) {
-        return res
-          .status(400)
-          .send({ message: "Ya existe un usuario con este email." });
-      }
-    } catch (error) {
-      // Si no existe el usuario, Firebase lanzará un error que ignoramos aquí
-    }
 
-    // Verificar si ya existe un usuario con ese número de teléfono en Firebase Authentication
+    let userRecord;
     try {
-      const userByPhone = await admin
-        .auth()
-        .getUserByPhoneNumber(`+58${phone}`);
-      if (userByPhone) {
-        return res.status(400).send({
-          message: "Ya existe un usuario con este número de teléfono.",
+      // Intentar obtener el usuario por email
+      userRecord = await admin.auth().getUserByEmail(email);
+
+      // Si existe, actualizar la clave y otros detalles
+      userRecord = await admin.auth().updateUser(userRecord.uid, {
+        email: email,
+        password: password,
+        phoneNumber: `+58${phone}`,
+        displayName: Nombre,
+        disabled: false,
+      });
+    } catch (error) {
+      if (error.code === "auth/user-not-found") {
+        // Si no existe, crearlo
+        userRecord = await admin.auth().createUser({
+          email: email,
+          password: password,
+          phoneNumber: `+58${phone}`,
+          displayName: Nombre,
+          disabled: false,
         });
+      } else {
+        // Si otro error ocurre, lanzarlo
+        throw error;
       }
-    } catch (error) {
-      // Si no existe el usuario, Firebase lanzará un error que ignoramos aquí
     }
 
-    // Crear el usuario en Firebase Authentication
-    const userRecord = await admin.auth().createUser({
-      email: email,
-      password: password,
-      phoneNumber: `+58${phone}`,
-      displayName: Nombre,
-      disabled: false,
-    });
-
-    // Obtener el UID generado por Firebase Authentication
+    // Obtener el UID del usuario
     const uid = userRecord.uid;
 
-    // Crear el objeto que se guardará en la colección "Usuarios"
+    // Crear o actualizar el documento en la colección "Usuarios"
     const infoUserCreated = {
       uid: uid,
       nombre: Nombre,
@@ -163,13 +158,14 @@ const SaveTaller = async (req, res) => {
       status: "Pendiente",
     };
 
-    // Guardar el objeto en la colección "Usuarios"
-    await db.collection("Usuarios").doc(uid).set(infoUserCreated);
+    await db.collection("Usuarios").doc(uid).set(infoUserCreated, { merge: true });
 
-    // Responder con el ID del documento creado y un mensaje de éxito
-    res.status(201).send({ message: "Usuario creado con éxito", uid: uid });
+    // Responder con el ID del documento creado o actualizado
+    res.status(201).send({ message: "Usuario guardado con éxito", uid: uid });
   } catch (error) {
-    // Manejo de errores específicos de Firebase
+    console.error("Error al guardar el usuario:", error);
+
+    // Manejar errores específicos de Firebase
     if (error.code === "auth/email-already-exists") {
       return res
         .status(400)
@@ -184,14 +180,13 @@ const SaveTaller = async (req, res) => {
         .send({ message: "El número de teléfono no es válido." });
     } else if (error.code === "auth/invalid-password") {
       return res.status(400).send({ message: "La contraseña es inválida." });
-    } else {
-      console.error("Error al guardar el usuario:", error);
-      res
-        .status(500)
-        .send({ message: "Error al guardar el usuario", error: error.message });
     }
+
+    // En caso de un error inesperado
+    res.status(500).send("Error al guardar el usuario");
   }
 };
+
 
 // Función para autenticar usuarios
 const authenticateUser = async (req, res) => {
@@ -351,7 +346,7 @@ const restorePass = async (req, res) => {
     .auth()
     .generatePasswordResetLink(email)
     .then((link) => {
-      return sendResetPasswordEmail(email, link, req);
+      return sendResetPasswordEmail(email, link, res);
     })
     .catch((error) => {
       // Some error occurred.
@@ -360,7 +355,7 @@ const restorePass = async (req, res) => {
     });
 };
 
-const sendResetPasswordEmail = async (email, resetLink, req) => {
+const sendResetPasswordEmail = async (email, resetLink, res) => {
   // Configura el transporter
   const transporter = nodemailer.createTransport({
     service: "Gmail", // Puedes cambiarlo por el servicio de correo que uses
