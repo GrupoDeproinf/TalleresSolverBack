@@ -1124,6 +1124,100 @@ var getPlanes = /*#__PURE__*/function () {
     return _ref18.apply(this, arguments);
   };
 }();
+var getMetodosPago = /*#__PURE__*/function () {
+  var _ref19 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee19(req, res) {
+    var result, planes;
+    return _regeneratorRuntime().wrap(function _callee19$(_context19) {
+      while (1) switch (_context19.prev = _context19.next) {
+        case 0:
+          _context19.prev = 0;
+          _context19.next = 3;
+          return db.collection("MetodosPago").where("status", "==", true) // Filtrar documentos por status "Activo"
+          .get();
+        case 3:
+          result = _context19.sent;
+          if (!result.empty) {
+            _context19.next = 6;
+            break;
+          }
+          return _context19.abrupt("return", res.status(404).send('No se encontraron los metodos con el estado "true"'));
+        case 6:
+          planes = result.docs.map(function (doc) {
+            return doc.data();
+          });
+          res.send(planes);
+          _context19.next = 14;
+          break;
+        case 10:
+          _context19.prev = 10;
+          _context19.t0 = _context19["catch"](0);
+          console.error("Error al obtener metodos:", _context19.t0);
+          res.status(500).send("Error al obtener metodos");
+        case 14:
+        case "end":
+          return _context19.stop();
+      }
+    }, _callee19, null, [[0, 10]]);
+  }));
+  return function getMetodosPago(_x38, _x39) {
+    return _ref19.apply(this, arguments);
+  };
+}();
+
+// Función para guardar la suscripción
+var ReportarPagoData = /*#__PURE__*/function () {
+  var _ref20 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee20(req, res) {
+    var _req$body8, uid, emailZelle, cod_ref, bancoTranfe, identificacion, telefono, amount, paymentMethod, nombre, vigencia, cant_services, userId, subscripcionData;
+    return _regeneratorRuntime().wrap(function _callee20$(_context20) {
+      while (1) switch (_context20.prev = _context20.next) {
+        case 0:
+          _req$body8 = req.body, uid = _req$body8.uid, emailZelle = _req$body8.emailZelle, cod_ref = _req$body8.cod_ref, bancoTranfe = _req$body8.bancoTranfe, identificacion = _req$body8.identificacion, telefono = _req$body8.telefono, amount = _req$body8.amount, paymentMethod = _req$body8.paymentMethod, nombre = _req$body8.nombre, vigencia = _req$body8.vigencia, cant_services = _req$body8.cant_services;
+          _context20.prev = 1;
+          userId = uid; // Reemplaza con el ID del usuario correspondiente
+          subscripcionData = {
+            cantidad_servicios: cant_services == undefined ? "" : cant_services,
+            metodo_pago: {
+              amount: amount == undefined ? "" : amount,
+              bankName: bancoTranfe == undefined ? "" : bancoTranfe,
+              paymentMethod: paymentMethod == undefined ? "" : paymentMethod,
+              receiptFile: "" == undefined ? "" : "",
+              transactionNumber: cod_ref == undefined ? "" : cod_ref,
+              email: emailZelle == undefined ? "" : emailZelle,
+              identificacion: identificacion == undefined ? "" : identificacion,
+              numero_tlf: telefono == undefined ? "" : telefono
+            },
+            monto: amount == undefined ? "" : amount,
+            nombre: nombre == undefined ? "" : nombre,
+            status: "Por Aprobar",
+            taller_uid: userId == undefined ? "" : userId,
+            vigencia: vigencia == undefined ? "" : vigencia
+          }; // Guardar en la colección Subscripciones
+          _context20.next = 6;
+          return db.collection('Subscripciones').add(subscripcionData);
+        case 6:
+          _context20.next = 8;
+          return db.collection('Usuarios').doc(userId).update({
+            subscripcion_actual: subscripcionData
+          });
+        case 8:
+          console.log('Suscripción guardada con éxito.');
+          return _context20.abrupt("return", res.status(201).send({
+            message: "Suscripción guardada con éxito."
+          }));
+        case 12:
+          _context20.prev = 12;
+          _context20.t0 = _context20["catch"](1);
+          res.status(500).send("Error al guardar la suscripción");
+        case 15:
+        case "end":
+          return _context20.stop();
+      }
+    }, _callee20, null, [[1, 12]]);
+  }));
+  return function ReportarPagoData(_x40, _x41) {
+    return _ref20.apply(this, arguments);
+  };
+}();
 module.exports = {
   getUsuarios: getUsuarios,
   SaveClient: SaveClient,
@@ -1141,5 +1235,7 @@ module.exports = {
   getActiveCategories: getActiveCategories,
   getSubcategoriesByCategoryUid: getSubcategoriesByCategoryUid,
   saveOrUpdateService: saveOrUpdateService,
-  getPlanes: getPlanes
+  getPlanes: getPlanes,
+  getMetodosPago: getMetodosPago,
+  ReportarPagoData: ReportarPagoData
 };

@@ -800,6 +800,88 @@ const getPlanes = async (req, res) => {
 };
 
 
+const getMetodosPago = async (req, res) => {
+  try {
+    const result = await db
+      .collection("MetodosPago")
+      .where("status", "==", true) // Filtrar documentos por status "Activo"
+      .get();
+
+    if (result.empty) {
+      return res
+        .status(404)
+        .send('No se encontraron los metodos con el estado "true"');
+    }
+
+    const planes = result.docs.map((doc) => doc.data());
+
+    res.send(planes);
+  } catch (error) {
+    console.error("Error al obtener metodos:", error);
+    res.status(500).send("Error al obtener metodos");
+  }
+};
+
+
+// Función para guardar la suscripción
+const ReportarPagoData = async (req, res) => {
+
+  const {
+    uid,
+    emailZelle,
+    cod_ref,
+    bancoTranfe,
+    identificacion,
+    telefono,
+    amount,
+    paymentMethod,
+    nombre,
+    vigencia,
+    cant_services,
+    
+  } = req.body;
+
+  try {
+    const userId = uid;  // Reemplaza con el ID del usuario correspondiente
+    const subscripcionData = {
+      cantidad_servicios: cant_services == undefined ? "" : cant_services,
+      metodo_pago: {
+        amount: amount == undefined ? "" : amount,
+        bankName: bancoTranfe == undefined ? "" : bancoTranfe,
+        paymentMethod: paymentMethod == undefined ? "" : paymentMethod,
+        receiptFile: "" == undefined ? "" : "",
+        transactionNumber: cod_ref == undefined ? "" : cod_ref,
+        email: emailZelle == undefined ? "" : emailZelle,
+        identificacion: identificacion == undefined ? "" : identificacion,
+        numero_tlf: telefono == undefined ? "" : telefono
+      },
+      monto: amount == undefined ? "" : amount,
+      nombre: nombre == undefined ? "" : nombre,
+      status: "Por Aprobar",
+      taller_uid: userId == undefined ? "" : userId,
+      vigencia: vigencia == undefined ? "" : vigencia,
+    };
+
+    // Guardar en la colección Subscripciones
+    await db.collection('Subscripciones').add(subscripcionData);
+
+    // Guardar en el campo subscripcion_actual del documento en la colección Usuarios
+    await db
+      .collection('Usuarios')
+      .doc(userId)
+      .update({ subscripcion_actual: subscripcionData });
+
+    console.log('Suscripción guardada con éxito.');
+
+    return res.status(201).send({
+      message: "Suscripción guardada con éxito.",
+    });
+
+  } catch (error) {
+    res.status(500).send("Error al guardar la suscripción");
+  }
+};
+
 
 module.exports = {
   getUsuarios,
@@ -818,5 +900,7 @@ module.exports = {
   getActiveCategories,
   getSubcategoriesByCategoryUid,
   saveOrUpdateService,
-  getPlanes
+  getPlanes,
+  getMetodosPago,
+  ReportarPagoData
 };

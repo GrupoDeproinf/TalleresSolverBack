@@ -35,7 +35,11 @@ router.post('/getSubcategoriesByCategoryUid', Usuarios.getSubcategoriesByCategor
 
 router.post('/saveOrUpdateService', Usuarios.saveOrUpdateService); 
 
-router.get('/getPlanes', Usuarios.getPlanes);
+router.get('/getPlanes', Usuarios.getPlanes); 
+
+router.get('/getMetodosPago', Usuarios.getMetodosPago); 
+
+router.post('/ReportarPagoData', Usuarios.ReportarPagoData); 
 
 
 
