@@ -721,7 +721,8 @@ const saveOrUpdateService = async (req, res) => {
       uid_servicio,
       uid_subcategoria,
       uid_taller,
-      puntuacion
+      puntuacion,
+      publicOrigin
     } = req.body;
 
     console.log("Datos del servicio:", req.body);
@@ -756,23 +757,122 @@ const saveOrUpdateService = async (req, res) => {
       await serviceRef.update(serviceData);
       console.log("Servicio actualizado:", id);
 
-      return res.status(200).send({
-        message: "Servicio actualizado exitosamente",
-        service: { id, ...serviceData },
-      });
+      if (serviceData.estatus){
+
+        if(!publicOrigin){
+          // Consulta el documento específico en la colección "Usuarios"
+          const userId = uid_taller; // Reemplaza esto con el ID del usuario correspondiente
+          const userRef = db.collection("Usuarios").doc(userId);
+    
+          // Obtiene el valor actual de cantidad_servicios, lo convierte a número, le resta 1 y actualiza
+          const userDoc = await userRef.get();
+          if (userDoc.exists) {
+            const userData = userDoc.data();
+            let cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0; // Convierte a número o usa 0 si no es válido
+            cantidadServicios -= 1; // Resta 1
+    
+            await userRef.update({
+              "subscripcion_actual.cantidad_servicios": cantidadServicios.toString(), // Guarda nuevamente como string
+            });
+          }
+        }
+
+        return res.status(200).send({
+          message: "Servicio actualizado exitosamente",
+          service: { id, ...serviceData },
+        });
+      } else {
+
+        if(publicOrigin){
+          // Consulta el documento específico en la colección "Usuarios"
+          const userId = uid_taller; // Reemplaza esto con el ID del usuario correspondiente
+          const userRef = db.collection("Usuarios").doc(userId);
+    
+          // Obtiene el valor actual de cantidad_servicios, lo convierte a número, le resta 1 y actualiza
+          const userDoc = await userRef.get();
+          if (userDoc.exists) {
+            const userData = userDoc.data();
+            let cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0; // Convierte a número o usa 0 si no es válido
+            cantidadServicios += 1; // Resta 1
+    
+            await userRef.update({
+              "subscripcion_actual.cantidad_servicios": cantidadServicios.toString(), // Guarda nuevamente como string
+            });
+          }
+        }
+
+
+
+        return res.status(200).send({
+          message: "Servicio actualizado exitosamente",
+          service: { id, ...serviceData },
+        });
+      }
+
+
+
+
+      
     } else {
-      // Si `id` está vacío, crear un nuevo documento en la colección "Servicios"
       const newServiceRef = await db.collection("Servicios").add(serviceData);
       console.log("Servicio creado con ID:", newServiceRef.id);
 
-      return res.status(201).send({
-        message: "Servicio creado exitosamente",
-        service: { id: newServiceRef.id, ...serviceData },
-      });
+      if (serviceData.estatus){
+
+        if (!publicOrigin){
+          // Consulta el documento específico en la colección "Usuarios"
+          const userId = uid_taller; // Reemplaza esto con el ID del usuario correspondiente
+          const userRef = db.collection("Usuarios").doc(userId);
+    
+          // Obtiene el valor actual de cantidad_servicios, lo convierte a número, le resta 1 y actualiza
+          const userDoc = await userRef.get();
+          if (userDoc.exists) {
+            const userData = userDoc.data();
+            let cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0; // Convierte a número o usa 0 si no es válido
+            cantidadServicios -= 1; // Resta 1
+    
+            await userRef.update({
+              "subscripcion_actual.cantidad_servicios": cantidadServicios.toString(), // Guarda nuevamente como string
+            });
+          }
+        }
+  
+        return res.status(201).send({
+          message: "Servicio creado exitosamente",
+          service: { id: newServiceRef.id, ...serviceData },
+        });
+
+      } else {
+
+        if (publicOrigin){
+          // Consulta el documento específico en la colección "Usuarios"
+          const userId = uid_taller; // Reemplaza esto con el ID del usuario correspondiente
+          const userRef = db.collection("Usuarios").doc(userId);
+    
+          // Obtiene el valor actual de cantidad_servicios, lo convierte a número, le resta 1 y actualiza
+          const userDoc = await userRef.get();
+          if (userDoc.exists) {
+            const userData = userDoc.data();
+            let cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0; // Convierte a número o usa 0 si no es válido
+            cantidadServicios += 1; // Resta 1
+    
+            await userRef.update({
+              "subscripcion_actual.cantidad_servicios": cantidadServicios.toString(), // Guarda nuevamente como string
+            });
+          }
+        }
+
+        return res.status(201).send({
+          message: "Servicio creado exitosamente",
+          service: { id: newServiceRef.id, ...serviceData },
+        });
+      }
+
+
     }
   } catch (error) {
     console.error("Error al guardar o actualizar el servicio:", error);
-    res.status(500).send("Error al guardar o actualizar el servicio");
+    res.status(500).send(error);
   }
 };
 
@@ -838,7 +938,7 @@ const ReportarPagoData = async (req, res) => {
     nombre,
     vigencia,
     cant_services,
-    
+
   } = req.body;
 
   try {
@@ -871,7 +971,15 @@ const ReportarPagoData = async (req, res) => {
       .doc(userId)
       .update({ subscripcion_actual: subscripcionData });
 
-    console.log('Suscripción guardada con éxito.');
+    // Actualizar el campo estatus a false en los documentos de la colección Servicios donde uid_taller == userId
+    const serviciosSnapshot = await db.collection('Servicios').where('uid_taller', '==', userId).get();
+
+    const batch = db.batch();
+    serviciosSnapshot.forEach((doc) => {
+      batch.update(doc.ref, { estatus: false });
+    });
+
+    await batch.commit();
 
     return res.status(201).send({
       message: "Suscripción guardada con éxito.",
