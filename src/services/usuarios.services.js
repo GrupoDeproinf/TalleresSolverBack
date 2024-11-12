@@ -721,7 +721,8 @@ const saveOrUpdateService = async (req, res) => {
       uid_servicio,
       uid_subcategoria,
       uid_taller,
-      puntuacion
+      puntuacion,
+      publicOrigin
     } = req.body;
 
     console.log("Datos del servicio:", req.body);
@@ -757,20 +758,23 @@ const saveOrUpdateService = async (req, res) => {
       console.log("Servicio actualizado:", id);
 
       if (serviceData.estatus){
-        // Consulta el documento específico en la colección "Usuarios"
-        const userId = uid_taller; // Reemplaza esto con el ID del usuario correspondiente
-        const userRef = db.collection("Usuarios").doc(userId);
-  
-        // Obtiene el valor actual de cantidad_servicios, lo convierte a número, le resta 1 y actualiza
-        const userDoc = await userRef.get();
-        if (userDoc.exists) {
-          const userData = userDoc.data();
-          let cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0; // Convierte a número o usa 0 si no es válido
-          cantidadServicios -= 1; // Resta 1
-  
-          await userRef.update({
-            "subscripcion_actual.cantidad_servicios": cantidadServicios.toString(), // Guarda nuevamente como string
-          });
+
+        if(!publicOrigin){
+          // Consulta el documento específico en la colección "Usuarios"
+          const userId = uid_taller; // Reemplaza esto con el ID del usuario correspondiente
+          const userRef = db.collection("Usuarios").doc(userId);
+    
+          // Obtiene el valor actual de cantidad_servicios, lo convierte a número, le resta 1 y actualiza
+          const userDoc = await userRef.get();
+          if (userDoc.exists) {
+            const userData = userDoc.data();
+            let cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0; // Convierte a número o usa 0 si no es válido
+            cantidadServicios -= 1; // Resta 1
+    
+            await userRef.update({
+              "subscripcion_actual.cantidad_servicios": cantidadServicios.toString(), // Guarda nuevamente como string
+            });
+          }
         }
 
         return res.status(200).send({
@@ -778,6 +782,27 @@ const saveOrUpdateService = async (req, res) => {
           service: { id, ...serviceData },
         });
       } else {
+
+        if(publicOrigin){
+          // Consulta el documento específico en la colección "Usuarios"
+          const userId = uid_taller; // Reemplaza esto con el ID del usuario correspondiente
+          const userRef = db.collection("Usuarios").doc(userId);
+    
+          // Obtiene el valor actual de cantidad_servicios, lo convierte a número, le resta 1 y actualiza
+          const userDoc = await userRef.get();
+          if (userDoc.exists) {
+            const userData = userDoc.data();
+            let cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0; // Convierte a número o usa 0 si no es válido
+            cantidadServicios += 1; // Resta 1
+    
+            await userRef.update({
+              "subscripcion_actual.cantidad_servicios": cantidadServicios.toString(), // Guarda nuevamente como string
+            });
+          }
+        }
+
+
+
         return res.status(200).send({
           message: "Servicio actualizado exitosamente",
           service: { id, ...serviceData },
@@ -793,20 +818,23 @@ const saveOrUpdateService = async (req, res) => {
       console.log("Servicio creado con ID:", newServiceRef.id);
 
       if (serviceData.estatus){
-        // Consulta el documento específico en la colección "Usuarios"
-        const userId = uid_taller; // Reemplaza esto con el ID del usuario correspondiente
-        const userRef = db.collection("Usuarios").doc(userId);
-  
-        // Obtiene el valor actual de cantidad_servicios, lo convierte a número, le resta 1 y actualiza
-        const userDoc = await userRef.get();
-        if (userDoc.exists) {
-          const userData = userDoc.data();
-          let cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0; // Convierte a número o usa 0 si no es válido
-          cantidadServicios -= 1; // Resta 1
-  
-          await userRef.update({
-            "subscripcion_actual.cantidad_servicios": cantidadServicios.toString(), // Guarda nuevamente como string
-          });
+
+        if (!publicOrigin){
+          // Consulta el documento específico en la colección "Usuarios"
+          const userId = uid_taller; // Reemplaza esto con el ID del usuario correspondiente
+          const userRef = db.collection("Usuarios").doc(userId);
+    
+          // Obtiene el valor actual de cantidad_servicios, lo convierte a número, le resta 1 y actualiza
+          const userDoc = await userRef.get();
+          if (userDoc.exists) {
+            const userData = userDoc.data();
+            let cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0; // Convierte a número o usa 0 si no es válido
+            cantidadServicios -= 1; // Resta 1
+    
+            await userRef.update({
+              "subscripcion_actual.cantidad_servicios": cantidadServicios.toString(), // Guarda nuevamente como string
+            });
+          }
         }
   
         return res.status(201).send({
@@ -815,6 +843,25 @@ const saveOrUpdateService = async (req, res) => {
         });
 
       } else {
+
+        if (publicOrigin){
+          // Consulta el documento específico en la colección "Usuarios"
+          const userId = uid_taller; // Reemplaza esto con el ID del usuario correspondiente
+          const userRef = db.collection("Usuarios").doc(userId);
+    
+          // Obtiene el valor actual de cantidad_servicios, lo convierte a número, le resta 1 y actualiza
+          const userDoc = await userRef.get();
+          if (userDoc.exists) {
+            const userData = userDoc.data();
+            let cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0; // Convierte a número o usa 0 si no es válido
+            cantidadServicios += 1; // Resta 1
+    
+            await userRef.update({
+              "subscripcion_actual.cantidad_servicios": cantidadServicios.toString(), // Guarda nuevamente como string
+            });
+          }
+        }
+
         return res.status(201).send({
           message: "Servicio creado exitosamente",
           service: { id: newServiceRef.id, ...serviceData },
