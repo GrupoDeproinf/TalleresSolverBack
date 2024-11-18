@@ -941,7 +941,8 @@ const ReportarPagoData = async (req, res) => {
     date,
     montoPago,
     SelectedBanco,
-    SelectedBancoDestino
+    SelectedBancoDestino,
+    nombre_taller
   } = req.body;
 
   try {
@@ -966,6 +967,7 @@ const ReportarPagoData = async (req, res) => {
       status: "Por Aprobar",
       taller_uid: userId == undefined ? "" : userId,
       vigencia: vigencia == undefined ? "" : vigencia,
+      nombre_taller:nombre_taller == undefined ? "" : nombre_taller,
     };
 
     // Guardar en la colección Subscripciones

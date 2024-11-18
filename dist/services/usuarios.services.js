@@ -1284,24 +1284,26 @@ var getMetodosPago = /*#__PURE__*/function () {
 // Función para guardar la suscripción
 var ReportarPagoData = /*#__PURE__*/function () {
   var _ref20 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee20(req, res) {
-    var _req$body8, uid, emailZelle, cod_ref, bancoTranfe, identificacion, telefono, amount, paymentMethod, nombre, vigencia, cant_services, userId, subscripcionData, serviciosSnapshot, batch;
+    var _req$body8, uid, emailZelle, cod_ref, bancoTranfe, identificacion, telefono, amount, paymentMethod, nombre, vigencia, cant_services, date, montoPago, SelectedBanco, SelectedBancoDestino, userId, subscripcionData, serviciosSnapshot, batch;
     return _regeneratorRuntime().wrap(function _callee20$(_context20) {
       while (1) switch (_context20.prev = _context20.next) {
         case 0:
-          _req$body8 = req.body, uid = _req$body8.uid, emailZelle = _req$body8.emailZelle, cod_ref = _req$body8.cod_ref, bancoTranfe = _req$body8.bancoTranfe, identificacion = _req$body8.identificacion, telefono = _req$body8.telefono, amount = _req$body8.amount, paymentMethod = _req$body8.paymentMethod, nombre = _req$body8.nombre, vigencia = _req$body8.vigencia, cant_services = _req$body8.cant_services;
+          _req$body8 = req.body, uid = _req$body8.uid, emailZelle = _req$body8.emailZelle, cod_ref = _req$body8.cod_ref, bancoTranfe = _req$body8.bancoTranfe, identificacion = _req$body8.identificacion, telefono = _req$body8.telefono, amount = _req$body8.amount, paymentMethod = _req$body8.paymentMethod, nombre = _req$body8.nombre, vigencia = _req$body8.vigencia, cant_services = _req$body8.cant_services, date = _req$body8.date, montoPago = _req$body8.montoPago, SelectedBanco = _req$body8.SelectedBanco, SelectedBancoDestino = _req$body8.SelectedBancoDestino;
           _context20.prev = 1;
           userId = uid; // Reemplaza con el ID del usuario correspondiente
           subscripcionData = {
             cantidad_servicios: cant_services == undefined ? "" : cant_services,
-            metodo_pago: {
-              amount: amount == undefined ? "" : amount,
-              bankName: bancoTranfe == undefined ? "" : bancoTranfe,
-              paymentMethod: paymentMethod == undefined ? "" : paymentMethod,
-              receiptFile: "" == undefined ? "" : "",
-              transactionNumber: cod_ref == undefined ? "" : cod_ref,
-              email: emailZelle == undefined ? "" : emailZelle,
-              identificacion: identificacion == undefined ? "" : identificacion,
-              numero_tlf: telefono == undefined ? "" : telefono
+            comprobante_pago: {
+              bancoDestino: SelectedBancoDestino == undefined ? "" : SelectedBancoDestino,
+              bancoOrigen: SelectedBanco == undefined ? "" : SelectedBanco,
+              cedula: identificacion == undefined ? "" : identificacion,
+              correo: emailZelle == undefined ? "" : emailZelle,
+              fechaPago: date == undefined ? "" : emailZelle,
+              metodo: paymentMethod == undefined ? "" : paymentMethod,
+              monto: montoPago == undefined ? "" : montoPago,
+              numReferencia: cod_ref == undefined ? "" : cod_ref,
+              telefono: telefono == undefined ? "" : telefono,
+              receiptFile: "" == undefined ? "" : ""
             },
             monto: amount == undefined ? "" : amount,
             nombre: nombre == undefined ? "" : nombre,
