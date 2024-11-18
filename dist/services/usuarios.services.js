@@ -1005,13 +1005,13 @@ var getSubcategoriesByCategoryUid = /*#__PURE__*/function () {
 }();
 var saveOrUpdateService = /*#__PURE__*/function () {
   var _ref17 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee17(req, res) {
-    var _req$body7, id, categoria, descripcion, estatus, garantia, nombre_servicio, precio, subcategoria, taller, uid_categoria, uid_servicio, uid_subcategoria, uid_taller, puntuacion, serviceData, serviceRef, serviceSnapshot, newServiceRef;
+    var _req$body7, id, categoria, descripcion, estatus, garantia, nombre_servicio, precio, subcategoria, taller, uid_categoria, uid_servicio, uid_subcategoria, uid_taller, puntuacion, publicOrigin, serviceData, serviceRef, serviceSnapshot, userId, userRef, userDoc, userData, cantidadServicios, _userId, _userRef, _userDoc, _userData, _cantidadServicios, newServiceRef, _userId2, _userRef2, _userDoc2, _userData2, _cantidadServicios2, _userId3, _userRef3, _userDoc3, _userData3, _cantidadServicios3;
     return _regeneratorRuntime().wrap(function _callee17$(_context17) {
       while (1) switch (_context17.prev = _context17.next) {
         case 0:
           _context17.prev = 0;
           // Obtener los datos del servicio desde el cuerpo de la solicitud
-          _req$body7 = req.body, id = _req$body7.id, categoria = _req$body7.categoria, descripcion = _req$body7.descripcion, estatus = _req$body7.estatus, garantia = _req$body7.garantia, nombre_servicio = _req$body7.nombre_servicio, precio = _req$body7.precio, subcategoria = _req$body7.subcategoria, taller = _req$body7.taller, uid_categoria = _req$body7.uid_categoria, uid_servicio = _req$body7.uid_servicio, uid_subcategoria = _req$body7.uid_subcategoria, uid_taller = _req$body7.uid_taller, puntuacion = _req$body7.puntuacion;
+          _req$body7 = req.body, id = _req$body7.id, categoria = _req$body7.categoria, descripcion = _req$body7.descripcion, estatus = _req$body7.estatus, garantia = _req$body7.garantia, nombre_servicio = _req$body7.nombre_servicio, precio = _req$body7.precio, subcategoria = _req$body7.subcategoria, taller = _req$body7.taller, uid_categoria = _req$body7.uid_categoria, uid_servicio = _req$body7.uid_servicio, uid_subcategoria = _req$body7.uid_subcategoria, uid_taller = _req$body7.uid_taller, puntuacion = _req$body7.puntuacion, publicOrigin = _req$body7.publicOrigin;
           console.log("Datos del servicio:", req.body);
           serviceData = {
             categoria: categoria,
@@ -1029,7 +1029,7 @@ var saveOrUpdateService = /*#__PURE__*/function () {
             puntuacion: puntuacion
           }; // Si `id` tiene un valor, editar el documento en la colección "Servicios"
           if (!id) {
-            _context17.next = 17;
+            _context17.next = 45;
             break;
           }
           serviceRef = db.collection("Servicios").doc(id);
@@ -1049,37 +1049,154 @@ var saveOrUpdateService = /*#__PURE__*/function () {
           return serviceRef.update(serviceData);
         case 13:
           console.log("Servicio actualizado:", id);
+          if (!serviceData.estatus) {
+            _context17.next = 30;
+            break;
+          }
+          if (publicOrigin) {
+            _context17.next = 27;
+            break;
+          }
+          // Consulta el documento específico en la colección "Usuarios"
+          userId = uid_taller; // Reemplaza esto con el ID del usuario correspondiente
+          userRef = db.collection("Usuarios").doc(userId); // Obtiene el valor actual de cantidad_servicios, lo convierte a número, le resta 1 y actualiza
+          _context17.next = 20;
+          return userRef.get();
+        case 20:
+          userDoc = _context17.sent;
+          if (!userDoc.exists) {
+            _context17.next = 27;
+            break;
+          }
+          userData = userDoc.data();
+          cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0; // Convierte a número o usa 0 si no es válido
+          cantidadServicios -= 1; // Resta 1
+          _context17.next = 27;
+          return userRef.update({
+            "subscripcion_actual.cantidad_servicios": cantidadServicios.toString() // Guarda nuevamente como string
+          });
+        case 27:
           return _context17.abrupt("return", res.status(200).send({
             message: "Servicio actualizado exitosamente",
             service: _objectSpread({
               id: id
             }, serviceData)
           }));
-        case 17:
-          _context17.next = 19;
+        case 30:
+          if (!publicOrigin) {
+            _context17.next = 42;
+            break;
+          }
+          // Consulta el documento específico en la colección "Usuarios"
+          _userId = uid_taller; // Reemplaza esto con el ID del usuario correspondiente
+          _userRef = db.collection("Usuarios").doc(_userId); // Obtiene el valor actual de cantidad_servicios, lo convierte a número, le resta 1 y actualiza
+          _context17.next = 35;
+          return _userRef.get();
+        case 35:
+          _userDoc = _context17.sent;
+          if (!_userDoc.exists) {
+            _context17.next = 42;
+            break;
+          }
+          _userData = _userDoc.data();
+          _cantidadServicios = parseInt(_userData.subscripcion_actual.cantidad_servicios, 10) || 0; // Convierte a número o usa 0 si no es válido
+          _cantidadServicios += 1; // Resta 1
+          _context17.next = 42;
+          return _userRef.update({
+            "subscripcion_actual.cantidad_servicios": _cantidadServicios.toString() // Guarda nuevamente como string
+          });
+        case 42:
+          return _context17.abrupt("return", res.status(200).send({
+            message: "Servicio actualizado exitosamente",
+            service: _objectSpread({
+              id: id
+            }, serviceData)
+          }));
+        case 43:
+          _context17.next = 78;
+          break;
+        case 45:
+          _context17.next = 47;
           return db.collection("Servicios").add(serviceData);
-        case 19:
+        case 47:
           newServiceRef = _context17.sent;
           console.log("Servicio creado con ID:", newServiceRef.id);
+          if (!serviceData.estatus) {
+            _context17.next = 65;
+            break;
+          }
+          if (publicOrigin) {
+            _context17.next = 62;
+            break;
+          }
+          // Consulta el documento específico en la colección "Usuarios"
+          _userId2 = uid_taller; // Reemplaza esto con el ID del usuario correspondiente
+          _userRef2 = db.collection("Usuarios").doc(_userId2); // Obtiene el valor actual de cantidad_servicios, lo convierte a número, le resta 1 y actualiza
+          _context17.next = 55;
+          return _userRef2.get();
+        case 55:
+          _userDoc2 = _context17.sent;
+          if (!_userDoc2.exists) {
+            _context17.next = 62;
+            break;
+          }
+          _userData2 = _userDoc2.data();
+          _cantidadServicios2 = parseInt(_userData2.subscripcion_actual.cantidad_servicios, 10) || 0; // Convierte a número o usa 0 si no es válido
+          _cantidadServicios2 -= 1; // Resta 1
+          _context17.next = 62;
+          return _userRef2.update({
+            "subscripcion_actual.cantidad_servicios": _cantidadServicios2.toString() // Guarda nuevamente como string
+          });
+        case 62:
           return _context17.abrupt("return", res.status(201).send({
             message: "Servicio creado exitosamente",
             service: _objectSpread({
               id: newServiceRef.id
             }, serviceData)
           }));
-        case 22:
-          _context17.next = 28;
+        case 65:
+          if (!publicOrigin) {
+            _context17.next = 77;
+            break;
+          }
+          // Consulta el documento específico en la colección "Usuarios"
+          _userId3 = uid_taller; // Reemplaza esto con el ID del usuario correspondiente
+          _userRef3 = db.collection("Usuarios").doc(_userId3); // Obtiene el valor actual de cantidad_servicios, lo convierte a número, le resta 1 y actualiza
+          _context17.next = 70;
+          return _userRef3.get();
+        case 70:
+          _userDoc3 = _context17.sent;
+          if (!_userDoc3.exists) {
+            _context17.next = 77;
+            break;
+          }
+          _userData3 = _userDoc3.data();
+          _cantidadServicios3 = parseInt(_userData3.subscripcion_actual.cantidad_servicios, 10) || 0; // Convierte a número o usa 0 si no es válido
+          _cantidadServicios3 += 1; // Resta 1
+          _context17.next = 77;
+          return _userRef3.update({
+            "subscripcion_actual.cantidad_servicios": _cantidadServicios3.toString() // Guarda nuevamente como string
+          });
+        case 77:
+          return _context17.abrupt("return", res.status(201).send({
+            message: "Servicio creado exitosamente",
+            service: _objectSpread({
+              id: newServiceRef.id
+            }, serviceData)
+          }));
+        case 78:
+          _context17.next = 84;
           break;
-        case 24:
-          _context17.prev = 24;
+        case 80:
+          _context17.prev = 80;
           _context17.t0 = _context17["catch"](0);
           console.error("Error al guardar o actualizar el servicio:", _context17.t0);
-          res.status(500).send("Error al guardar o actualizar el servicio");
-        case 28:
+          res.status(500).send(_context17.t0);
+        case 84:
         case "end":
           return _context17.stop();
       }
-    }, _callee17, null, [[0, 24]]);
+    }, _callee17, null, [[0, 80]]);
   }));
   return function saveOrUpdateService(_x34, _x35) {
     return _ref17.apply(this, arguments);
@@ -1167,7 +1284,7 @@ var getMetodosPago = /*#__PURE__*/function () {
 // Función para guardar la suscripción
 var ReportarPagoData = /*#__PURE__*/function () {
   var _ref20 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee20(req, res) {
-    var _req$body8, uid, emailZelle, cod_ref, bancoTranfe, identificacion, telefono, amount, paymentMethod, nombre, vigencia, cant_services, userId, subscripcionData;
+    var _req$body8, uid, emailZelle, cod_ref, bancoTranfe, identificacion, telefono, amount, paymentMethod, nombre, vigencia, cant_services, userId, subscripcionData, serviciosSnapshot, batch;
     return _regeneratorRuntime().wrap(function _callee20$(_context20) {
       while (1) switch (_context20.prev = _context20.next) {
         case 0:
@@ -1200,19 +1317,31 @@ var ReportarPagoData = /*#__PURE__*/function () {
             subscripcion_actual: subscripcionData
           });
         case 8:
-          console.log('Suscripción guardada con éxito.');
+          _context20.next = 10;
+          return db.collection('Servicios').where('uid_taller', '==', userId).get();
+        case 10:
+          serviciosSnapshot = _context20.sent;
+          batch = db.batch();
+          serviciosSnapshot.forEach(function (doc) {
+            batch.update(doc.ref, {
+              estatus: false
+            });
+          });
+          _context20.next = 15;
+          return batch.commit();
+        case 15:
           return _context20.abrupt("return", res.status(201).send({
             message: "Suscripción guardada con éxito."
           }));
-        case 12:
-          _context20.prev = 12;
+        case 18:
+          _context20.prev = 18;
           _context20.t0 = _context20["catch"](1);
           res.status(500).send("Error al guardar la suscripción");
-        case 15:
+        case 21:
         case "end":
           return _context20.stop();
       }
-    }, _callee20, null, [[1, 12]]);
+    }, _callee20, null, [[1, 18]]);
   }));
   return function ReportarPagoData(_x40, _x41) {
     return _ref20.apply(this, arguments);
