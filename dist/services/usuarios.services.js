@@ -1284,11 +1284,11 @@ var getMetodosPago = /*#__PURE__*/function () {
 // Función para guardar la suscripción
 var ReportarPagoData = /*#__PURE__*/function () {
   var _ref20 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee20(req, res) {
-    var _req$body8, uid, emailZelle, cod_ref, bancoTranfe, identificacion, telefono, amount, paymentMethod, nombre, vigencia, cant_services, date, montoPago, SelectedBanco, SelectedBancoDestino, userId, subscripcionData, serviciosSnapshot, batch;
+    var _req$body8, uid, emailZelle, cod_ref, bancoTranfe, identificacion, telefono, amount, paymentMethod, nombre, vigencia, cant_services, date, montoPago, SelectedBanco, SelectedBancoDestino, nombre_taller, userId, subscripcionData, serviciosSnapshot, batch;
     return _regeneratorRuntime().wrap(function _callee20$(_context20) {
       while (1) switch (_context20.prev = _context20.next) {
         case 0:
-          _req$body8 = req.body, uid = _req$body8.uid, emailZelle = _req$body8.emailZelle, cod_ref = _req$body8.cod_ref, bancoTranfe = _req$body8.bancoTranfe, identificacion = _req$body8.identificacion, telefono = _req$body8.telefono, amount = _req$body8.amount, paymentMethod = _req$body8.paymentMethod, nombre = _req$body8.nombre, vigencia = _req$body8.vigencia, cant_services = _req$body8.cant_services, date = _req$body8.date, montoPago = _req$body8.montoPago, SelectedBanco = _req$body8.SelectedBanco, SelectedBancoDestino = _req$body8.SelectedBancoDestino;
+          _req$body8 = req.body, uid = _req$body8.uid, emailZelle = _req$body8.emailZelle, cod_ref = _req$body8.cod_ref, bancoTranfe = _req$body8.bancoTranfe, identificacion = _req$body8.identificacion, telefono = _req$body8.telefono, amount = _req$body8.amount, paymentMethod = _req$body8.paymentMethod, nombre = _req$body8.nombre, vigencia = _req$body8.vigencia, cant_services = _req$body8.cant_services, date = _req$body8.date, montoPago = _req$body8.montoPago, SelectedBanco = _req$body8.SelectedBanco, SelectedBancoDestino = _req$body8.SelectedBancoDestino, nombre_taller = _req$body8.nombre_taller;
           _context20.prev = 1;
           userId = uid; // Reemplaza con el ID del usuario correspondiente
           subscripcionData = {
@@ -1309,7 +1309,8 @@ var ReportarPagoData = /*#__PURE__*/function () {
             nombre: nombre == undefined ? "" : nombre,
             status: "Por Aprobar",
             taller_uid: userId == undefined ? "" : userId,
-            vigencia: vigencia == undefined ? "" : vigencia
+            vigencia: vigencia == undefined ? "" : vigencia,
+            nombre_taller: nombre_taller == undefined ? "" : nombre_taller
           }; // Guardar en la colección Subscripciones
           _context20.next = 6;
           return db.collection('Subscripciones').add(subscripcionData);
