@@ -120,7 +120,7 @@ const SaveClient = async (req, res) => {
 const SaveTaller = async (req, res) => {
   try {
     // Recibir los datos del taller desde el cuerpo de la solicitud
-    const { Nombre, rif, phone, email, password } = req.body;
+    const { Nombre, rif, phone, email, password, whats, metodos_pago } = req.body;
 
 
     let userRecord;
@@ -145,6 +145,8 @@ const SaveTaller = async (req, res) => {
           phoneNumber: `+58${phone}`,
           displayName: Nombre,
           disabled: false,
+          whatsapp:whats,
+          metodos_pago:metodos_pago
         });
       } else {
         // Si otro error ocurre, lanzarlo

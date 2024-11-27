@@ -31,68 +31,73 @@ var getServicios = /*#__PURE__*/function () {
         case 0:
           _context.prev = 0;
           _context.next = 3;
-          return db.collection('Servicios').get();
+          return db.collection("Servicios").get();
         case 3:
           serviciosSnapshot = _context.sent;
           // Crear un array para almacenar los servicios con sus talleres asociados
-          serviciosConTalleres = []; // Paso 2: Iterar sobre los servicios y buscar los talleres relacionados
+          serviciosConTalleres = []; // Iterar sobre los servicios y buscar los talleres relacionados
           _iterator = _createForOfIteratorHelper(serviciosSnapshot.docs);
           _context.prev = 6;
           _iterator.s();
         case 8:
           if ((_step = _iterator.n()).done) {
-            _context.next = 23;
+            _context.next = 24;
             break;
           }
           servicioDoc = _step.value;
-          servicioData = servicioDoc.data(); // Obtener el UID del taller del servicio
+          servicioData = servicioDoc.data(); // Agregar el uid del servicio al objeto de datos
+          servicioData.uid_servicio = servicioDoc.id;
+
+          // serviciosConTalleres contendrá los objetos con el `uid_servicio` incluido
+
+          // Obtener el UID del taller del servicio
           uidTaller = servicioData.uid_taller; // Validar que uid_taller exista y sea una cadena válida
-          if (!(uidTaller && typeof uidTaller === 'string' && uidTaller.trim() !== '')) {
-            _context.next = 20;
+          if (!(uidTaller && typeof uidTaller === "string" && uidTaller.trim() !== "")) {
+            _context.next = 21;
             break;
           }
-          _context.next = 15;
-          return db.collection('Usuarios').doc(uidTaller).get();
-        case 15:
+          _context.next = 16;
+          return db.collection("Usuarios").doc(uidTaller).get();
+        case 16:
           tallerSnapshot = _context.sent;
           // Si el taller existe, agregar su información al servicio
           tallerData = tallerSnapshot.exists ? tallerSnapshot.data() : null; // Agregar el servicio junto con el taller a la lista
           serviciosConTalleres.push(_objectSpread(_objectSpread({}, servicioData), {}, {
             taller: tallerData
           }));
-          _context.next = 21;
+          _context.next = 22;
           break;
-        case 20:
-          console.warn("UID de taller no v\xE1lido para el servicio ".concat(servicioDoc.id));
         case 21:
+          console.warn("UID de taller no v\xE1lido para el servicio ".concat(servicioDoc.id));
+        case 22:
           _context.next = 8;
           break;
-        case 23:
-          _context.next = 28;
+        case 24:
+          _context.next = 29;
           break;
-        case 25:
-          _context.prev = 25;
+        case 26:
+          _context.prev = 26;
           _context.t0 = _context["catch"](6);
           _iterator.e(_context.t0);
-        case 28:
-          _context.prev = 28;
+        case 29:
+          _context.prev = 29;
           _iterator.f();
-          return _context.finish(28);
-        case 31:
-          console.log('Servicios con Talleres:', serviciosConTalleres);
+          return _context.finish(29);
+        case 32:
+          console.log("Servicios con Talleres:", serviciosConTalleres);
           res.send(serviciosConTalleres);
-          _context.next = 39;
+          _context.next = 40;
           break;
-        case 35:
-          _context.prev = 35;
+        case 36:
+          _context.prev = 36;
           _context.t1 = _context["catch"](0);
           console.error("Error obteniendo servicios y talleres:", _context.t1);
           res.status(500).send("Error obteniendo servicios y talleres.");
-        case 39:
+        case 40:
         case "end":
           return _context.stop();
       }
-    }, _callee, null, [[0, 35], [6, 25, 28, 31]]);
+    }, _callee, null, [[0, 36], [6, 26, 29, 32]]);
   }));
   return function getServicios(_x, _x2) {
     return _ref.apply(this, arguments);
