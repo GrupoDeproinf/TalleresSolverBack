@@ -103,6 +103,61 @@ var getServicios = /*#__PURE__*/function () {
     return _ref.apply(this, arguments);
   };
 }();
+var saveContactService = /*#__PURE__*/function () {
+  var _ref2 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee2(req, res) {
+    var _ref3, id, nombre_servicio, precio, taller, uid_servicio, uid_taller, usuario_id, usuario_nombre, usuario_email, serviceData;
+    return _regeneratorRuntime().wrap(function _callee2$(_context2) {
+      while (1) switch (_context2.prev = _context2.next) {
+        case 0:
+          _context2.prev = 0;
+          _ref3 = req.body || {}, id = _ref3.id, nombre_servicio = _ref3.nombre_servicio, precio = _ref3.precio, taller = _ref3.taller, uid_servicio = _ref3.uid_servicio, uid_taller = _ref3.uid_taller, usuario_id = _ref3.usuario_id, usuario_nombre = _ref3.usuario_nombre, usuario_email = _ref3.usuario_email;
+          if (!(!id || !nombre_servicio || !precio || !taller || !uid_taller || !usuario_id)) {
+            _context2.next = 4;
+            break;
+          }
+          return _context2.abrupt("return", res.status(400).json({
+            error: 'Faltan campos obligatorios en el body de la solicitud.'
+          }));
+        case 4:
+          serviceData = {
+            id: id,
+            nombre_servicio: nombre_servicio,
+            precio: precio,
+            taller: taller,
+            uid_servicio: uid_servicio || null,
+            uid_taller: uid_taller,
+            usuario: {
+              id: usuario_id,
+              nombre: usuario_nombre,
+              email: usuario_email
+            },
+            fecha_creacion: admin.firestore.FieldValue.serverTimestamp()
+          };
+          _context2.next = 7;
+          return db.collection('servicesContact').add(serviceData);
+        case 7:
+          return _context2.abrupt("return", res.status(200).json({
+            message: 'Servicio guardado exitosamente.',
+            serviceData: serviceData
+          }));
+        case 10:
+          _context2.prev = 10;
+          _context2.t0 = _context2["catch"](0);
+          console.error('Error al guardar el servicio:', _context2.t0);
+          return _context2.abrupt("return", res.status(500).json({
+            error: 'Error interno del servidor.'
+          }));
+        case 14:
+        case "end":
+          return _context2.stop();
+      }
+    }, _callee2, null, [[0, 10]]);
+  }));
+  return function saveContactService(_x3, _x4) {
+    return _ref2.apply(this, arguments);
+  };
+}();
 module.exports = {
-  getServicios: getServicios
+  getServicios: getServicios,
+  saveContactService: saveContactService
 };

@@ -61,6 +61,74 @@ const getServicios = async (req, res) => {
   }
 };
 
+const saveContactService = async (req, res) => {
+    try {
+      const {
+        id,
+        nombre_servicio,
+        precio,
+        taller,
+        uid_servicio,
+        uid_taller,
+        usuario_id,
+        usuario_nombre,
+        usuario_email,
+      } = req.body || {};
+  
+      if (!id || !nombre_servicio || !precio || !taller || !uid_taller || !usuario_id) {
+        return res.status(400).json({ error: 'Faltan campos obligatorios en el body de la solicitud.' });
+      }
+  
+      const serviceData = {
+        id,
+        nombre_servicio,
+        precio,
+        taller,
+        uid_servicio: uid_servicio || null,
+        uid_taller,
+        usuario: {
+          id: usuario_id,
+          nombre: usuario_nombre,
+          email: usuario_email,
+        },
+        fecha_creacion: admin.firestore.FieldValue.serverTimestamp(),
+      };
+  
+      await db.collection('servicesContact').add(serviceData);
+  
+      return res.status(200).json({ message: 'Servicio guardado exitosamente.', serviceData });
+    } catch (error) {
+      console.error('Error al guardar el servicio:', error);
+      return res.status(500).json({ error: 'Error interno del servidor.' });
+    }
+  };
+
+
+  const getServicesContact = async (req, res) => {
+    try {
+      // Obtener todos los documentos de la colección "servicesContact"
+      const serviciosSnapshot = await db.collection("servicesContact").get();
+  
+      // Transformar el snapshot en un array de objetos con los datos de los documentos
+      const servicios = serviciosSnapshot.docs.map((doc) => ({
+        id: doc.id, // Incluir el ID del documento
+        ...doc.data(), // Incluir los datos del documento
+      }));
+  
+      console.log("Servicios con Talleres:", servicios);
+  
+      // Enviar los datos transformados como respuesta
+      res.status(200).json(servicios);
+    } catch (error) {
+      console.error("Error obteniendo servicios y talleres:", error);
+      res.status(500).send("Error obteniendo servicios y talleres.");
+    }
+  };
+  
+  
+
 module.exports = {
   getServicios,
+  saveContactService,
+  getServicesContact
 };
