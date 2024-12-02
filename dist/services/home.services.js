@@ -157,7 +157,46 @@ var saveContactService = /*#__PURE__*/function () {
     return _ref2.apply(this, arguments);
   };
 }();
+var getServicesContact = /*#__PURE__*/function () {
+  var _ref4 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee3(req, res) {
+    var serviciosSnapshot, servicios;
+    return _regeneratorRuntime().wrap(function _callee3$(_context3) {
+      while (1) switch (_context3.prev = _context3.next) {
+        case 0:
+          _context3.prev = 0;
+          _context3.next = 3;
+          return db.collection("servicesContact").get();
+        case 3:
+          serviciosSnapshot = _context3.sent;
+          // Transformar el snapshot en un array de objetos con los datos de los documentos
+          servicios = serviciosSnapshot.docs.map(function (doc) {
+            return _objectSpread({
+              id: doc.id
+            }, doc.data());
+          });
+          console.log("Servicios con Talleres:", servicios);
+
+          // Enviar los datos transformados como respuesta
+          res.status(200).json(servicios);
+          _context3.next = 13;
+          break;
+        case 9:
+          _context3.prev = 9;
+          _context3.t0 = _context3["catch"](0);
+          console.error("Error obteniendo servicios y talleres:", _context3.t0);
+          res.status(500).send("Error obteniendo servicios y talleres.");
+        case 13:
+        case "end":
+          return _context3.stop();
+      }
+    }, _callee3, null, [[0, 9]]);
+  }));
+  return function getServicesContact(_x5, _x6) {
+    return _ref4.apply(this, arguments);
+  };
+}();
 module.exports = {
   getServicios: getServicios,
-  saveContactService: saveContactService
+  saveContactService: saveContactService,
+  getServicesContact: getServicesContact
 };

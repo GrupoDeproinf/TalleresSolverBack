@@ -192,13 +192,13 @@ var SaveClient = /*#__PURE__*/function () {
 }();
 var SaveTaller = /*#__PURE__*/function () {
   var _ref3 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee3(req, res) {
-    var _req$body2, Nombre, rif, phone, email, password, userRecord, uid, infoUserCreated;
+    var _req$body2, Nombre, rif, phone, email, password, whats, metodos_pago, estado, userRecord, uid, infoUserCreated;
     return _regeneratorRuntime().wrap(function _callee3$(_context3) {
       while (1) switch (_context3.prev = _context3.next) {
         case 0:
           _context3.prev = 0;
           // Recibir los datos del taller desde el cuerpo de la solicitud
-          _req$body2 = req.body, Nombre = _req$body2.Nombre, rif = _req$body2.rif, phone = _req$body2.phone, email = _req$body2.email, password = _req$body2.password;
+          _req$body2 = req.body, Nombre = _req$body2.Nombre, rif = _req$body2.rif, phone = _req$body2.phone, email = _req$body2.email, password = _req$body2.password, whats = _req$body2.whats, metodos_pago = _req$body2.metodos_pago, estado = _req$body2.estado;
           _context3.prev = 2;
           _context3.next = 5;
           return admin.auth().getUserByEmail(email);
@@ -247,7 +247,10 @@ var SaveTaller = /*#__PURE__*/function () {
             phone: phone,
             typeUser: "Taller",
             email: email,
-            status: "Pendiente"
+            status: "Pendiente",
+            whatsapp: whats,
+            metodos_pago: metodos_pago,
+            estado: estado
           };
           _context3.next = 24;
           return db.collection("Usuarios").doc(uid).set(infoUserCreated, {

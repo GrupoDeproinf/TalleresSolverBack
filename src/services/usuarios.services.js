@@ -120,7 +120,7 @@ const SaveClient = async (req, res) => {
 const SaveTaller = async (req, res) => {
   try {
     // Recibir los datos del taller desde el cuerpo de la solicitud
-    const { Nombre, rif, phone, email, password, whats, metodos_pago } = req.body;
+    const { Nombre, rif, phone, email, password, whats, metodos_pago, estado } = req.body;
 
 
     let userRecord;
@@ -145,8 +145,6 @@ const SaveTaller = async (req, res) => {
           phoneNumber: `+58${phone}`,
           displayName: Nombre,
           disabled: false,
-          whatsapp:whats,
-          metodos_pago:metodos_pago
         });
       } else {
         // Si otro error ocurre, lanzarlo
@@ -166,6 +164,9 @@ const SaveTaller = async (req, res) => {
       typeUser: "Taller",
       email: email,
       status: "Pendiente",
+      whatsapp:whats,
+      metodos_pago:metodos_pago,
+      estado:estado
     };
 
     await db.collection("Usuarios").doc(uid).set(infoUserCreated, { merge: true });
