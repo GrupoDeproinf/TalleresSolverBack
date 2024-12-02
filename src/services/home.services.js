@@ -124,11 +124,54 @@ const saveContactService = async (req, res) => {
       res.status(500).send("Error obteniendo servicios y talleres.");
     }
   };
+
+  const getServicesCategories = async (req, res) => {
+    try {
+      // Obtener la categoría enviada en el request
+      const { nombre_categoria } = req.body; // O req.body dependiendo del método HTTP
+  
+      if (!nombre_categoria) {
+        return res.status(400).send("Por favor, proporciona una categoría.");
+      }
+  
+      // Consultar los documentos que coincidan con la categoría
+      const serviciosSnapshot = await db
+        .collection("Servicios")
+        .where("nombre_categoria", "==", nombre_categoria) // Filtrar por categoría
+        .get();
+  
+      // Transformar el snapshot en un array de objetos con los datos de los documentos
+      const servicios = serviciosSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+  
+      // Si no hay servicios, devolver un arreglo vacío
+      if (servicios.length === 0) {
+        return res.status(200).json([]);
+      }
+  
+      // Obtener 3 servicios aleatorios
+      const serviciosAleatorios = servicios
+        .sort(() => Math.random() - 0.5) // Ordenar aleatoriamente
+        .slice(0, 3); // Tomar los primeros 3 elementos
+  
+      console.log(`Servicios aleatorios con la categoría "${nombre_categoria}":`, serviciosAleatorios);
+  
+      // Enviar los datos como respuesta
+      res.status(200).json(serviciosAleatorios);
+    } catch (error) {
+      console.error("Error obteniendo servicios por categoría:", error);
+      res.status(500).send("Error obteniendo servicios por categoría.");
+    }
+  };
+  
   
   
 
 module.exports = {
   getServicios,
   saveContactService,
-  getServicesContact
+  getServicesContact,
+  getServicesCategories
 };
