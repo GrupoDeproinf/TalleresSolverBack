@@ -6,6 +6,6 @@ const router = Router();
 router.get('/getServices', Home.getServicios);
 router.post('/contactService', Home.saveContactService)
 router.get('/getContactService', Home.getServicesContact)
-router.get('/getServicesByCategory', Home.getServicesCategories)
+router.post('/getServicesByCategory', Home.getServicesCategories)
 
 module.exports = router;
