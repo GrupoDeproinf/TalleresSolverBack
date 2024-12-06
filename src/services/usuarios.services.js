@@ -1,9 +1,13 @@
 const admin = require("firebase-admin");
-const { db } = require("../firebase");
+const { db, bucket } = require("../firebase");
+const { Buffer } = require('buffer');
 
 const { getAuth, signInWithEmailAndPassword } = require("firebase/auth");
 const { getFirestore } = require("firebase-admin/firestore");
 const { app } = require("../../firebaseConfig"); // Asegúrate de la ruta correcta
+
+
+
 
 // Inicializar Firebase Auth y Firestore
 const auth = getAuth(app); // Obtener la instancia de autenticación
@@ -73,6 +77,21 @@ const SaveClient = async (req, res) => {
     // Obtener el UID del usuario
     const uid = userRecord.uid;
 
+    // Subir la imagen de perfil al Storage
+    let imageUrl = '';
+    if (base64) {
+      const buffer = Buffer.from(base64, 'base64');
+      const file = bucket.file(`profileImages/${uid}.jpg`);
+
+      await file.save(buffer, {
+        metadata: { contentType: 'image/jpeg' },
+        public: true,
+        validation: 'md5'
+      });
+
+      imageUrl = `https://storage.googleapis.com/${bucket.name}/profileImages/${uid}.jpg`;
+    }
+
     // Crear o actualizar el documento en la colección "Usuarios"
     const infoUserCreated = {
       uid: uid,
@@ -81,7 +100,8 @@ const SaveClient = async (req, res) => {
       phone: phone,
       typeUser: "Cliente",
       email: email,
-      estado:estado
+      estado: estado,
+      image_perfil: imageUrl // Guardar la URL de la imagen de perfil
     };
 
     await db
@@ -116,13 +136,13 @@ const SaveClient = async (req, res) => {
     // En caso de un error inesperado
     res.status(500).send("Error al guardar el usuario");
   }
+  
 };
 
 const SaveTaller = async (req, res) => {
   try {
     // Recibir los datos del taller desde el cuerpo de la solicitud
-    const { Nombre, rif, phone, email, password, whats, metodos_pago, estado } = req.body;
-
+    const { Nombre, rif, phone, email, password, whats, metodos_pago, estado, base64 } = req.body;
 
     let userRecord;
     try {
@@ -156,6 +176,21 @@ const SaveTaller = async (req, res) => {
     // Obtener el UID del usuario
     const uid = userRecord.uid;
 
+    // Subir la imagen de perfil al Storage
+    let imageUrl = '';
+    if (base64) {
+      const buffer = Buffer.from(base64, 'base64');
+      const file = bucket.file(`profileImages/${uid}.jpg`);
+
+      await file.save(buffer, {
+        metadata: { contentType: 'image/jpeg' },
+        public: true,
+        validation: 'md5'
+      });
+
+      imageUrl = `https://storage.googleapis.com/${bucket.name}/profileImages/${uid}.jpg`;
+    }
+
     // Crear o actualizar el documento en la colección "Usuarios"
     const infoUserCreated = {
       uid: uid,
@@ -165,9 +200,10 @@ const SaveTaller = async (req, res) => {
       typeUser: "Taller",
       email: email,
       status: "Pendiente",
-      whatsapp:whats,
-      metodos_pago:metodos_pago,
-      estado:estado
+      whatsapp: whats,
+      metodos_pago: metodos_pago,
+      estado: estado,
+      image_perfil: imageUrl // Guardar la URL de la imagen de perfil
     };
 
     await db.collection("Usuarios").doc(uid).set(infoUserCreated, { merge: true });
@@ -179,17 +215,11 @@ const SaveTaller = async (req, res) => {
 
     // Manejar errores específicos de Firebase
     if (error.code === "auth/email-already-exists") {
-      return res
-        .status(400)
-        .send({ message: "Este email ya está registrado." });
+      return res.status(400).send({ message: "Este email ya está registrado." });
     } else if (error.code === "auth/phone-number-already-exists") {
-      return res
-        .status(400)
-        .send({ message: "Este número de teléfono ya está registrado." });
+      return res.status(400).send({ message: "Este número de teléfono ya está registrado." });
     } else if (error.code === "auth/invalid-phone-number") {
-      return res
-        .status(400)
-        .send({ message: "El número de teléfono no es válido." });
+      return res.status(400).send({ message: "El número de teléfono no es válido." });
     } else if (error.code === "auth/invalid-password") {
       return res.status(400).send({ message: "La contraseña es inválida." });
     }
@@ -198,6 +228,7 @@ const SaveTaller = async (req, res) => {
     res.status(500).send("Error al guardar el usuario");
   }
 };
+
 
 
 // Función para autenticar usuarios
@@ -322,15 +353,43 @@ const getUserByUid = async (req, res) => {
 
 const SaveTallerAll = async (req, res) => {
   try {
-    const { uid } = req.body;
+    const { uid, base64 } = req.body;
 
     // Verificar que el UID no esté vacío
     if (!uid) {
       return res.status(400).send({ message: "El UID es obligatorio." });
     }
 
+    // Subir la imagen de perfil al Storage si el base64 no está vacío ni nulo
+    let imageUrl = '';
+    if (base64 && base64.trim() !== '') {
+      const file = bucket.file(`profileImages/${uid}.jpg`);
+
+      // Eliminar la imagen anterior si existe
+      await file.delete().catch((error) => {
+        if (error.code !== 404) {
+          console.error("Error al eliminar la imagen anterior:", error);
+        }
+      });
+
+      // Subir la nueva imagen
+      const buffer = Buffer.from(base64, 'base64');
+      await file.save(buffer, {
+        metadata: { contentType: 'image/jpeg' },
+        public: true,
+        validation: 'md5',
+      });
+
+      imageUrl = `https://storage.googleapis.com/${bucket.name}/profileImages/${uid}.jpg`;
+
+      // Añadir la URL de la imagen al cuerpo de la solicitud
+      req.body.image_perfil = imageUrl;
+    }
+
+    delete req.body.base64;
+    
     // Guardar el objeto en la colección "Usuarios"
-    const result = await db.collection("Usuarios").doc(uid).set(req.body);
+    const result = await db.collection("Usuarios").doc(uid).set(req.body, { merge: true });
 
     // Verificar si el resultado de Firestore es válido
     if (!result) {

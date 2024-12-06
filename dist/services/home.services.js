@@ -195,8 +195,67 @@ var getServicesContact = /*#__PURE__*/function () {
     return _ref4.apply(this, arguments);
   };
 }();
+var getServicesCategories = /*#__PURE__*/function () {
+  var _ref5 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee4(req, res) {
+    var nombre_categoria, serviciosSnapshot, servicios, serviciosAleatorios;
+    return _regeneratorRuntime().wrap(function _callee4$(_context4) {
+      while (1) switch (_context4.prev = _context4.next) {
+        case 0:
+          _context4.prev = 0;
+          // Obtener la categoría enviada en el request
+          nombre_categoria = req.body.nombre_categoria; // O req.body dependiendo del método HTTP
+          if (nombre_categoria) {
+            _context4.next = 4;
+            break;
+          }
+          return _context4.abrupt("return", res.status(400).send("Por favor, proporciona una categoría."));
+        case 4:
+          _context4.next = 6;
+          return db.collection("Servicios").where("nombre_categoria", "==", nombre_categoria) // Filtrar por categoría
+          .get();
+        case 6:
+          serviciosSnapshot = _context4.sent;
+          // Transformar el snapshot en un array de objetos con los datos de los documentos
+          servicios = serviciosSnapshot.docs.map(function (doc) {
+            return _objectSpread({
+              id: doc.id
+            }, doc.data());
+          }); // Si no hay servicios, devolver un arreglo vacío
+          if (!(servicios.length === 0)) {
+            _context4.next = 10;
+            break;
+          }
+          return _context4.abrupt("return", res.status(200).json([]));
+        case 10:
+          // Obtener 3 servicios aleatorios
+          serviciosAleatorios = servicios.sort(function () {
+            return Math.random() - 0.5;
+          }) // Ordenar aleatoriamente
+          .slice(0, 3); // Tomar los primeros 3 elementos
+          console.log("Servicios aleatorios con la categor\xEDa \"".concat(nombre_categoria, "\":"), serviciosAleatorios);
+
+          // Enviar los datos como respuesta
+          res.status(200).json(serviciosAleatorios);
+          _context4.next = 19;
+          break;
+        case 15:
+          _context4.prev = 15;
+          _context4.t0 = _context4["catch"](0);
+          console.error("Error obteniendo servicios por categoría:", _context4.t0);
+          res.status(500).send("Error obteniendo servicios por categoría.");
+        case 19:
+        case "end":
+          return _context4.stop();
+      }
+    }, _callee4, null, [[0, 15]]);
+  }));
+  return function getServicesCategories(_x7, _x8) {
+    return _ref5.apply(this, arguments);
+  };
+}();
 module.exports = {
   getServicios: getServicios,
   saveContactService: saveContactService,
-  getServicesContact: getServicesContact
+  getServicesContact: getServicesContact,
+  getServicesCategories: getServicesCategories
 };
