@@ -192,13 +192,13 @@ var SaveClient = /*#__PURE__*/function () {
 }();
 var SaveTaller = /*#__PURE__*/function () {
   var _ref3 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee3(req, res) {
-    var _req$body2, Nombre, rif, phone, email, password, userRecord, uid, infoUserCreated;
+    var _req$body2, Nombre, rif, phone, email, password, whats, metodos_pago, estado, userRecord, uid, infoUserCreated;
     return _regeneratorRuntime().wrap(function _callee3$(_context3) {
       while (1) switch (_context3.prev = _context3.next) {
         case 0:
           _context3.prev = 0;
           // Recibir los datos del taller desde el cuerpo de la solicitud
-          _req$body2 = req.body, Nombre = _req$body2.Nombre, rif = _req$body2.rif, phone = _req$body2.phone, email = _req$body2.email, password = _req$body2.password;
+          _req$body2 = req.body, Nombre = _req$body2.Nombre, rif = _req$body2.rif, phone = _req$body2.phone, email = _req$body2.email, password = _req$body2.password, whats = _req$body2.whats, metodos_pago = _req$body2.metodos_pago, estado = _req$body2.estado;
           _context3.prev = 2;
           _context3.next = 5;
           return admin.auth().getUserByEmail(email);
@@ -247,7 +247,10 @@ var SaveTaller = /*#__PURE__*/function () {
             phone: phone,
             typeUser: "Taller",
             email: email,
-            status: "Pendiente"
+            status: "Pendiente",
+            whatsapp: whats,
+            metodos_pago: metodos_pago,
+            estado: estado
           };
           _context3.next = 24;
           return db.collection("Usuarios").doc(uid).set(infoUserCreated, {
@@ -1284,30 +1287,33 @@ var getMetodosPago = /*#__PURE__*/function () {
 // Función para guardar la suscripción
 var ReportarPagoData = /*#__PURE__*/function () {
   var _ref20 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee20(req, res) {
-    var _req$body8, uid, emailZelle, cod_ref, bancoTranfe, identificacion, telefono, amount, paymentMethod, nombre, vigencia, cant_services, userId, subscripcionData, serviciosSnapshot, batch;
+    var _req$body8, uid, emailZelle, cod_ref, bancoTranfe, identificacion, telefono, amount, paymentMethod, nombre, vigencia, cant_services, date, montoPago, SelectedBanco, SelectedBancoDestino, nombre_taller, userId, subscripcionData, serviciosSnapshot, batch;
     return _regeneratorRuntime().wrap(function _callee20$(_context20) {
       while (1) switch (_context20.prev = _context20.next) {
         case 0:
-          _req$body8 = req.body, uid = _req$body8.uid, emailZelle = _req$body8.emailZelle, cod_ref = _req$body8.cod_ref, bancoTranfe = _req$body8.bancoTranfe, identificacion = _req$body8.identificacion, telefono = _req$body8.telefono, amount = _req$body8.amount, paymentMethod = _req$body8.paymentMethod, nombre = _req$body8.nombre, vigencia = _req$body8.vigencia, cant_services = _req$body8.cant_services;
+          _req$body8 = req.body, uid = _req$body8.uid, emailZelle = _req$body8.emailZelle, cod_ref = _req$body8.cod_ref, bancoTranfe = _req$body8.bancoTranfe, identificacion = _req$body8.identificacion, telefono = _req$body8.telefono, amount = _req$body8.amount, paymentMethod = _req$body8.paymentMethod, nombre = _req$body8.nombre, vigencia = _req$body8.vigencia, cant_services = _req$body8.cant_services, date = _req$body8.date, montoPago = _req$body8.montoPago, SelectedBanco = _req$body8.SelectedBanco, SelectedBancoDestino = _req$body8.SelectedBancoDestino, nombre_taller = _req$body8.nombre_taller;
           _context20.prev = 1;
           userId = uid; // Reemplaza con el ID del usuario correspondiente
           subscripcionData = {
             cantidad_servicios: cant_services == undefined ? "" : cant_services,
-            metodo_pago: {
-              amount: amount == undefined ? "" : amount,
-              bankName: bancoTranfe == undefined ? "" : bancoTranfe,
-              paymentMethod: paymentMethod == undefined ? "" : paymentMethod,
-              receiptFile: "" == undefined ? "" : "",
-              transactionNumber: cod_ref == undefined ? "" : cod_ref,
-              email: emailZelle == undefined ? "" : emailZelle,
-              identificacion: identificacion == undefined ? "" : identificacion,
-              numero_tlf: telefono == undefined ? "" : telefono
+            comprobante_pago: {
+              bancoDestino: SelectedBancoDestino == undefined ? "" : SelectedBancoDestino,
+              bancoOrigen: SelectedBanco == undefined ? "" : SelectedBanco,
+              cedula: identificacion == undefined ? "" : identificacion,
+              correo: emailZelle == undefined ? "" : emailZelle,
+              fechaPago: date == undefined ? "" : emailZelle,
+              metodo: paymentMethod == undefined ? "" : paymentMethod,
+              monto: montoPago == undefined ? "" : montoPago,
+              numReferencia: cod_ref == undefined ? "" : cod_ref,
+              telefono: telefono == undefined ? "" : telefono,
+              receiptFile: "" == undefined ? "" : ""
             },
             monto: amount == undefined ? "" : amount,
             nombre: nombre == undefined ? "" : nombre,
             status: "Por Aprobar",
             taller_uid: userId == undefined ? "" : userId,
-            vigencia: vigencia == undefined ? "" : vigencia
+            vigencia: vigencia == undefined ? "" : vigencia,
+            nombre_taller: nombre_taller == undefined ? "" : nombre_taller
           }; // Guardar en la colección Subscripciones
           _context20.next = 6;
           return db.collection('Subscripciones').add(subscripcionData);

@@ -31,73 +31,172 @@ var getServicios = /*#__PURE__*/function () {
         case 0:
           _context.prev = 0;
           _context.next = 3;
-          return db.collection('Servicios').get();
+          return db.collection("Servicios").get();
         case 3:
           serviciosSnapshot = _context.sent;
           // Crear un array para almacenar los servicios con sus talleres asociados
-          serviciosConTalleres = []; // Paso 2: Iterar sobre los servicios y buscar los talleres relacionados
+          serviciosConTalleres = []; // Iterar sobre los servicios y buscar los talleres relacionados
           _iterator = _createForOfIteratorHelper(serviciosSnapshot.docs);
           _context.prev = 6;
           _iterator.s();
         case 8:
           if ((_step = _iterator.n()).done) {
-            _context.next = 23;
+            _context.next = 24;
             break;
           }
           servicioDoc = _step.value;
-          servicioData = servicioDoc.data(); // Obtener el UID del taller del servicio
+          servicioData = servicioDoc.data(); // Agregar el uid del servicio al objeto de datos
+          servicioData.uid_servicio = servicioDoc.id;
+
+          // serviciosConTalleres contendrá los objetos con el `uid_servicio` incluido
+
+          // Obtener el UID del taller del servicio
           uidTaller = servicioData.uid_taller; // Validar que uid_taller exista y sea una cadena válida
-          if (!(uidTaller && typeof uidTaller === 'string' && uidTaller.trim() !== '')) {
-            _context.next = 20;
+          if (!(uidTaller && typeof uidTaller === "string" && uidTaller.trim() !== "")) {
+            _context.next = 21;
             break;
           }
-          _context.next = 15;
-          return db.collection('Usuarios').doc(uidTaller).get();
-        case 15:
+          _context.next = 16;
+          return db.collection("Usuarios").doc(uidTaller).get();
+        case 16:
           tallerSnapshot = _context.sent;
           // Si el taller existe, agregar su información al servicio
           tallerData = tallerSnapshot.exists ? tallerSnapshot.data() : null; // Agregar el servicio junto con el taller a la lista
           serviciosConTalleres.push(_objectSpread(_objectSpread({}, servicioData), {}, {
             taller: tallerData
           }));
-          _context.next = 21;
+          _context.next = 22;
           break;
-        case 20:
-          console.warn("UID de taller no v\xE1lido para el servicio ".concat(servicioDoc.id));
         case 21:
+          console.warn("UID de taller no v\xE1lido para el servicio ".concat(servicioDoc.id));
+        case 22:
           _context.next = 8;
           break;
-        case 23:
-          _context.next = 28;
+        case 24:
+          _context.next = 29;
           break;
-        case 25:
-          _context.prev = 25;
+        case 26:
+          _context.prev = 26;
           _context.t0 = _context["catch"](6);
           _iterator.e(_context.t0);
-        case 28:
-          _context.prev = 28;
+        case 29:
+          _context.prev = 29;
           _iterator.f();
-          return _context.finish(28);
-        case 31:
-          console.log('Servicios con Talleres:', serviciosConTalleres);
+          return _context.finish(29);
+        case 32:
+          console.log("Servicios con Talleres:", serviciosConTalleres);
           res.send(serviciosConTalleres);
-          _context.next = 39;
+          _context.next = 40;
           break;
-        case 35:
-          _context.prev = 35;
+        case 36:
+          _context.prev = 36;
           _context.t1 = _context["catch"](0);
           console.error("Error obteniendo servicios y talleres:", _context.t1);
           res.status(500).send("Error obteniendo servicios y talleres.");
-        case 39:
+        case 40:
         case "end":
           return _context.stop();
       }
-    }, _callee, null, [[0, 35], [6, 25, 28, 31]]);
+    }, _callee, null, [[0, 36], [6, 26, 29, 32]]);
   }));
   return function getServicios(_x, _x2) {
     return _ref.apply(this, arguments);
   };
 }();
+var saveContactService = /*#__PURE__*/function () {
+  var _ref2 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee2(req, res) {
+    var _ref3, id, nombre_servicio, precio, taller, uid_servicio, uid_taller, usuario_id, usuario_nombre, usuario_email, serviceData;
+    return _regeneratorRuntime().wrap(function _callee2$(_context2) {
+      while (1) switch (_context2.prev = _context2.next) {
+        case 0:
+          _context2.prev = 0;
+          _ref3 = req.body || {}, id = _ref3.id, nombre_servicio = _ref3.nombre_servicio, precio = _ref3.precio, taller = _ref3.taller, uid_servicio = _ref3.uid_servicio, uid_taller = _ref3.uid_taller, usuario_id = _ref3.usuario_id, usuario_nombre = _ref3.usuario_nombre, usuario_email = _ref3.usuario_email;
+          if (!(!id || !nombre_servicio || !precio || !taller || !uid_taller || !usuario_id)) {
+            _context2.next = 4;
+            break;
+          }
+          return _context2.abrupt("return", res.status(400).json({
+            error: 'Faltan campos obligatorios en el body de la solicitud.'
+          }));
+        case 4:
+          serviceData = {
+            id: id,
+            nombre_servicio: nombre_servicio,
+            precio: precio,
+            taller: taller,
+            uid_servicio: uid_servicio || null,
+            uid_taller: uid_taller,
+            usuario: {
+              id: usuario_id,
+              nombre: usuario_nombre,
+              email: usuario_email
+            },
+            fecha_creacion: admin.firestore.FieldValue.serverTimestamp()
+          };
+          _context2.next = 7;
+          return db.collection('servicesContact').add(serviceData);
+        case 7:
+          return _context2.abrupt("return", res.status(200).json({
+            message: 'Servicio guardado exitosamente.',
+            serviceData: serviceData
+          }));
+        case 10:
+          _context2.prev = 10;
+          _context2.t0 = _context2["catch"](0);
+          console.error('Error al guardar el servicio:', _context2.t0);
+          return _context2.abrupt("return", res.status(500).json({
+            error: 'Error interno del servidor.'
+          }));
+        case 14:
+        case "end":
+          return _context2.stop();
+      }
+    }, _callee2, null, [[0, 10]]);
+  }));
+  return function saveContactService(_x3, _x4) {
+    return _ref2.apply(this, arguments);
+  };
+}();
+var getServicesContact = /*#__PURE__*/function () {
+  var _ref4 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee3(req, res) {
+    var serviciosSnapshot, servicios;
+    return _regeneratorRuntime().wrap(function _callee3$(_context3) {
+      while (1) switch (_context3.prev = _context3.next) {
+        case 0:
+          _context3.prev = 0;
+          _context3.next = 3;
+          return db.collection("servicesContact").get();
+        case 3:
+          serviciosSnapshot = _context3.sent;
+          // Transformar el snapshot en un array de objetos con los datos de los documentos
+          servicios = serviciosSnapshot.docs.map(function (doc) {
+            return _objectSpread({
+              id: doc.id
+            }, doc.data());
+          });
+          console.log("Servicios con Talleres:", servicios);
+
+          // Enviar los datos transformados como respuesta
+          res.status(200).json(servicios);
+          _context3.next = 13;
+          break;
+        case 9:
+          _context3.prev = 9;
+          _context3.t0 = _context3["catch"](0);
+          console.error("Error obteniendo servicios y talleres:", _context3.t0);
+          res.status(500).send("Error obteniendo servicios y talleres.");
+        case 13:
+        case "end":
+          return _context3.stop();
+      }
+    }, _callee3, null, [[0, 9]]);
+  }));
+  return function getServicesContact(_x5, _x6) {
+    return _ref4.apply(this, arguments);
+  };
+}();
 module.exports = {
-  getServicios: getServicios
+  getServicios: getServicios,
+  saveContactService: saveContactService,
+  getServicesContact: getServicesContact
 };

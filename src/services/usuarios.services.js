@@ -121,7 +121,7 @@ const SaveClient = async (req, res) => {
 const SaveTaller = async (req, res) => {
   try {
     // Recibir los datos del taller desde el cuerpo de la solicitud
-    const { Nombre, rif, phone, email, password } = req.body;
+    const { Nombre, rif, phone, email, password, whats, metodos_pago, estado } = req.body;
 
 
     let userRecord;
@@ -165,6 +165,9 @@ const SaveTaller = async (req, res) => {
       typeUser: "Taller",
       email: email,
       status: "Pendiente",
+      whatsapp:whats,
+      metodos_pago:metodos_pago,
+      estado:estado
     };
 
     await db.collection("Usuarios").doc(uid).set(infoUserCreated, { merge: true });
@@ -939,28 +942,36 @@ const ReportarPagoData = async (req, res) => {
     nombre,
     vigencia,
     cant_services,
-
+    date,
+    montoPago,
+    SelectedBanco,
+    SelectedBancoDestino,
+    nombre_taller
   } = req.body;
 
   try {
     const userId = uid;  // Reemplaza con el ID del usuario correspondiente
+
     const subscripcionData = {
       cantidad_servicios: cant_services == undefined ? "" : cant_services,
-      metodo_pago: {
-        amount: amount == undefined ? "" : amount,
-        bankName: bancoTranfe == undefined ? "" : bancoTranfe,
-        paymentMethod: paymentMethod == undefined ? "" : paymentMethod,
+      comprobante_pago: {
+        bancoDestino: SelectedBancoDestino == undefined ? "" : SelectedBancoDestino,
+        bancoOrigen: SelectedBanco == undefined ? "" : SelectedBanco,
+        cedula:identificacion == undefined ? "" : identificacion,
+        correo:emailZelle == undefined ? "" : emailZelle,
+        fechaPago: date== undefined ? "" : emailZelle,
+        metodo: paymentMethod == undefined ? "" : paymentMethod,
+        monto:montoPago == undefined ? "" : montoPago,
+        numReferencia: cod_ref == undefined ? "" : cod_ref,
+        telefono: telefono == undefined ? "" : telefono,
         receiptFile: "" == undefined ? "" : "",
-        transactionNumber: cod_ref == undefined ? "" : cod_ref,
-        email: emailZelle == undefined ? "" : emailZelle,
-        identificacion: identificacion == undefined ? "" : identificacion,
-        numero_tlf: telefono == undefined ? "" : telefono
       },
       monto: amount == undefined ? "" : amount,
       nombre: nombre == undefined ? "" : nombre,
       status: "Por Aprobar",
       taller_uid: userId == undefined ? "" : userId,
       vigencia: vigencia == undefined ? "" : vigencia,
+      nombre_taller:nombre_taller == undefined ? "" : nombre_taller,
     };
 
     // Guardar en la colección Subscripciones
