@@ -351,7 +351,7 @@ const getUserByUid = async (req, res) => {
   }
 };
 
-const SaveTallerAll = async (req, res) => {
+const SaveTallerAll = (req, res) => {
   try {
     const { uid, base64 } = req.body;
 
@@ -360,64 +360,99 @@ const SaveTallerAll = async (req, res) => {
       return res.status(400).send({ message: "El UID es obligatorio." });
     }
 
-    // Subir la imagen de perfil al Storage si el base64 no está vacío ni nulo
-    let imageUrl = '';
-    if (base64 && base64.trim() !== '') {
-      const file = bucket.file(`profileImages/${uid}.jpg`);
+    const getLastImageIndex = () => {
+      return new Promise((resolve, reject) => {
+        const prefix = `profileImages/${uid}`;
+        bucket.getFiles({ prefix })
+          .then(([files]) => {
+            let maxIndex = 0;
+            files.forEach(file => {
+              const match = file.name.match(/(\d+)\.jpg$/);
+              if (match) {
+                const index = parseInt(match[1], 10);
+                if (index > maxIndex) {
+                  maxIndex = index;
+                }
+              }
+            });
+            resolve(maxIndex);
+          })
+          .catch(error => {
+            reject(error);
+          });
+      });
+    };
 
-      // Eliminar la imagen anterior si existe
-      await file.delete().catch((error) => {
-        if (error.code !== 404) {
-          console.error("Error al eliminar la imagen anterior:", error);
+    const processImage = (index) => {
+      return new Promise((resolve, reject) => {
+        if (base64 && base64.trim() !== '') {
+          const newFileName = `profileImages/${uid}_${index + 1}.jpg`;
+          const buffer = Buffer.from(base64, 'base64');
+          const file = bucket.file(newFileName);
+
+          // Subir la nueva imagen
+          file.save(buffer, {
+            metadata: { contentType: 'image/jpeg' },
+            public: true,
+            validation: 'md5'
+          })
+          .then(() => {
+            const imageUrl = `https://storage.googleapis.com/${bucket.name}/${newFileName}`;
+            req.body.image_perfil = imageUrl;
+            resolve();
+          })
+          .catch(error => {
+            console.error("Error al guardar la nueva imagen:", error);
+            reject(error);
+          });
+        } else {
+          resolve();
         }
       });
+    };
 
-      // Subir la nueva imagen
-      const buffer = Buffer.from(base64, 'base64');
-      await file.save(buffer, {
-        metadata: { contentType: 'image/jpeg' },
-        public: true,
-        validation: 'md5',
+    const clearOldImageField = () => {
+      return db.collection("Usuarios").doc(uid).update({ image_perfil: admin.firestore.FieldValue.delete() });
+    };
+
+    clearOldImageField()
+      .then(getLastImageIndex)
+      .then(processImage)
+      .then(() => {
+        delete req.body.base64;
+        
+        // Guardar el objeto en la colección "Usuarios"
+        return db.collection("Usuarios").doc(uid).set(req.body, { merge: true });
+      })
+      .then(() => {
+        // Responder con el ID del documento creado y un mensaje de éxito
+        res.status(201).send({ message: "Usuario actualizado con éxito", uid: uid });
+      })
+      .catch(error => {
+        console.error("Error al guardar el usuario:", error);
+
+        // Manejar errores específicos
+        if (error.code === "permission-denied") {
+          res.status(403).send({ message: "Permisos insuficientes para guardar el usuario." });
+        } else if (error.code === "not-found") {
+          res.status(404).send({ message: "Usuario no encontrado." });
+        } else {
+          // Error general
+          res.status(500).send({ message: "Error al guardar el usuario", error: error.message });
+        }
       });
-
-      imageUrl = `https://storage.googleapis.com/${bucket.name}/profileImages/${uid}.jpg`;
-
-      // Añadir la URL de la imagen al cuerpo de la solicitud
-      req.body.image_perfil = imageUrl;
-    }
-
-    delete req.body.base64;
-    
-    // Guardar el objeto en la colección "Usuarios"
-    const result = await db.collection("Usuarios").doc(uid).set(req.body, { merge: true });
-
-    // Verificar si el resultado de Firestore es válido
-    if (!result) {
-      return res
-        .status(500)
-        .send({ message: "Error al guardar el usuario en Firestore." });
-    }
-
-    // Responder con el ID del documento creado y un mensaje de éxito
-    res
-      .status(201)
-      .send({ message: "Usuario actualizado con éxito", uid: uid });
   } catch (error) {
     console.error("Error al guardar el usuario:", error);
 
     // Manejar errores específicos
     if (error.code === "permission-denied") {
-      return res
-        .status(403)
-        .send({ message: "Permisos insuficientes para guardar el usuario." });
+      return res.status(403).send({ message: "Permisos insuficientes para guardar el usuario." });
     } else if (error.code === "not-found") {
       return res.status(404).send({ message: "Usuario no encontrado." });
     }
 
     // Error general
-    res
-      .status(500)
-      .send({ message: "Error al guardar el usuario", error: error.message });
+    res.status(500).send({ message: "Error al guardar el usuario", error: error.message });
   }
 };
 
