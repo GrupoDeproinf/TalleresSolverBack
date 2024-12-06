@@ -31,7 +31,7 @@ const getUsuarios = async (req, res) => {
 const SaveClient = async (req, res) => {
   try {
     // Recibir los datos del cliente desde el cuerpo de la solicitud
-    const { Nombre, cedula, phone, email, password } = req.body;
+    const { Nombre, cedula, phone, email, password, estado, base64 } = req.body;
 
     // Validar el formato del teléfono (ejemplo: debe tener 10 dígitos)
     const phoneRegex = /^\d{10}$/;
@@ -81,6 +81,7 @@ const SaveClient = async (req, res) => {
       phone: phone,
       typeUser: "Cliente",
       email: email,
+      estado:estado
     };
 
     await db
