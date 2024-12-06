@@ -128,7 +128,7 @@ const saveContactService = async (req, res) => {
   const getServicesCategories = async (req, res) => {
     try {
       // Obtener la categoría enviada en el request
-      const { nombre_categoria } = req.body; // O req.body dependiendo del método HTTP
+      const { nombre_categoria, id } = req.body; // O req.body dependiendo del método HTTP
   
       if (!nombre_categoria) {
         return res.status(400).send("Por favor, proporciona una categoría.");
@@ -137,7 +137,8 @@ const saveContactService = async (req, res) => {
       // Consultar los documentos que coincidan con la categoría
       const serviciosSnapshot = await db
         .collection("Servicios")
-        .where("nombre_categoria", "==", nombre_categoria) // Filtrar por categoría
+        .where("nombre_categoria", "==", nombre_categoria)
+        .where("uid_servicio", "!=", id) // Filtrar por categoría
         .get();
   
       // Transformar el snapshot en un array de objetos con los datos de los documentos
