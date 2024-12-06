@@ -11,14 +11,17 @@ function asyncGeneratorStep(n, t, e, r, o, a, c) { try { var i = n[a](c), u = i.
 function _asyncToGenerator(n) { return function () { var t = this, e = arguments; return new Promise(function (r, o) { var a = n.apply(t, e); function _next(n) { asyncGeneratorStep(a, r, o, _next, _throw, "next", n); } function _throw(n) { asyncGeneratorStep(a, r, o, _next, _throw, "throw", n); } _next(void 0); }); }; }
 var admin = require("firebase-admin");
 var _require = require("../firebase"),
-  db = _require.db;
-var _require2 = require("firebase/auth"),
-  getAuth = _require2.getAuth,
-  signInWithEmailAndPassword = _require2.signInWithEmailAndPassword;
-var _require3 = require("firebase-admin/firestore"),
-  getFirestore = _require3.getFirestore;
-var _require4 = require("../../firebaseConfig"),
-  app = _require4.app; // Asegúrate de la ruta correcta
+  db = _require.db,
+  bucket = _require.bucket;
+var _require2 = require('buffer'),
+  Buffer = _require2.Buffer;
+var _require3 = require("firebase/auth"),
+  getAuth = _require3.getAuth,
+  signInWithEmailAndPassword = _require3.signInWithEmailAndPassword;
+var _require4 = require("firebase-admin/firestore"),
+  getFirestore = _require4.getFirestore;
+var _require5 = require("../../firebaseConfig"),
+  app = _require5.app; // Asegúrate de la ruta correcta
 
 // Inicializar Firebase Auth y Firestore
 var auth = getAuth(app); // Obtener la instancia de autenticación
@@ -65,13 +68,13 @@ var getUsuarios = /*#__PURE__*/function () {
 }();
 var SaveClient = /*#__PURE__*/function () {
   var _ref2 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee2(req, res) {
-    var _req$body, Nombre, cedula, phone, email, password, phoneRegex, userRecord, uid, infoUserCreated;
+    var _req$body, Nombre, cedula, phone, email, password, estado, base64, phoneRegex, userRecord, uid, imageUrl, buffer, file, infoUserCreated;
     return _regeneratorRuntime().wrap(function _callee2$(_context2) {
       while (1) switch (_context2.prev = _context2.next) {
         case 0:
           _context2.prev = 0;
           // Recibir los datos del cliente desde el cuerpo de la solicitud
-          _req$body = req.body, Nombre = _req$body.Nombre, cedula = _req$body.cedula, phone = _req$body.phone, email = _req$body.email, password = _req$body.password; // Validar el formato del teléfono (ejemplo: debe tener 10 dígitos)
+          _req$body = req.body, Nombre = _req$body.Nombre, cedula = _req$body.cedula, phone = _req$body.phone, email = _req$body.email, password = _req$body.password, estado = _req$body.estado, base64 = _req$body.base64; // Validar el formato del teléfono (ejemplo: debe tener 10 dígitos)
           phoneRegex = /^\d{10}$/;
           if (phoneRegex.test(phone)) {
             _context2.next = 5;
@@ -119,72 +122,93 @@ var SaveClient = /*#__PURE__*/function () {
           throw _context2.t0;
         case 23:
           // Obtener el UID del usuario
-          uid = userRecord.uid; // Crear o actualizar el documento en la colección "Usuarios"
+          uid = userRecord.uid; // Subir la imagen de perfil al Storage
+          imageUrl = '';
+          if (!base64) {
+            _context2.next = 31;
+            break;
+          }
+          buffer = Buffer.from(base64, 'base64');
+          file = bucket.file("profileImages/".concat(uid, ".jpg"));
+          _context2.next = 30;
+          return file.save(buffer, {
+            metadata: {
+              contentType: 'image/jpeg'
+            },
+            "public": true,
+            validation: 'md5'
+          });
+        case 30:
+          imageUrl = "https://storage.googleapis.com/".concat(bucket.name, "/profileImages/").concat(uid, ".jpg");
+        case 31:
+          // Crear o actualizar el documento en la colección "Usuarios"
           infoUserCreated = {
             uid: uid,
             nombre: Nombre,
             cedula: cedula,
             phone: phone,
             typeUser: "Cliente",
-            email: email
+            email: email,
+            estado: estado,
+            image_perfil: imageUrl // Guardar la URL de la imagen de perfil
           };
-          _context2.next = 27;
+          _context2.next = 34;
           return db.collection("Usuarios").doc(uid).set(infoUserCreated, {
             merge: true
           });
-        case 27:
+        case 34:
           // Responder con el ID del documento creado o actualizado
           res.status(201).send({
             message: "Usuario guardado con éxito",
             uid: uid
           });
-          _context2.next = 48;
+          _context2.next = 55;
           break;
-        case 30:
-          _context2.prev = 30;
+        case 37:
+          _context2.prev = 37;
           _context2.t1 = _context2["catch"](0);
           console.error("Error al guardar el usuario:", _context2.t1);
 
           // Manejar errores específicos de Firebase
           if (!(_context2.t1.code === "auth/email-already-exists")) {
-            _context2.next = 37;
+            _context2.next = 44;
             break;
           }
           return _context2.abrupt("return", res.status(400).send({
             message: "El correo electrónico ya está en uso"
           }));
-        case 37:
+        case 44:
           if (!(_context2.t1.code === "auth/invalid-email")) {
-            _context2.next = 41;
+            _context2.next = 48;
             break;
           }
           return _context2.abrupt("return", res.status(400).send({
             message: "El correo electrónico proporcionado no es válido"
           }));
-        case 41:
+        case 48:
           if (!(_context2.t1.code === "auth/weak-password")) {
-            _context2.next = 45;
+            _context2.next = 52;
             break;
           }
           return _context2.abrupt("return", res.status(400).send({
             message: "La contraseña es demasiado débil"
           }));
-        case 45:
+        case 52:
           if (!(_context2.t1.code === "auth/phone-number-already-exists")) {
-            _context2.next = 47;
+            _context2.next = 54;
             break;
           }
           return _context2.abrupt("return", res.status(400).send({
             message: "El número telefónico ya existe"
           }));
-        case 47:
+        case 54:
           // En caso de un error inesperado
           res.status(500).send("Error al guardar el usuario");
-        case 48:
+        case 55:
         case "end":
           return _context2.stop();
       }
-    }, _callee2, null, [[0, 30], [5, 14]]);
+    }, _callee2, null, [[0, 37], [5, 14]]);
   }));
   return function SaveClient(_x3, _x4) {
     return _ref2.apply(this, arguments);
@@ -192,13 +216,13 @@ var SaveClient = /*#__PURE__*/function () {
 }();
 var SaveTaller = /*#__PURE__*/function () {
   var _ref3 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee3(req, res) {
-    var _req$body2, Nombre, rif, phone, email, password, userRecord, uid, infoUserCreated;
+    var _req$body2, Nombre, rif, phone, email, password, whats, metodos_pago, estado, base64, userRecord, uid, imageUrl, buffer, file, infoUserCreated;
     return _regeneratorRuntime().wrap(function _callee3$(_context3) {
       while (1) switch (_context3.prev = _context3.next) {
         case 0:
           _context3.prev = 0;
           // Recibir los datos del taller desde el cuerpo de la solicitud
-          _req$body2 = req.body, Nombre = _req$body2.Nombre, rif = _req$body2.rif, phone = _req$body2.phone, email = _req$body2.email, password = _req$body2.password;
+          _req$body2 = req.body, Nombre = _req$body2.Nombre, rif = _req$body2.rif, phone = _req$body2.phone, email = _req$body2.email, password = _req$body2.password, whats = _req$body2.whats, metodos_pago = _req$body2.metodos_pago, estado = _req$body2.estado, base64 = _req$body2.base64;
           _context3.prev = 2;
           _context3.next = 5;
           return admin.auth().getUserByEmail(email);
@@ -239,7 +263,26 @@ var SaveTaller = /*#__PURE__*/function () {
           throw _context3.t0;
         case 20:
           // Obtener el UID del usuario
-          uid = userRecord.uid; // Crear o actualizar el documento en la colección "Usuarios"
+          uid = userRecord.uid; // Subir la imagen de perfil al Storage
+          imageUrl = '';
+          if (!base64) {
+            _context3.next = 28;
+            break;
+          }
+          buffer = Buffer.from(base64, 'base64');
+          file = bucket.file("profileImages/".concat(uid, ".jpg"));
+          _context3.next = 27;
+          return file.save(buffer, {
+            metadata: {
+              contentType: 'image/jpeg'
+            },
+            "public": true,
+            validation: 'md5'
+          });
+        case 27:
+          imageUrl = "https://storage.googleapis.com/".concat(bucket.name, "/profileImages/").concat(uid, ".jpg");
+        case 28:
+          // Crear o actualizar el documento en la colección "Usuarios"
           infoUserCreated = {
             uid: uid,
             nombre: Nombre,
@@ -247,65 +290,69 @@ var SaveTaller = /*#__PURE__*/function () {
             phone: phone,
             typeUser: "Taller",
             email: email,
-            status: "Pendiente"
+            status: "Pendiente",
+            whatsapp: whats,
+            metodos_pago: metodos_pago,
+            estado: estado,
+            image_perfil: imageUrl // Guardar la URL de la imagen de perfil
           };
-          _context3.next = 24;
+          _context3.next = 31;
           return db.collection("Usuarios").doc(uid).set(infoUserCreated, {
             merge: true
           });
-        case 24:
+        case 31:
           // Responder con el ID del documento creado o actualizado
           res.status(201).send({
             message: "Usuario guardado con éxito",
             uid: uid
           });
-          _context3.next = 45;
+          _context3.next = 52;
           break;
-        case 27:
-          _context3.prev = 27;
+        case 34:
+          _context3.prev = 34;
           _context3.t1 = _context3["catch"](0);
           console.error("Error al guardar el usuario:", _context3.t1);
 
           // Manejar errores específicos de Firebase
           if (!(_context3.t1.code === "auth/email-already-exists")) {
-            _context3.next = 34;
+            _context3.next = 41;
             break;
           }
           return _context3.abrupt("return", res.status(400).send({
             message: "Este email ya está registrado."
           }));
-        case 34:
+        case 41:
           if (!(_context3.t1.code === "auth/phone-number-already-exists")) {
-            _context3.next = 38;
+            _context3.next = 45;
             break;
           }
           return _context3.abrupt("return", res.status(400).send({
             message: "Este número de teléfono ya está registrado."
           }));
-        case 38:
+        case 45:
           if (!(_context3.t1.code === "auth/invalid-phone-number")) {
-            _context3.next = 42;
+            _context3.next = 49;
             break;
           }
           return _context3.abrupt("return", res.status(400).send({
             message: "El número de teléfono no es válido."
           }));
-        case 42:
+        case 49:
           if (!(_context3.t1.code === "auth/invalid-password")) {
-            _context3.next = 44;
+            _context3.next = 51;
             break;
           }
           return _context3.abrupt("return", res.status(400).send({
             message: "La contraseña es inválida."
           }));
-        case 44:
+        case 51:
           // En caso de un error inesperado
           res.status(500).send("Error al guardar el usuario");
-        case 45:
+        case 52:
         case "end":
           return _context3.stop();
       }
-    }, _callee3, null, [[0, 27], [2, 11]]);
+    }, _callee3, null, [[0, 34], [2, 11]]);
   }));
   return function SaveTaller(_x5, _x6) {
     return _ref3.apply(this, arguments);
@@ -480,12 +527,12 @@ var getUserByUid = /*#__PURE__*/function () {
 }();
 var SaveTallerAll = /*#__PURE__*/function () {
   var _ref6 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee6(req, res) {
-    var uid, result;
+    var _req$body4, uid, base64, imageUrl, file, buffer, result;
     return _regeneratorRuntime().wrap(function _callee6$(_context6) {
       while (1) switch (_context6.prev = _context6.next) {
         case 0:
           _context6.prev = 0;
-          uid = req.body.uid; // Verificar que el UID no esté vacío
+          _req$body4 = req.body, uid = _req$body4.uid, base64 = _req$body4.base64; // Verificar que el UID no esté vacío
           if (uid) {
             _context6.next = 4;
             break;
@@ -494,57 +541,92 @@ var SaveTallerAll = /*#__PURE__*/function () {
             message: "El UID es obligatorio."
           }));
         case 4:
-          _context6.next = 6;
-          return db.collection("Usuarios").doc(uid).set(req.body);
-        case 6:
+          // Subir la imagen de perfil al Storage si el base64 no está vacío ni nulo
+          imageUrl = '';
+          if (!(base64 && base64.trim() !== '')) {
+            _context6.next = 14;
+            break;
+          }
+          file = bucket.file("profileImages/".concat(uid, ".jpg")); // Eliminar la imagen anterior si existe
+          _context6.next = 9;
+          return file["delete"]()["catch"](function (error) {
+            if (error.code !== 404) {
+              console.error("Error al eliminar la imagen anterior:", error);
+            }
+          });
+        case 9:
+          // Subir la nueva imagen
+          buffer = Buffer.from(base64, 'base64');
+          _context6.next = 12;
+          return file.save(buffer, {
+            metadata: {
+              contentType: 'image/jpeg'
+            },
+            "public": true,
+            validation: 'md5'
+          });
+        case 12:
+          imageUrl = "https://storage.googleapis.com/".concat(bucket.name, "/profileImages/").concat(uid, ".jpg");
+
+          // Añadir la URL de la imagen al cuerpo de la solicitud
+          req.body.image_perfil = imageUrl;
+        case 14:
+          delete req.body.base64;
+
+          // Guardar el objeto en la colección "Usuarios"
+          _context6.next = 17;
+          return db.collection("Usuarios").doc(uid).set(req.body, {
+            merge: true
+          });
+        case 17:
           result = _context6.sent;
           if (result) {
-            _context6.next = 9;
+            _context6.next = 20;
             break;
           }
           return _context6.abrupt("return", res.status(500).send({
             message: "Error al guardar el usuario en Firestore."
           }));
-        case 9:
+        case 20:
           // Responder con el ID del documento creado y un mensaje de éxito
           res.status(201).send({
             message: "Usuario actualizado con éxito",
             uid: uid
           });
-          _context6.next = 22;
+          _context6.next = 33;
           break;
-        case 12:
-          _context6.prev = 12;
+        case 23:
+          _context6.prev = 23;
           _context6.t0 = _context6["catch"](0);
           console.error("Error al guardar el usuario:", _context6.t0);
 
           // Manejar errores específicos
           if (!(_context6.t0.code === "permission-denied")) {
-            _context6.next = 19;
+            _context6.next = 30;
             break;
           }
           return _context6.abrupt("return", res.status(403).send({
             message: "Permisos insuficientes para guardar el usuario."
           }));
-        case 19:
+        case 30:
           if (!(_context6.t0.code === "not-found")) {
-            _context6.next = 21;
+            _context6.next = 32;
             break;
           }
           return _context6.abrupt("return", res.status(404).send({
             message: "Usuario no encontrado."
           }));
-        case 21:
+        case 32:
           // Error general
           res.status(500).send({
             message: "Error al guardar el usuario",
             error: _context6.t0.message
           });
-        case 22:
+        case 33:
         case "end":
           return _context6.stop();
       }
-    }, _callee6, null, [[0, 12]]);
+    }, _callee6, null, [[0, 23]]);
   }));
   return function SaveTallerAll(_x11, _x12) {
     return _ref6.apply(this, arguments);
@@ -666,13 +748,13 @@ var getTalleres = /*#__PURE__*/function () {
 }();
 var actualizarStatusUsuario = /*#__PURE__*/function () {
   var _ref10 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee10(req, res) {
-    var _req$body4, uid, nuevoStatus;
+    var _req$body5, uid, nuevoStatus;
     return _regeneratorRuntime().wrap(function _callee10$(_context10) {
       while (1) switch (_context10.prev = _context10.next) {
         case 0:
           _context10.prev = 0;
           // Obtener el UID y el nuevo estado desde el cuerpo de la solicitud
-          _req$body4 = req.body, uid = _req$body4.uid, nuevoStatus = _req$body4.nuevoStatus; // Verificar que se haya proporcionado un UID y un nuevo estado
+          _req$body5 = req.body, uid = _req$body5.uid, nuevoStatus = _req$body5.nuevoStatus; // Verificar que se haya proporcionado un UID y un nuevo estado
           if (!(!uid || !nuevoStatus)) {
             _context10.next = 4;
             break;
@@ -709,13 +791,13 @@ var actualizarStatusUsuario = /*#__PURE__*/function () {
 }();
 var UpdateTaller = /*#__PURE__*/function () {
   var _ref11 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee11(req, res) {
-    var _req$body5, uid, nombre, rif, phone, email, Direccion, RegComercial, Caracteristicas, Tarifa, Experiencia, LinkFacebook, LinkInstagram, LinkTiktok, Garantia, seguro, agenteAutorizado, updatedUserInfo;
+    var _req$body6, uid, nombre, rif, phone, email, Direccion, RegComercial, Caracteristicas, Tarifa, Experiencia, LinkFacebook, LinkInstagram, LinkTiktok, Garantia, seguro, agenteAutorizado, updatedUserInfo;
     return _regeneratorRuntime().wrap(function _callee11$(_context11) {
       while (1) switch (_context11.prev = _context11.next) {
         case 0:
           _context11.prev = 0;
           // Recibir los datos del cliente desde el cuerpo de la solicitud
-          _req$body5 = req.body, uid = _req$body5.uid, nombre = _req$body5.nombre, rif = _req$body5.rif, phone = _req$body5.phone, email = _req$body5.email, Direccion = _req$body5.Direccion, RegComercial = _req$body5.RegComercial, Caracteristicas = _req$body5.Caracteristicas, Tarifa = _req$body5.Tarifa, Experiencia = _req$body5.Experiencia, LinkFacebook = _req$body5.LinkFacebook, LinkInstagram = _req$body5.LinkInstagram, LinkTiktok = _req$body5.LinkTiktok, Garantia = _req$body5.Garantia, seguro = _req$body5.seguro, agenteAutorizado = _req$body5.agenteAutorizado; // Crear el objeto con los datos que se actualizarán en la colección "Usuarios"
+          _req$body6 = req.body, uid = _req$body6.uid, nombre = _req$body6.nombre, rif = _req$body6.rif, phone = _req$body6.phone, email = _req$body6.email, Direccion = _req$body6.Direccion, RegComercial = _req$body6.RegComercial, Caracteristicas = _req$body6.Caracteristicas, Tarifa = _req$body6.Tarifa, Experiencia = _req$body6.Experiencia, LinkFacebook = _req$body6.LinkFacebook, LinkInstagram = _req$body6.LinkInstagram, LinkTiktok = _req$body6.LinkTiktok, Garantia = _req$body6.Garantia, seguro = _req$body6.seguro, agenteAutorizado = _req$body6.agenteAutorizado; // Crear el objeto con los datos que se actualizarán en la colección "Usuarios"
           updatedUserInfo = {
             uid: uid,
             nombre: nombre == undefined ? "" : nombre,
@@ -767,13 +849,13 @@ var UpdateTaller = /*#__PURE__*/function () {
 }();
 var UpdateClient = /*#__PURE__*/function () {
   var _ref12 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee12(req, res) {
-    var _req$body6, uid, Nombre, cedula, phone, email, updatedUserInfo;
+    var _req$body7, uid, Nombre, cedula, phone, email, updatedUserInfo;
     return _regeneratorRuntime().wrap(function _callee12$(_context12) {
       while (1) switch (_context12.prev = _context12.next) {
         case 0:
           _context12.prev = 0;
           // Recibir los datos del cliente desde el cuerpo de la solicitud
-          _req$body6 = req.body, uid = _req$body6.uid, Nombre = _req$body6.Nombre, cedula = _req$body6.cedula, phone = _req$body6.phone, email = _req$body6.email; // Crear el objeto que se actualizará en la colección "Usuarios"
+          _req$body7 = req.body, uid = _req$body7.uid, Nombre = _req$body7.Nombre, cedula = _req$body7.cedula, phone = _req$body7.phone, email = _req$body7.email; // Crear el objeto que se actualizará en la colección "Usuarios"
           updatedUserInfo = {
             nombre: Nombre,
             cedula: cedula,
@@ -1005,13 +1087,13 @@ var getSubcategoriesByCategoryUid = /*#__PURE__*/function () {
 }();
 var saveOrUpdateService = /*#__PURE__*/function () {
   var _ref17 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee17(req, res) {
-    var _req$body7, id, categoria, descripcion, estatus, garantia, nombre_servicio, precio, subcategoria, taller, uid_categoria, uid_servicio, uid_subcategoria, uid_taller, puntuacion, publicOrigin, serviceData, serviceRef, serviceSnapshot, userId, userRef, userDoc, userData, cantidadServicios, _userId, _userRef, _userDoc, _userData, _cantidadServicios, newServiceRef, _userId2, _userRef2, _userDoc2, _userData2, _cantidadServicios2, _userId3, _userRef3, _userDoc3, _userData3, _cantidadServicios3;
+    var _req$body8, id, categoria, descripcion, estatus, garantia, nombre_servicio, precio, subcategoria, taller, uid_categoria, uid_servicio, uid_subcategoria, uid_taller, puntuacion, publicOrigin, serviceData, serviceRef, serviceSnapshot, userId, userRef, userDoc, userData, cantidadServicios, _userId, _userRef, _userDoc, _userData, _cantidadServicios, newServiceRef, _userId2, _userRef2, _userDoc2, _userData2, _cantidadServicios2, _userId3, _userRef3, _userDoc3, _userData3, _cantidadServicios3;
     return _regeneratorRuntime().wrap(function _callee17$(_context17) {
       while (1) switch (_context17.prev = _context17.next) {
         case 0:
           _context17.prev = 0;
           // Obtener los datos del servicio desde el cuerpo de la solicitud
-          _req$body7 = req.body, id = _req$body7.id, categoria = _req$body7.categoria, descripcion = _req$body7.descripcion, estatus = _req$body7.estatus, garantia = _req$body7.garantia, nombre_servicio = _req$body7.nombre_servicio, precio = _req$body7.precio, subcategoria = _req$body7.subcategoria, taller = _req$body7.taller, uid_categoria = _req$body7.uid_categoria, uid_servicio = _req$body7.uid_servicio, uid_subcategoria = _req$body7.uid_subcategoria, uid_taller = _req$body7.uid_taller, puntuacion = _req$body7.puntuacion, publicOrigin = _req$body7.publicOrigin;
+          _req$body8 = req.body, id = _req$body8.id, categoria = _req$body8.categoria, descripcion = _req$body8.descripcion, estatus = _req$body8.estatus, garantia = _req$body8.garantia, nombre_servicio = _req$body8.nombre_servicio, precio = _req$body8.precio, subcategoria = _req$body8.subcategoria, taller = _req$body8.taller, uid_categoria = _req$body8.uid_categoria, uid_servicio = _req$body8.uid_servicio, uid_subcategoria = _req$body8.uid_subcategoria, uid_taller = _req$body8.uid_taller, puntuacion = _req$body8.puntuacion, publicOrigin = _req$body8.publicOrigin;
           console.log("Datos del servicio:", req.body);
           serviceData = {
             categoria: categoria,
@@ -1284,11 +1366,11 @@ var getMetodosPago = /*#__PURE__*/function () {
 // Función para guardar la suscripción
 var ReportarPagoData = /*#__PURE__*/function () {
   var _ref20 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee20(req, res) {
-    var _req$body8, uid, emailZelle, cod_ref, bancoTranfe, identificacion, telefono, amount, paymentMethod, nombre, vigencia, cant_services, date, montoPago, SelectedBanco, SelectedBancoDestino, nombre_taller, userId, subscripcionData, serviciosSnapshot, batch;
+    var _req$body9, uid, emailZelle, cod_ref, bancoTranfe, identificacion, telefono, amount, paymentMethod, nombre, vigencia, cant_services, date, montoPago, SelectedBanco, SelectedBancoDestino, nombre_taller, userId, subscripcionData, serviciosSnapshot, batch;
     return _regeneratorRuntime().wrap(function _callee20$(_context20) {
       while (1) switch (_context20.prev = _context20.next) {
         case 0:
-          _req$body8 = req.body, uid = _req$body8.uid, emailZelle = _req$body8.emailZelle, cod_ref = _req$body8.cod_ref, bancoTranfe = _req$body8.bancoTranfe, identificacion = _req$body8.identificacion, telefono = _req$body8.telefono, amount = _req$body8.amount, paymentMethod = _req$body8.paymentMethod, nombre = _req$body8.nombre, vigencia = _req$body8.vigencia, cant_services = _req$body8.cant_services, date = _req$body8.date, montoPago = _req$body8.montoPago, SelectedBanco = _req$body8.SelectedBanco, SelectedBancoDestino = _req$body8.SelectedBancoDestino, nombre_taller = _req$body8.nombre_taller;
+          _req$body9 = req.body, uid = _req$body9.uid, emailZelle = _req$body9.emailZelle, cod_ref = _req$body9.cod_ref, bancoTranfe = _req$body9.bancoTranfe, identificacion = _req$body9.identificacion, telefono = _req$body9.telefono, amount = _req$body9.amount, paymentMethod = _req$body9.paymentMethod, nombre = _req$body9.nombre, vigencia = _req$body9.vigencia, cant_services = _req$body9.cant_services, date = _req$body9.date, montoPago = _req$body9.montoPago, SelectedBanco = _req$body9.SelectedBanco, SelectedBancoDestino = _req$body9.SelectedBancoDestino, nombre_taller = _req$body9.nombre_taller;
           _context20.prev = 1;
           userId = uid; // Reemplaza con el ID del usuario correspondiente
           subscripcionData = {

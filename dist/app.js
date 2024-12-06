@@ -11,8 +11,18 @@ var morgan = require('morgan');
 var usuarios = require('./routes/usuarios.routes');
 var home = require('./routes/home.routes');
 var app = express();
-app.use(express.json());
+
+// Configuración de middleware
+app.use(express.json({
+  limit: '20mb'
+}));
+app.use(express.urlencoded({
+  limit: '20mb',
+  extended: true
+}));
 app.use(morgan('dev'));
+
+// Rutas
 app.get('/', /*#__PURE__*/function () {
   var _ref = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee(req, res) {
     return _regeneratorRuntime().wrap(function _callee$(_context) {
