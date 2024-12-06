@@ -197,13 +197,13 @@ var getServicesContact = /*#__PURE__*/function () {
 }();
 var getServicesCategories = /*#__PURE__*/function () {
   var _ref5 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee4(req, res) {
-    var nombre_categoria, serviciosSnapshot, servicios, serviciosAleatorios;
+    var _req$body, nombre_categoria, id, serviciosSnapshot, servicios, serviciosAleatorios;
     return _regeneratorRuntime().wrap(function _callee4$(_context4) {
       while (1) switch (_context4.prev = _context4.next) {
         case 0:
           _context4.prev = 0;
           // Obtener la categoría enviada en el request
-          nombre_categoria = req.body.nombre_categoria; // O req.body dependiendo del método HTTP
+          _req$body = req.body, nombre_categoria = _req$body.nombre_categoria, id = _req$body.id; // O req.body dependiendo del método HTTP
           if (nombre_categoria) {
             _context4.next = 4;
             break;
@@ -211,7 +211,7 @@ var getServicesCategories = /*#__PURE__*/function () {
           return _context4.abrupt("return", res.status(400).send("Por favor, proporciona una categoría."));
         case 4:
           _context4.next = 6;
-          return db.collection("Servicios").where("nombre_categoria", "==", nombre_categoria) // Filtrar por categoría
+          return db.collection("Servicios").where("nombre_categoria", "==", nombre_categoria).where("uid_servicio", "!=", id) // Filtrar por categoría
           .get();
         case 6:
           serviciosSnapshot = _context4.sent;
