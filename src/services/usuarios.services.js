@@ -412,35 +412,42 @@ const SaveTallerAll = (req, res) => {
     };
 
     const clearOldImageField = () => {
-      return db.collection("Usuarios").doc(uid).update({ image_perfil: admin.firestore.FieldValue.delete() });
-    };
-
-    const deleteOldImage = () => {
-      return new Promise(async (resolve, reject) => {
+      return new Promise((resolve, reject) => {
         if (base64 && base64.trim() !== '' && imageTodelete && imageTodelete.trim() !== '') {
-
-          const file = bucket.file(`profileImages/${imageTodelete}`);
-
-          await file.delete().catch((error) => {
-            if (error.code !== 404) {
-              console.error("Error al eliminar la imagen anterior:", error);
-              reject(error);
-            }
-          });
-          resolve();
+          db.collection("Usuarios").doc(uid).update({ image_perfil: admin.firestore.FieldValue.delete() })
+            .then(() => resolve())
+            .catch(error => reject(error));
         } else {
           resolve();
         }
       });
     };
 
-   
+    const deleteOldImage = () => {
+      return new Promise((resolve, reject) => {
+        if (base64 && base64.trim() !== '' && imageTodelete && imageTodelete.trim() !== '') {
+          const file = bucket.file(`profileImages/${imageTodelete}`);
+          file.delete()
+            .then(() => resolve())
+            .catch(error => {
+              if (error.code === 404) {
+                resolve(); // Resolver incluso si no se encuentra la imagen a eliminar
+              } else {
+                console.error("Error al eliminar la imagen anterior:", error);
+                reject(error);
+              }
+            });
+        } else {
+          resolve();
+        }
+      });
+    };
 
-      clearOldImageField()
-      .then(getLastImageIndex)
+    getLastImageIndex()
       .then(processImage)
-      .then(() => {delete req.body.base64; delete req.body.imageTodelete;})
+      .then(() => { delete req.body.base64; delete req.body.imageTodelete; })
       .then(() => db.collection("Usuarios").doc(uid).set(req.body, { merge: true }))
+      .then(clearOldImageField)
       .then(deleteOldImage)
       .then(() => {
         // Responder con el ID del documento creado y un mensaje de éxito
@@ -473,6 +480,7 @@ const SaveTallerAll = (req, res) => {
     res.status(500).send({ message: "Error al guardar el usuario", error: error.message });
   }
 };
+
 
 const restorePass = async (req, res) => {
   // Recibir el email del cuerpo de la solicitud
@@ -646,7 +654,7 @@ const UpdateTaller = async (req, res) => {
 const UpdateClient = async (req, res) => {
   try {
     // Recibir los datos del cliente desde el cuerpo de la solicitud
-    const { uid, Nombre, cedula, phone, email } = req.body;
+    const { uid, Nombre, cedula, phone, email, base64, imageTodelete, estado } = req.body;
 
     // Crear el objeto que se actualizará en la colección "Usuarios"
     const updatedUserInfo = {
@@ -656,15 +664,103 @@ const UpdateClient = async (req, res) => {
       typeUser: "Cliente",
       email: email,
       uid: uid,
+      estado: estado,
     };
 
-    // Actualizar el documento en la colección "Usuarios" con el UID proporcionado
-    await db.collection("Usuarios").doc(uid).update(updatedUserInfo);
+    const getLastImageIndex = () => {
+      return new Promise((resolve, reject) => {
+        const prefix = `profileImages/${uid}`;
+        bucket.getFiles({ prefix })
+          .then(([files]) => {
+            let maxIndex = 0;
+            files.forEach(file => {
+              const match = file.name.match(/(\d+)\.jpg$/);
+              if (match) {
+                const index = parseInt(match[1], 10);
+                if (index > maxIndex) {
+                  maxIndex = index;
+                }
+              }
+            });
+            resolve(maxIndex);
+          })
+          .catch(error => {
+            reject(error);
+          });
+      });
+    };
 
-    // Responder con un mensaje de éxito
-    res
-      .status(200)
-      .send({ message: "Usuario actualizado con éxito", uid: uid });
+    const processImage = (index) => {
+      return new Promise((resolve, reject) => {
+        if (base64 && base64.trim() !== '') {
+          const newFileName = `profileImages/${uid}_${index + 1}.jpg`;
+          const buffer = Buffer.from(base64, 'base64');
+          const file = bucket.file(newFileName);
+
+          // Subir la nueva imagen
+          file.save(buffer, {
+            metadata: { contentType: 'image/jpeg' },
+            public: true,
+            validation: 'md5'
+          })
+          .then(() => {
+            const imageUrl = `https://storage.googleapis.com/${bucket.name}/${newFileName}`;
+            updatedUserInfo.image_perfil = imageUrl;
+            resolve();
+          })
+          .catch(error => {
+            console.error("Error al guardar la nueva imagen:", error);
+            reject(error);
+          });
+        } else {
+          resolve();
+        }
+      });
+    };
+
+    const deleteOldImage = () => {
+      return new Promise((resolve, reject) => {
+        if (imageTodelete && imageTodelete.trim() !== '') {
+          const file = bucket.file(`profileImages/${imageTodelete}`);
+          file.delete()
+            .then(() => resolve())
+            .catch(error => {
+              if (error.code === 404) {
+                resolve(); // Resolver incluso si no se encuentra la imagen a eliminar
+              } else {
+                console.error("Error al eliminar la imagen anterior:", error);
+                reject(error);
+              }
+            });
+        } else {
+          resolve();
+        }
+      });
+    };
+
+    getLastImageIndex()
+      .then((index) => processImage(index))
+      .then(() => {
+        // Eliminar el campo base64 y imageTodelete del cuerpo de la solicitud
+        delete req.body.base64; 
+        delete req.body.imageTodelete;
+      })
+      .then(() => db.collection("Usuarios").doc(uid).update(updatedUserInfo))
+      .then(() => {
+        if (imageTodelete && imageTodelete.trim() !== '') {
+          return deleteOldImage();
+        }
+      })
+      .then(() => {
+        // Responder con un mensaje de éxito
+        res.status(200).send({ message: "Usuario actualizado con éxito", uid: uid });
+      })
+      .catch(error => {
+        console.error("Error al actualizar el usuario:", error);
+
+        // Manejar posibles errores en la actualización del documento
+        res.status(500).send("Error al actualizar el usuario");
+      });
   } catch (error) {
     console.error("Error al actualizar el usuario:", error);
 
@@ -672,6 +768,8 @@ const UpdateClient = async (req, res) => {
     res.status(500).send("Error al actualizar el usuario");
   }
 };
+
+
 
 const getServicesByTalleruid = async (req, res) => {
   try {
@@ -1134,8 +1232,13 @@ const saveOrUpdateService = async (req, res) => {
           }
         }
 
-        await processImage(id);
+        const imageUrl = await processImage(id);
         await deleteOldImage();
+
+        if (base64 && base64.trim() !== '') {
+          // Actualizar el campo service_image en el documento del servicio solo si el base64 no está vacío ni es nulo
+          await serviceRef.update({ service_image: imageUrl });
+        }
 
         return res.status(200).send({
           message: "Servicio actualizado exitosamente",
@@ -1158,8 +1261,13 @@ const saveOrUpdateService = async (req, res) => {
           }
         }
 
-        await processImage(id);
+        const imageUrl = await processImage(id);
         await deleteOldImage();
+
+        if (base64 && base64.trim() !== '') {
+          // Actualizar el campo service_image en el documento del servicio solo si el base64 no está vacío ni es nulo
+          await serviceRef.update({ service_image: imageUrl });
+        }
 
         return res.status(200).send({
           message: "Servicio actualizado exitosamente",
@@ -1188,12 +1296,17 @@ const saveOrUpdateService = async (req, res) => {
         }
 
         serviceData.id = newServiceRef.id;
-        await processImage(newServiceRef.id);
+        const imageUrl = await processImage(newServiceRef.id);
         await deleteOldImage();
+
+        if (base64 && base64.trim() !== '') {
+          // Actualizar el campo service_image en el documento del servicio solo si el base64 no está vacío ni es nulo
+          await newServiceRef.update({ service_image: imageUrl });
+        }
 
         return res.status(201).send({
           message: "Servicio creado exitosamente",
-          service: serviceData,
+          service: { id: newServiceRef.id, ...serviceData },
         });
       } else {
         if (publicOrigin) {
@@ -1213,12 +1326,17 @@ const saveOrUpdateService = async (req, res) => {
         }
 
         serviceData.id = newServiceRef.id;
-        await processImage(newServiceRef.id);
+        const imageUrl = await processImage(newServiceRef.id);
         await deleteOldImage();
+
+        if (base64 && base64.trim() !== '') {
+          // Actualizar el campo service_image en el documento del servicio solo si el base64 no está vacío ni es nulo
+          await newServiceRef.update({ service_image: imageUrl });
+        }
 
         return res.status(201).send({
           message: "Servicio creado exitosamente",
-          service: serviceData,
+          service: { id: newServiceRef.id, ...serviceData },
         });
       }
     }
@@ -1227,6 +1345,8 @@ const saveOrUpdateService = async (req, res) => {
     res.status(500).send(error);
   }
 };
+
+
 
 
 const getPlanes = async (req, res) => {
