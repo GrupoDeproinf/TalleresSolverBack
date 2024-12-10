@@ -142,7 +142,7 @@ const SaveClient = async (req, res) => {
 const SaveTaller = async (req, res) => {
   try {
     // Recibir los datos del taller desde el cuerpo de la solicitud
-    const { Nombre, rif, phone, email, password, whats, metodos_pago, estado, base64 } = req.body;
+    const { Nombre, rif, phone, email, password, whats, metodos_pago, estado, base64, lat, lng } = req.body;
 
     let userRecord;
     try {
@@ -203,7 +203,11 @@ const SaveTaller = async (req, res) => {
       whatsapp: whats,
       metodos_pago: metodos_pago,
       estado: estado,
-      image_perfil: imageUrl // Guardar la URL de la imagen de perfil
+      image_perfil: imageUrl, // Guardar la URL de la imagen de perfil
+      ubicacion:[{
+        lat:lat,
+        lng:lng
+      }]
     };
 
     await db.collection("Usuarios").doc(uid).set(infoUserCreated, { merge: true });
