@@ -355,6 +355,7 @@ const getUserByUid = async (req, res) => {
   }
 };
 
+
 const SaveTallerAll = (req, res) => {
   try {
     const { uid, base64, imageTodelete } = req.body;
@@ -447,12 +448,22 @@ const SaveTallerAll = (req, res) => {
       });
     };
 
+    // Secuencia de ejecución de promesas
     getLastImageIndex()
-      .then(processImage)
-      .then(() => { delete req.body.base64; delete req.body.imageTodelete; })
-      .then(() => db.collection("Usuarios").doc(uid).set(req.body, { merge: true }))
-      .then(clearOldImageField)
-      .then(deleteOldImage)
+      .then(index => {
+        if (base64 && base64.trim() !== '') {
+          return clearOldImageField()
+            .then(() => deleteOldImage())
+            .then(() => processImage(index));
+        } else {
+          return processImage(index);
+        }
+      })
+      .then(() => {
+        delete req.body.base64;
+        delete req.body.imageTodelete;
+        return db.collection("Usuarios").doc(uid).set(req.body, { merge: true });
+      })
       .then(() => {
         // Responder con el ID del documento creado y un mensaje de éxito
         res.status(201).send({ message: "Usuario actualizado con éxito", uid: uid });
@@ -484,6 +495,7 @@ const SaveTallerAll = (req, res) => {
     res.status(500).send({ message: "Error al guardar el usuario", error: error.message });
   }
 };
+
 
 
 const restorePass = async (req, res) => {

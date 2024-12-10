@@ -629,14 +629,25 @@ var SaveTallerAll = function SaveTallerAll(req, res) {
         }
       });
     };
-    getLastImageIndex().then(processImage).then(function () {
+
+    // Secuencia de ejecución de promesas
+    getLastImageIndex().then(function (index) {
+      if (base64 && base64.trim() !== '') {
+        return clearOldImageField().then(function () {
+          return deleteOldImage();
+        }).then(function () {
+          return processImage(index);
+        });
+      } else {
+        return processImage(index);
+      }
+    }).then(function () {
       delete req.body.base64;
       delete req.body.imageTodelete;
-    }).then(function () {
       return db.collection("Usuarios").doc(uid).set(req.body, {
         merge: true
       });
-    }).then(clearOldImageField).then(deleteOldImage).then(function () {
+    }).then(function () {
       // Responder con el ID del documento creado y un mensaje de éxito
       res.status(201).send({
         message: "Usuario actualizado con éxito",
