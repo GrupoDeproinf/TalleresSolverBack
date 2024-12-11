@@ -166,11 +166,49 @@ const saveContactService = async (req, res) => {
       res.status(500).send("Error obteniendo servicios por categoría.");
     }
   };
+
+  const getSubscriptionsById = async (req, res) => {
+    try {
+      // Obtener la categoría enviada en el request
+      const { uid } = req.body; // O req.body dependiendo del método HTTP
+  
+      // Consultar los documentos que coincidan con la categoría
+      const subscripcionesSnapchot = await db
+        .collection("Subscripciones")
+        .where("taller_uid", "==", uid)
+        .get();
+  
+      // Transformar el snapshot en un array de objetos con los datos de los documentos
+      const subscripciones = subscripcionesSnapchot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+  
+      // Si no hay subscripciones, devolver un arreglo vacío
+      if (subscripciones.length === 0) {
+        return res.status(200).json([]);
+      }
+  
+      // Obtener 3 subscripciones aleatorios
+      const subscripcionesAleatorios = subscripciones
+        .sort(() => Math.random() - 0.5) // Ordenar aleatoriamente
+        .slice(0, 3); // Tomar los primeros 3 elementos
+  
+      console.log(`subscripciones aleatorios con el uid "${uid}":`, subscripcionesAleatorios);
+  
+      // Enviar los datos como respuesta
+      res.status(200).json(subscripcionesAleatorios);
+    } catch (error) {
+      console.error("Error obteniendo subscripciones por id:", error);
+      res.status(500).send("Error obteniendo subscripciones por id.");
+    }
+  };
   
   
   
 
 module.exports = {
+  getSubscriptionsById,
   getServicios,
   saveContactService,
   getServicesContact,
