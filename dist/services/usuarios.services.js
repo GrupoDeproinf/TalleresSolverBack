@@ -222,13 +222,13 @@ var SaveClient = /*#__PURE__*/function () {
 }();
 var SaveTaller = /*#__PURE__*/function () {
   var _ref3 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee3(req, res) {
-    var _req$body2, Nombre, rif, phone, email, password, whats, metodos_pago, estado, base64, userRecord, uid, imageUrl, buffer, file, infoUserCreated;
+    var _req$body2, Nombre, rif, phone, email, password, whats, metodos_pago, estado, base64, lat, lng, userRecord, uid, imageUrl, buffer, file, infoUserCreated;
     return _regeneratorRuntime().wrap(function _callee3$(_context3) {
       while (1) switch (_context3.prev = _context3.next) {
         case 0:
           _context3.prev = 0;
           // Recibir los datos del taller desde el cuerpo de la solicitud
-          _req$body2 = req.body, Nombre = _req$body2.Nombre, rif = _req$body2.rif, phone = _req$body2.phone, email = _req$body2.email, password = _req$body2.password, whats = _req$body2.whats, metodos_pago = _req$body2.metodos_pago, estado = _req$body2.estado, base64 = _req$body2.base64;
+          _req$body2 = req.body, Nombre = _req$body2.Nombre, rif = _req$body2.rif, phone = _req$body2.phone, email = _req$body2.email, password = _req$body2.password, whats = _req$body2.whats, metodos_pago = _req$body2.metodos_pago, estado = _req$body2.estado, base64 = _req$body2.base64, lat = _req$body2.lat, lng = _req$body2.lng;
           _context3.prev = 2;
           _context3.next = 5;
           return admin.auth().getUserByEmail(email);
@@ -300,7 +300,12 @@ var SaveTaller = /*#__PURE__*/function () {
             whatsapp: whats,
             metodos_pago: metodos_pago,
             estado: estado,
-            image_perfil: imageUrl // Guardar la URL de la imagen de perfil
+            image_perfil: imageUrl,
+            // Guardar la URL de la imagen de perfil
+            ubicacion: {
+              lat: lat,
+              lng: lng
+            }
           };
           _context3.next = 31;
           return db.collection("Usuarios").doc(uid).set(infoUserCreated, {
@@ -812,13 +817,13 @@ var getTalleres = /*#__PURE__*/function () {
 }();
 var actualizarStatusUsuario = /*#__PURE__*/function () {
   var _ref11 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee9(req, res) {
-    var _req$body5, uid, nuevoStatus;
+    var _req$body5, uid, nuevoStatus, certificador_nombre, certificador_key;
     return _regeneratorRuntime().wrap(function _callee9$(_context9) {
       while (1) switch (_context9.prev = _context9.next) {
         case 0:
           _context9.prev = 0;
           // Obtener el UID y el nuevo estado desde el cuerpo de la solicitud
-          _req$body5 = req.body, uid = _req$body5.uid, nuevoStatus = _req$body5.nuevoStatus; // Verificar que se haya proporcionado un UID y un nuevo estado
+          _req$body5 = req.body, uid = _req$body5.uid, nuevoStatus = _req$body5.nuevoStatus, certificador_nombre = _req$body5.certificador_nombre, certificador_key = _req$body5.certificador_key; // Verificar que se haya proporcionado un UID y un nuevo estado
           if (!(!uid || !nuevoStatus)) {
             _context9.next = 4;
             break;
@@ -829,7 +834,9 @@ var actualizarStatusUsuario = /*#__PURE__*/function () {
         case 4:
           _context9.next = 6;
           return db.collection("Usuarios").doc(uid).update({
-            status: nuevoStatus
+            status: nuevoStatus,
+            certificador_nombre: certificador_nombre,
+            certificador_key: certificador_key
           });
         case 6:
           return _context9.abrupt("return", res.status(200).send({

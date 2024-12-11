@@ -204,10 +204,10 @@ const SaveTaller = async (req, res) => {
       metodos_pago: metodos_pago,
       estado: estado,
       image_perfil: imageUrl, // Guardar la URL de la imagen de perfil
-      ubicacion:[{
+      ubicacion:{
         lat:lat,
         lng:lng
-      }]
+      }
     };
 
     await db.collection("Usuarios").doc(uid).set(infoUserCreated, { merge: true });
@@ -576,7 +576,7 @@ const getTalleres = async (req, res) => {
 const actualizarStatusUsuario = async (req, res) => {
   try {
     // Obtener el UID y el nuevo estado desde el cuerpo de la solicitud
-    const { uid, nuevoStatus } = req.body;
+    const { uid, nuevoStatus, certificador_nombre, certificador_key } = req.body;
 
     // Verificar que se haya proporcionado un UID y un nuevo estado
     if (!uid || !nuevoStatus) {
@@ -588,6 +588,8 @@ const actualizarStatusUsuario = async (req, res) => {
     // Actualizar el campo 'status' en el documento del usuario
     await db.collection("Usuarios").doc(uid).update({
       status: nuevoStatus,
+      certificador_nombre,
+      certificador_key
     });
 
     // Devolver una respuesta de éxito
