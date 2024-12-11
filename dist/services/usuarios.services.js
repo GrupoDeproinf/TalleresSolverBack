@@ -1,6 +1,12 @@
 "use strict";
 
 function _typeof(o) { "@babel/helpers - typeof"; return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function (o) { return typeof o; } : function (o) { return o && "function" == typeof Symbol && o.constructor === Symbol && o !== Symbol.prototype ? "symbol" : typeof o; }, _typeof(o); }
+function _slicedToArray(r, e) { return _arrayWithHoles(r) || _iterableToArrayLimit(r, e) || _unsupportedIterableToArray(r, e) || _nonIterableRest(); }
+function _nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
+function _unsupportedIterableToArray(r, a) { if (r) { if ("string" == typeof r) return _arrayLikeToArray(r, a); var t = {}.toString.call(r).slice(8, -1); return "Object" === t && r.constructor && (t = r.constructor.name), "Map" === t || "Set" === t ? Array.from(r) : "Arguments" === t || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(t) ? _arrayLikeToArray(r, a) : void 0; } }
+function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length); for (var e = 0, n = Array(a); e < a; e++) n[e] = r[e]; return n; }
+function _iterableToArrayLimit(r, l) { var t = null == r ? null : "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"]; if (null != t) { var e, n, i, u, a = [], f = !0, o = !1; try { if (i = (t = t.call(r)).next, 0 === l) { if (Object(t) !== t) return; f = !1; } else for (; !(f = (e = i.call(t)).done) && (a.push(e.value), a.length !== l); f = !0); } catch (r) { o = !0, n = r; } finally { try { if (!f && null != t["return"] && (u = t["return"](), Object(u) !== u)) return; } finally { if (o) throw n; } } return a; } }
+function _arrayWithHoles(r) { if (Array.isArray(r)) return r; }
 function ownKeys(e, r) { var t = Object.keys(e); if (Object.getOwnPropertySymbols) { var o = Object.getOwnPropertySymbols(e); r && (o = o.filter(function (r) { return Object.getOwnPropertyDescriptor(e, r).enumerable; })), t.push.apply(t, o); } return t; }
 function _objectSpread(e) { for (var r = 1; r < arguments.length; r++) { var t = null != arguments[r] ? arguments[r] : {}; r % 2 ? ownKeys(Object(t), !0).forEach(function (r) { _defineProperty(e, r, t[r]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(e, Object.getOwnPropertyDescriptors(t)) : ownKeys(Object(t)).forEach(function (r) { Object.defineProperty(e, r, Object.getOwnPropertyDescriptor(t, r)); }); } return e; }
 function _defineProperty(e, r, t) { return (r = _toPropertyKey(r)) in e ? Object.defineProperty(e, r, { value: t, enumerable: !0, configurable: !0, writable: !0 }) : e[r] = t, e; }
@@ -216,13 +222,13 @@ var SaveClient = /*#__PURE__*/function () {
 }();
 var SaveTaller = /*#__PURE__*/function () {
   var _ref3 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee3(req, res) {
-    var _req$body2, Nombre, rif, phone, email, password, whats, metodos_pago, estado, base64, userRecord, uid, imageUrl, buffer, file, infoUserCreated;
+    var _req$body2, Nombre, rif, phone, email, password, whats, metodos_pago, estado, base64, lat, lng, userRecord, uid, imageUrl, buffer, file, infoUserCreated;
     return _regeneratorRuntime().wrap(function _callee3$(_context3) {
       while (1) switch (_context3.prev = _context3.next) {
         case 0:
           _context3.prev = 0;
           // Recibir los datos del taller desde el cuerpo de la solicitud
-          _req$body2 = req.body, Nombre = _req$body2.Nombre, rif = _req$body2.rif, phone = _req$body2.phone, email = _req$body2.email, password = _req$body2.password, whats = _req$body2.whats, metodos_pago = _req$body2.metodos_pago, estado = _req$body2.estado, base64 = _req$body2.base64;
+          _req$body2 = req.body, Nombre = _req$body2.Nombre, rif = _req$body2.rif, phone = _req$body2.phone, email = _req$body2.email, password = _req$body2.password, whats = _req$body2.whats, metodos_pago = _req$body2.metodos_pago, estado = _req$body2.estado, base64 = _req$body2.base64, lat = _req$body2.lat, lng = _req$body2.lng;
           _context3.prev = 2;
           _context3.next = 5;
           return admin.auth().getUserByEmail(email);
@@ -294,7 +300,12 @@ var SaveTaller = /*#__PURE__*/function () {
             whatsapp: whats,
             metodos_pago: metodos_pago,
             estado: estado,
-            image_perfil: imageUrl // Guardar la URL de la imagen de perfil
+            image_perfil: imageUrl,
+            // Guardar la URL de la imagen de perfil
+            ubicacion: {
+              lat: lat,
+              lng: lng
+            }
           };
           _context3.next = 31;
           return db.collection("Usuarios").doc(uid).set(infoUserCreated, {
@@ -525,122 +536,178 @@ var getUserByUid = /*#__PURE__*/function () {
     return _ref5.apply(this, arguments);
   };
 }();
-var SaveTallerAll = /*#__PURE__*/function () {
-  var _ref6 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee6(req, res) {
-    var _req$body4, uid, base64, imageUrl, file, buffer, result;
-    return _regeneratorRuntime().wrap(function _callee6$(_context6) {
-      while (1) switch (_context6.prev = _context6.next) {
-        case 0:
-          _context6.prev = 0;
-          _req$body4 = req.body, uid = _req$body4.uid, base64 = _req$body4.base64; // Verificar que el UID no esté vacío
-          if (uid) {
-            _context6.next = 4;
-            break;
-          }
-          return _context6.abrupt("return", res.status(400).send({
-            message: "El UID es obligatorio."
-          }));
-        case 4:
-          // Subir la imagen de perfil al Storage si el base64 no está vacío ni nulo
-          imageUrl = '';
-          if (!(base64 && base64.trim() !== '')) {
-            _context6.next = 14;
-            break;
-          }
-          file = bucket.file("profileImages/".concat(uid, ".jpg")); // Eliminar la imagen anterior si existe
-          _context6.next = 9;
-          return file["delete"]()["catch"](function (error) {
-            if (error.code !== 404) {
-              console.error("Error al eliminar la imagen anterior:", error);
+var SaveTallerAll = function SaveTallerAll(req, res) {
+  try {
+    var _req$body4 = req.body,
+      uid = _req$body4.uid,
+      base64 = _req$body4.base64,
+      imageTodelete = _req$body4.imageTodelete;
+
+    // Verificar que el UID no esté vacío
+    if (!uid) {
+      return res.status(400).send({
+        message: "El UID es obligatorio."
+      });
+    }
+    var getLastImageIndex = function getLastImageIndex() {
+      return new Promise(function (resolve, reject) {
+        var prefix = "profileImages/".concat(uid);
+        bucket.getFiles({
+          prefix: prefix
+        }).then(function (_ref6) {
+          var _ref7 = _slicedToArray(_ref6, 1),
+            files = _ref7[0];
+          var maxIndex = 0;
+          files.forEach(function (file) {
+            var match = file.name.match(/(\d+)\.jpg$/);
+            if (match) {
+              var index = parseInt(match[1], 10);
+              if (index > maxIndex) {
+                maxIndex = index;
+              }
             }
           });
-        case 9:
+          resolve(maxIndex);
+        })["catch"](function (error) {
+          reject(error);
+        });
+      });
+    };
+    var processImage = function processImage(index) {
+      return new Promise(function (resolve, reject) {
+        if (base64 && base64.trim() !== '') {
+          var newFileName = "profileImages/".concat(uid, "_").concat(index + 1, ".jpg");
+          var buffer = Buffer.from(base64, 'base64');
+          var file = bucket.file(newFileName);
+
           // Subir la nueva imagen
-          buffer = Buffer.from(base64, 'base64');
-          _context6.next = 12;
-          return file.save(buffer, {
+          file.save(buffer, {
             metadata: {
               contentType: 'image/jpeg'
             },
             "public": true,
             validation: 'md5'
+          }).then(function () {
+            var imageUrl = "https://storage.googleapis.com/".concat(bucket.name, "/").concat(newFileName);
+            req.body.image_perfil = imageUrl;
+            resolve();
+          })["catch"](function (error) {
+            console.error("Error al guardar la nueva imagen:", error);
+            reject(error);
           });
-        case 12:
-          imageUrl = "https://storage.googleapis.com/".concat(bucket.name, "/profileImages/").concat(uid, ".jpg");
+        } else {
+          resolve();
+        }
+      });
+    };
+    var clearOldImageField = function clearOldImageField() {
+      return new Promise(function (resolve, reject) {
+        if (base64 && base64.trim() !== '' && imageTodelete && imageTodelete.trim() !== '') {
+          db.collection("Usuarios").doc(uid).update({
+            image_perfil: admin.firestore.FieldValue["delete"]()
+          }).then(function () {
+            return resolve();
+          })["catch"](function (error) {
+            return reject(error);
+          });
+        } else {
+          resolve();
+        }
+      });
+    };
+    var deleteOldImage = function deleteOldImage() {
+      return new Promise(function (resolve, reject) {
+        if (base64 && base64.trim() !== '' && imageTodelete && imageTodelete.trim() !== '') {
+          var file = bucket.file("profileImages/".concat(imageTodelete));
+          file["delete"]().then(function () {
+            return resolve();
+          })["catch"](function (error) {
+            if (error.code === 404) {
+              resolve(); // Resolver incluso si no se encuentra la imagen a eliminar
+            } else {
+              console.error("Error al eliminar la imagen anterior:", error);
+              reject(error);
+            }
+          });
+        } else {
+          resolve();
+        }
+      });
+    };
 
-          // Añadir la URL de la imagen al cuerpo de la solicitud
-          req.body.image_perfil = imageUrl;
-        case 14:
-          delete req.body.base64;
-
-          // Guardar el objeto en la colección "Usuarios"
-          _context6.next = 17;
-          return db.collection("Usuarios").doc(uid).set(req.body, {
-            merge: true
-          });
-        case 17:
-          result = _context6.sent;
-          if (result) {
-            _context6.next = 20;
-            break;
-          }
-          return _context6.abrupt("return", res.status(500).send({
-            message: "Error al guardar el usuario en Firestore."
-          }));
-        case 20:
-          // Responder con el ID del documento creado y un mensaje de éxito
-          res.status(201).send({
-            message: "Usuario actualizado con éxito",
-            uid: uid
-          });
-          _context6.next = 33;
-          break;
-        case 23:
-          _context6.prev = 23;
-          _context6.t0 = _context6["catch"](0);
-          console.error("Error al guardar el usuario:", _context6.t0);
-
-          // Manejar errores específicos
-          if (!(_context6.t0.code === "permission-denied")) {
-            _context6.next = 30;
-            break;
-          }
-          return _context6.abrupt("return", res.status(403).send({
-            message: "Permisos insuficientes para guardar el usuario."
-          }));
-        case 30:
-          if (!(_context6.t0.code === "not-found")) {
-            _context6.next = 32;
-            break;
-          }
-          return _context6.abrupt("return", res.status(404).send({
-            message: "Usuario no encontrado."
-          }));
-        case 32:
-          // Error general
-          res.status(500).send({
-            message: "Error al guardar el usuario",
-            error: _context6.t0.message
-          });
-        case 33:
-        case "end":
-          return _context6.stop();
+    // Secuencia de ejecución de promesas
+    getLastImageIndex().then(function (index) {
+      if (base64 && base64.trim() !== '') {
+        return clearOldImageField().then(function () {
+          return deleteOldImage();
+        }).then(function () {
+          return processImage(index);
+        });
+      } else {
+        return processImage(index);
       }
-    }, _callee6, null, [[0, 23]]);
-  }));
-  return function SaveTallerAll(_x11, _x12) {
-    return _ref6.apply(this, arguments);
-  };
-}();
+    }).then(function () {
+      delete req.body.base64;
+      delete req.body.imageTodelete;
+      return db.collection("Usuarios").doc(uid).set(req.body, {
+        merge: true
+      });
+    }).then(function () {
+      // Responder con el ID del documento creado y un mensaje de éxito
+      res.status(201).send({
+        message: "Usuario actualizado con éxito",
+        uid: uid
+      });
+    })["catch"](function (error) {
+      console.error("Error al guardar el usuario:", error);
+
+      // Manejar errores específicos
+      if (error.code === "permission-denied") {
+        res.status(403).send({
+          message: "Permisos insuficientes para guardar el usuario."
+        });
+      } else if (error.code === "not-found") {
+        res.status(404).send({
+          message: "Usuario no encontrado."
+        });
+      } else {
+        // Error general
+        res.status(500).send({
+          message: "Error al guardar el usuario",
+          error: error.message
+        });
+      }
+    });
+  } catch (error) {
+    console.error("Error al guardar el usuario:", error);
+
+    // Manejar errores específicos
+    if (error.code === "permission-denied") {
+      return res.status(403).send({
+        message: "Permisos insuficientes para guardar el usuario."
+      });
+    } else if (error.code === "not-found") {
+      return res.status(404).send({
+        message: "Usuario no encontrado."
+      });
+    }
+
+    // Error general
+    res.status(500).send({
+      message: "Error al guardar el usuario",
+      error: error.message
+    });
+  }
+};
 var restorePass = /*#__PURE__*/function () {
-  var _ref7 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee7(req, res) {
+  var _ref8 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee6(req, res) {
     var email;
-    return _regeneratorRuntime().wrap(function _callee7$(_context7) {
-      while (1) switch (_context7.prev = _context7.next) {
+    return _regeneratorRuntime().wrap(function _callee6$(_context6) {
+      while (1) switch (_context6.prev = _context6.next) {
         case 0:
           // Recibir el email del cuerpo de la solicitud
           email = req.body.email; // Generar el enlace de restablecimiento de contraseña
-          _context7.next = 3;
+          _context6.next = 3;
           return admin.auth().generatePasswordResetLink(email).then(function (link) {
             return sendResetPasswordEmail(email, link, res);
           })["catch"](function (error) {
@@ -653,19 +720,19 @@ var restorePass = /*#__PURE__*/function () {
           });
         case 3:
         case "end":
-          return _context7.stop();
+          return _context6.stop();
       }
-    }, _callee7);
+    }, _callee6);
   }));
-  return function restorePass(_x13, _x14) {
-    return _ref7.apply(this, arguments);
+  return function restorePass(_x11, _x12) {
+    return _ref8.apply(this, arguments);
   };
 }();
 var sendResetPasswordEmail = /*#__PURE__*/function () {
-  var _ref8 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee8(email, resetLink, res) {
+  var _ref9 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee7(email, resetLink, res) {
     var transporter, mailOptions;
-    return _regeneratorRuntime().wrap(function _callee8$(_context8) {
-      while (1) switch (_context8.prev = _context8.next) {
+    return _regeneratorRuntime().wrap(function _callee7$(_context7) {
+      while (1) switch (_context7.prev = _context7.next) {
         case 0:
           // Configura el transporter
           transporter = nodemailer.createTransport({
@@ -684,118 +751,122 @@ var sendResetPasswordEmail = /*#__PURE__*/function () {
             subject: "Restablecer Contraseña",
             html: "<p>Hola,</p>\n               <p>Sigue este enlace para restablecer tu contrase\xF1a: <a href=\"".concat(resetLink, "\">").concat(resetLink, "</a></p>\n               <p>Si no solicitaste restablecer tu contrase\xF1a, puedes ignorar este correo.</p>\n               <p>Gracias, Solvers</p>\n               <p>Tu equipo</p>")
           }; // Envía el correo
-          _context8.prev = 2;
-          _context8.next = 5;
+          _context7.prev = 2;
+          _context7.next = 5;
           return transporter.sendMail(mailOptions);
         case 5:
           res.status(200).send({
             message: "Correo de restablecimiento enviado."
           });
-          _context8.next = 11;
+          _context7.next = 11;
           break;
         case 8:
-          _context8.prev = 8;
-          _context8.t0 = _context8["catch"](2);
-          console.error("Error al enviar el correo:", _context8.t0);
+          _context7.prev = 8;
+          _context7.t0 = _context7["catch"](2);
+          console.error("Error al enviar el correo:", _context7.t0);
         case 11:
         case "end":
-          return _context8.stop();
+          return _context7.stop();
       }
-    }, _callee8, null, [[2, 8]]);
+    }, _callee7, null, [[2, 8]]);
   }));
-  return function sendResetPasswordEmail(_x15, _x16, _x17) {
-    return _ref8.apply(this, arguments);
+  return function sendResetPasswordEmail(_x13, _x14, _x15) {
+    return _ref9.apply(this, arguments);
   };
 }();
 var getTalleres = /*#__PURE__*/function () {
-  var _ref9 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee9(req, res) {
-    var result, usuarios;
-    return _regeneratorRuntime().wrap(function _callee9$(_context9) {
-      while (1) switch (_context9.prev = _context9.next) {
+  var _ref10 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee8(req, res) {
+    var estado, result, usuarios;
+    return _regeneratorRuntime().wrap(function _callee8$(_context8) {
+      while (1) switch (_context8.prev = _context8.next) {
         case 0:
-          _context9.prev = 0;
-          _context9.next = 3;
+          _context8.prev = 0;
+          estado = req.body.estado;
+          _context8.next = 4;
           return db.collection("Usuarios").where("status", "!=", "Aprobado").where("typeUser", "==", "Taller") // Filtrar documentos por typeUser
+          .where("estado", "==", estado) // Filtrar documentos por typeUser
           .get();
-        case 3:
-          result = _context9.sent;
+        case 4:
+          result = _context8.sent;
           if (!result.empty) {
-            _context9.next = 6;
+            _context8.next = 7;
             break;
           }
-          return _context9.abrupt("return", res.status(404).send('No se encontraron usuarios con el tipo "Taller"'));
-        case 6:
+          return _context8.abrupt("return", res.status(404).send('No se encontraron usuarios con el tipo "Taller"'));
+        case 7:
           usuarios = result.docs.map(function (doc) {
             return doc.data();
           });
           res.send(usuarios);
-          _context9.next = 14;
+          _context8.next = 15;
           break;
-        case 10:
-          _context9.prev = 10;
-          _context9.t0 = _context9["catch"](0);
-          console.error("Error al obtener usuarios:", _context9.t0);
+        case 11:
+          _context8.prev = 11;
+          _context8.t0 = _context8["catch"](0);
+          console.error("Error al obtener usuarios:", _context8.t0);
           res.status(500).send("Error al obtener usuarios");
-        case 14:
+        case 15:
         case "end":
-          return _context9.stop();
+          return _context8.stop();
       }
-    }, _callee9, null, [[0, 10]]);
+    }, _callee8, null, [[0, 11]]);
   }));
-  return function getTalleres(_x18, _x19) {
-    return _ref9.apply(this, arguments);
+  return function getTalleres(_x16, _x17) {
+    return _ref10.apply(this, arguments);
   };
 }();
 var actualizarStatusUsuario = /*#__PURE__*/function () {
-  var _ref10 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee10(req, res) {
-    var _req$body5, uid, nuevoStatus;
+  var _ref11 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee9(req, res) {
+    var _req$body5, uid, nuevoStatus, certificador_nombre, certificador_key;
+    return _regeneratorRuntime().wrap(function _callee9$(_context9) {
+      while (1) switch (_context9.prev = _context9.next) {
+        case 0:
+          _context9.prev = 0;
+          // Obtener el UID y el nuevo estado desde el cuerpo de la solicitud
+          _req$body5 = req.body, uid = _req$body5.uid, nuevoStatus = _req$body5.nuevoStatus, certificador_nombre = _req$body5.certificador_nombre, certificador_key = _req$body5.certificador_key; // Verificar que se haya proporcionado un UID y un nuevo estado
+          if (!(!uid || !nuevoStatus)) {
+            _context9.next = 4;
+            break;
+          }
+          return _context9.abrupt("return", res.status(400).send({
+            message: "El UID y el nuevo estado son requeridos"
+          }));
+        case 4:
+          _context9.next = 6;
+          return db.collection("Usuarios").doc(uid).update({
+            status: nuevoStatus,
+            certificador_nombre: certificador_nombre,
+            certificador_key: certificador_key
+          });
+        case 6:
+          return _context9.abrupt("return", res.status(200).send({
+            message: "El estado del usuario ha sido actualizado exitosamente"
+          }));
+        case 9:
+          _context9.prev = 9;
+          _context9.t0 = _context9["catch"](0);
+          console.error("Error al actualizar el estado del usuario:", _context9.t0);
+          return _context9.abrupt("return", res.status(500).send({
+            message: "Error al actualizar el estado del usuario",
+            error: _context9.t0.message // Incluir detalles para depuración
+          }));
+        case 13:
+        case "end":
+          return _context9.stop();
+      }
+    }, _callee9, null, [[0, 9]]);
+  }));
+  return function actualizarStatusUsuario(_x18, _x19) {
+    return _ref11.apply(this, arguments);
+  };
+}();
+var UpdateTaller = /*#__PURE__*/function () {
+  var _ref12 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee10(req, res) {
+    var _req$body6, uid, nombre, rif, phone, email, Direccion, RegComercial, Caracteristicas, Tarifa, Experiencia, LinkFacebook, LinkInstagram, LinkTiktok, Garantia, seguro, agenteAutorizado, updatedUserInfo;
     return _regeneratorRuntime().wrap(function _callee10$(_context10) {
       while (1) switch (_context10.prev = _context10.next) {
         case 0:
           _context10.prev = 0;
-          // Obtener el UID y el nuevo estado desde el cuerpo de la solicitud
-          _req$body5 = req.body, uid = _req$body5.uid, nuevoStatus = _req$body5.nuevoStatus; // Verificar que se haya proporcionado un UID y un nuevo estado
-          if (!(!uid || !nuevoStatus)) {
-            _context10.next = 4;
-            break;
-          }
-          return _context10.abrupt("return", res.status(400).send({
-            message: "El UID y el nuevo estado son requeridos"
-          }));
-        case 4:
-          _context10.next = 6;
-          return db.collection("Usuarios").doc(uid).update({
-            status: nuevoStatus
-          });
-        case 6:
-          return _context10.abrupt("return", res.status(200).send({
-            message: "El estado del usuario ha sido actualizado exitosamente"
-          }));
-        case 9:
-          _context10.prev = 9;
-          _context10.t0 = _context10["catch"](0);
-          console.error("Error al actualizar el estado del usuario:", _context10.t0);
-          return _context10.abrupt("return", res.status(500).send({
-            message: "Error al actualizar el estado del usuario",
-            error: _context10.t0.message // Incluir detalles para depuración
-          }));
-        case 13:
-        case "end":
-          return _context10.stop();
-      }
-    }, _callee10, null, [[0, 9]]);
-  }));
-  return function actualizarStatusUsuario(_x20, _x21) {
-    return _ref10.apply(this, arguments);
-  };
-}();
-var UpdateTaller = /*#__PURE__*/function () {
-  var _ref11 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee11(req, res) {
-    var _req$body6, uid, nombre, rif, phone, email, Direccion, RegComercial, Caracteristicas, Tarifa, Experiencia, LinkFacebook, LinkInstagram, LinkTiktok, Garantia, seguro, agenteAutorizado, updatedUserInfo;
-    return _regeneratorRuntime().wrap(function _callee11$(_context11) {
-      while (1) switch (_context11.prev = _context11.next) {
-        case 0:
-          _context11.prev = 0;
           // Recibir los datos del cliente desde el cuerpo de la solicitud
           _req$body6 = req.body, uid = _req$body6.uid, nombre = _req$body6.nombre, rif = _req$body6.rif, phone = _req$body6.phone, email = _req$body6.email, Direccion = _req$body6.Direccion, RegComercial = _req$body6.RegComercial, Caracteristicas = _req$body6.Caracteristicas, Tarifa = _req$body6.Tarifa, Experiencia = _req$body6.Experiencia, LinkFacebook = _req$body6.LinkFacebook, LinkInstagram = _req$body6.LinkInstagram, LinkTiktok = _req$body6.LinkTiktok, Garantia = _req$body6.Garantia, seguro = _req$body6.seguro, agenteAutorizado = _req$body6.agenteAutorizado; // Crear el objeto con los datos que se actualizarán en la colección "Usuarios"
           updatedUserInfo = {
@@ -817,7 +888,7 @@ var UpdateTaller = /*#__PURE__*/function () {
             seguro: seguro == undefined ? "" : seguro,
             agenteAutorizado: agenteAutorizado == undefined ? false : agenteAutorizado
           }; // Actualizar el documento en la colección "Usuarios" con el UID proporcionado
-          _context11.next = 5;
+          _context10.next = 5;
           return db.collection("Usuarios").doc(uid).update(updatedUserInfo);
         case 5:
           // Responder con un mensaje de éxito
@@ -825,94 +896,178 @@ var UpdateTaller = /*#__PURE__*/function () {
             message: "Usuario actualizado con éxito",
             uid: uid
           });
-          _context11.next = 12;
+          _context10.next = 12;
           break;
         case 8:
-          _context11.prev = 8;
-          _context11.t0 = _context11["catch"](0);
-          console.error("Error al actualizar el usuario:", _context11.t0);
+          _context10.prev = 8;
+          _context10.t0 = _context10["catch"](0);
+          console.error("Error al actualizar el usuario:", _context10.t0);
 
           // En caso de error, responder con el mensaje correspondiente
           res.status(500).send({
             message: "Error al actualizar el usuario",
-            error: _context11.t0.message
+            error: _context10.t0.message
           });
         case 12:
         case "end":
-          return _context11.stop();
+          return _context10.stop();
       }
-    }, _callee11, null, [[0, 8]]);
+    }, _callee10, null, [[0, 8]]);
   }));
-  return function UpdateTaller(_x22, _x23) {
-    return _ref11.apply(this, arguments);
+  return function UpdateTaller(_x20, _x21) {
+    return _ref12.apply(this, arguments);
   };
 }();
 var UpdateClient = /*#__PURE__*/function () {
-  var _ref12 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee12(req, res) {
-    var _req$body7, uid, Nombre, cedula, phone, email, updatedUserInfo;
+  var _ref13 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee11(req, res) {
+    var _req$body7, uid, Nombre, cedula, phone, email, base64, imageTodelete, estado, updatedUserInfo, getLastImageIndex, processImage, deleteOldImage;
+    return _regeneratorRuntime().wrap(function _callee11$(_context11) {
+      while (1) switch (_context11.prev = _context11.next) {
+        case 0:
+          try {
+            // Recibir los datos del cliente desde el cuerpo de la solicitud
+            _req$body7 = req.body, uid = _req$body7.uid, Nombre = _req$body7.Nombre, cedula = _req$body7.cedula, phone = _req$body7.phone, email = _req$body7.email, base64 = _req$body7.base64, imageTodelete = _req$body7.imageTodelete, estado = _req$body7.estado; // Crear el objeto que se actualizará en la colección "Usuarios"
+            updatedUserInfo = {
+              nombre: Nombre,
+              cedula: cedula,
+              phone: phone,
+              typeUser: "Cliente",
+              email: email,
+              uid: uid,
+              estado: estado
+            };
+            getLastImageIndex = function getLastImageIndex() {
+              return new Promise(function (resolve, reject) {
+                var prefix = "profileImages/".concat(uid);
+                bucket.getFiles({
+                  prefix: prefix
+                }).then(function (_ref14) {
+                  var _ref15 = _slicedToArray(_ref14, 1),
+                    files = _ref15[0];
+                  var maxIndex = 0;
+                  files.forEach(function (file) {
+                    var match = file.name.match(/(\d+)\.jpg$/);
+                    if (match) {
+                      var index = parseInt(match[1], 10);
+                      if (index > maxIndex) {
+                        maxIndex = index;
+                      }
+                    }
+                  });
+                  resolve(maxIndex);
+                })["catch"](function (error) {
+                  reject(error);
+                });
+              });
+            };
+            processImage = function processImage(index) {
+              return new Promise(function (resolve, reject) {
+                if (base64 && base64.trim() !== '') {
+                  var newFileName = "profileImages/".concat(uid, "_").concat(index + 1, ".jpg");
+                  var buffer = Buffer.from(base64, 'base64');
+                  var file = bucket.file(newFileName);
+
+                  // Subir la nueva imagen
+                  file.save(buffer, {
+                    metadata: {
+                      contentType: 'image/jpeg'
+                    },
+                    "public": true,
+                    validation: 'md5'
+                  }).then(function () {
+                    var imageUrl = "https://storage.googleapis.com/".concat(bucket.name, "/").concat(newFileName);
+                    updatedUserInfo.image_perfil = imageUrl;
+                    resolve();
+                  })["catch"](function (error) {
+                    console.error("Error al guardar la nueva imagen:", error);
+                    reject(error);
+                  });
+                } else {
+                  resolve();
+                }
+              });
+            };
+            deleteOldImage = function deleteOldImage() {
+              return new Promise(function (resolve, reject) {
+                if (imageTodelete && imageTodelete.trim() !== '') {
+                  var file = bucket.file("profileImages/".concat(imageTodelete));
+                  file["delete"]().then(function () {
+                    return resolve();
+                  })["catch"](function (error) {
+                    if (error.code === 404) {
+                      resolve(); // Resolver incluso si no se encuentra la imagen a eliminar
+                    } else {
+                      console.error("Error al eliminar la imagen anterior:", error);
+                      reject(error);
+                    }
+                  });
+                } else {
+                  resolve();
+                }
+              });
+            };
+            getLastImageIndex().then(function (index) {
+              return processImage(index);
+            }).then(function () {
+              // Eliminar el campo base64 y imageTodelete del cuerpo de la solicitud
+              delete req.body.base64;
+              delete req.body.imageTodelete;
+            }).then(function () {
+              return db.collection("Usuarios").doc(uid).update(updatedUserInfo);
+            }).then(function () {
+              if (imageTodelete && imageTodelete.trim() !== '') {
+                return deleteOldImage();
+              }
+            }).then(function () {
+              // Responder con un mensaje de éxito
+              res.status(200).send({
+                message: "Usuario actualizado con éxito",
+                uid: uid
+              });
+            })["catch"](function (error) {
+              console.error("Error al actualizar el usuario:", error);
+
+              // Manejar posibles errores en la actualización del documento
+              res.status(500).send("Error al actualizar el usuario");
+            });
+          } catch (error) {
+            console.error("Error al actualizar el usuario:", error);
+
+            // Manejar posibles errores en la actualización del documento
+            res.status(500).send("Error al actualizar el usuario");
+          }
+        case 1:
+        case "end":
+          return _context11.stop();
+      }
+    }, _callee11);
+  }));
+  return function UpdateClient(_x22, _x23) {
+    return _ref13.apply(this, arguments);
+  };
+}();
+var getServicesByTalleruid = /*#__PURE__*/function () {
+  var _ref16 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee12(req, res) {
+    var uid_taller, servicesSnapshot, services;
     return _regeneratorRuntime().wrap(function _callee12$(_context12) {
       while (1) switch (_context12.prev = _context12.next) {
         case 0:
           _context12.prev = 0;
-          // Recibir los datos del cliente desde el cuerpo de la solicitud
-          _req$body7 = req.body, uid = _req$body7.uid, Nombre = _req$body7.Nombre, cedula = _req$body7.cedula, phone = _req$body7.phone, email = _req$body7.email; // Crear el objeto que se actualizará en la colección "Usuarios"
-          updatedUserInfo = {
-            nombre: Nombre,
-            cedula: cedula,
-            phone: phone,
-            typeUser: "Cliente",
-            email: email,
-            uid: uid
-          }; // Actualizar el documento en la colección "Usuarios" con el UID proporcionado
-          _context12.next = 5;
-          return db.collection("Usuarios").doc(uid).update(updatedUserInfo);
-        case 5:
-          // Responder con un mensaje de éxito
-          res.status(200).send({
-            message: "Usuario actualizado con éxito",
-            uid: uid
-          });
-          _context12.next = 12;
-          break;
-        case 8:
-          _context12.prev = 8;
-          _context12.t0 = _context12["catch"](0);
-          console.error("Error al actualizar el usuario:", _context12.t0);
-
-          // Manejar posibles errores en la actualización del documento
-          res.status(500).send("Error al actualizar el usuario");
-        case 12:
-        case "end":
-          return _context12.stop();
-      }
-    }, _callee12, null, [[0, 8]]);
-  }));
-  return function UpdateClient(_x24, _x25) {
-    return _ref12.apply(this, arguments);
-  };
-}();
-var getServicesByTalleruid = /*#__PURE__*/function () {
-  var _ref13 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee13(req, res) {
-    var uid_taller, servicesSnapshot, services;
-    return _regeneratorRuntime().wrap(function _callee13$(_context13) {
-      while (1) switch (_context13.prev = _context13.next) {
-        case 0:
-          _context13.prev = 0;
           // Obtener el UID_TALLER desde el cuerpo de la solicitud
           uid_taller = req.body.uid_taller;
           console.log(uid_taller);
 
           // Buscar en la colección "Servicios" los documentos donde uid_taller coincide
-          _context13.next = 5;
+          _context12.next = 5;
           return db.collection("Servicios").where("uid_taller", "==", uid_taller).get();
         case 5:
-          servicesSnapshot = _context13.sent;
+          servicesSnapshot = _context12.sent;
           if (!servicesSnapshot.empty) {
-            _context13.next = 9;
+            _context12.next = 9;
             break;
           }
           console.log("No se encontraron servicios para el UID_TALLER proporcionado");
-          return _context13.abrupt("return", res.status(404).send({
+          return _context12.abrupt("return", res.status(404).send({
             message: "No se encontraron servicios para el UID_TALLER proporcionado"
           }));
         case 9:
@@ -922,47 +1077,47 @@ var getServicesByTalleruid = /*#__PURE__*/function () {
               id: doc.id
             }, doc.data());
           }); // Enviar los servicios encontrados
-          return _context13.abrupt("return", res.status(200).send({
+          return _context12.abrupt("return", res.status(200).send({
             message: "Servicios encontrados",
             services: services
           }));
         case 13:
-          _context13.prev = 13;
-          _context13.t0 = _context13["catch"](0);
-          console.error("Error al obtener los servicios por UID_TALLER:", _context13.t0);
+          _context12.prev = 13;
+          _context12.t0 = _context12["catch"](0);
+          console.error("Error al obtener los servicios por UID_TALLER:", _context12.t0);
           res.status(500).send("Error al obtener los servicios");
         case 17:
         case "end":
-          return _context13.stop();
+          return _context12.stop();
       }
-    }, _callee13, null, [[0, 13]]);
+    }, _callee12, null, [[0, 13]]);
   }));
-  return function getServicesByTalleruid(_x26, _x27) {
-    return _ref13.apply(this, arguments);
+  return function getServicesByTalleruid(_x24, _x25) {
+    return _ref16.apply(this, arguments);
   };
 }();
 var getServiceByUid = /*#__PURE__*/function () {
-  var _ref14 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee14(req, res) {
-    var uid, serviceSnapshot, serviceData;
-    return _regeneratorRuntime().wrap(function _callee14$(_context14) {
-      while (1) switch (_context14.prev = _context14.next) {
+  var _ref17 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee13(req, res) {
+    var _uid, serviceSnapshot, serviceData;
+    return _regeneratorRuntime().wrap(function _callee13$(_context13) {
+      while (1) switch (_context13.prev = _context13.next) {
         case 0:
-          _context14.prev = 0;
+          _context13.prev = 0;
           // Obtener el UID del servicio desde el cuerpo de la solicitud
-          uid = req.body.uid;
-          console.log("UID del servicio:", uid);
+          _uid = req.body.uid;
+          console.log("UID del servicio:", _uid);
 
           // Buscar el documento en la colección "Servicios" donde el campo "uid" coincide
-          _context14.next = 5;
-          return db.collection("Servicios").doc(uid).get();
+          _context13.next = 5;
+          return db.collection("Servicios").doc(_uid).get();
         case 5:
-          serviceSnapshot = _context14.sent;
+          serviceSnapshot = _context13.sent;
           if (serviceSnapshot.exists) {
-            _context14.next = 9;
+            _context13.next = 9;
             break;
           }
           console.log("No se encontró el servicio con el UID proporcionado");
-          return _context14.abrupt("return", res.status(404).send({
+          return _context13.abrupt("return", res.status(404).send({
             message: "No se encontró el servicio con el UID proporcionado"
           }));
         case 9:
@@ -970,42 +1125,42 @@ var getServiceByUid = /*#__PURE__*/function () {
           serviceData = _objectSpread({
             id: serviceSnapshot.id
           }, serviceSnapshot.data()); // Enviar el servicio encontrado
-          return _context14.abrupt("return", res.status(200).send({
+          return _context13.abrupt("return", res.status(200).send({
             message: "Servicio encontrado",
             service: serviceData
           }));
         case 13:
-          _context14.prev = 13;
-          _context14.t0 = _context14["catch"](0);
-          console.error("Error al obtener el servicio por UID:", _context14.t0);
+          _context13.prev = 13;
+          _context13.t0 = _context13["catch"](0);
+          console.error("Error al obtener el servicio por UID:", _context13.t0);
           res.status(500).send("Error al obtener el servicio");
         case 17:
         case "end":
-          return _context14.stop();
+          return _context13.stop();
       }
-    }, _callee14, null, [[0, 13]]);
+    }, _callee13, null, [[0, 13]]);
   }));
-  return function getServiceByUid(_x28, _x29) {
-    return _ref14.apply(this, arguments);
+  return function getServiceByUid(_x26, _x27) {
+    return _ref17.apply(this, arguments);
   };
 }();
 var getActiveCategories = /*#__PURE__*/function () {
-  var _ref15 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee15(req, res) {
+  var _ref18 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee14(req, res) {
     var categoriesSnapshot, categories;
-    return _regeneratorRuntime().wrap(function _callee15$(_context15) {
-      while (1) switch (_context15.prev = _context15.next) {
+    return _regeneratorRuntime().wrap(function _callee14$(_context14) {
+      while (1) switch (_context14.prev = _context14.next) {
         case 0:
-          _context15.prev = 0;
-          _context15.next = 3;
+          _context14.prev = 0;
+          _context14.next = 3;
           return db.collection("Categorias").where("estatus", "==", true).get();
         case 3:
-          categoriesSnapshot = _context15.sent;
+          categoriesSnapshot = _context14.sent;
           if (!categoriesSnapshot.empty) {
-            _context15.next = 7;
+            _context14.next = 7;
             break;
           }
           console.log("No se encontraron categorías activas");
-          return _context15.abrupt("return", res.status(404).send({
+          return _context14.abrupt("return", res.status(404).send({
             message: "No se encontraron categorías activas"
           }));
         case 7:
@@ -1015,48 +1170,48 @@ var getActiveCategories = /*#__PURE__*/function () {
               id: doc.id
             }, doc.data());
           }); // Enviar las categorías activas encontradas
-          return _context15.abrupt("return", res.status(200).send({
+          return _context14.abrupt("return", res.status(200).send({
             message: "Categorías activas encontradas",
             categories: categories
           }));
         case 11:
-          _context15.prev = 11;
-          _context15.t0 = _context15["catch"](0);
-          console.error("Error al obtener las categorías activas:", _context15.t0);
+          _context14.prev = 11;
+          _context14.t0 = _context14["catch"](0);
+          console.error("Error al obtener las categorías activas:", _context14.t0);
           res.status(500).send("Error al obtener las categorías activas");
         case 15:
         case "end":
-          return _context15.stop();
+          return _context14.stop();
       }
-    }, _callee15, null, [[0, 11]]);
+    }, _callee14, null, [[0, 11]]);
   }));
-  return function getActiveCategories(_x30, _x31) {
-    return _ref15.apply(this, arguments);
+  return function getActiveCategories(_x28, _x29) {
+    return _ref18.apply(this, arguments);
   };
 }();
 var getSubcategoriesByCategoryUid = /*#__PURE__*/function () {
-  var _ref16 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee16(req, res) {
+  var _ref19 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee15(req, res) {
     var uid_categoria, subcategoriesSnapshot, subcategories;
-    return _regeneratorRuntime().wrap(function _callee16$(_context16) {
-      while (1) switch (_context16.prev = _context16.next) {
+    return _regeneratorRuntime().wrap(function _callee15$(_context15) {
+      while (1) switch (_context15.prev = _context15.next) {
         case 0:
-          _context16.prev = 0;
+          _context15.prev = 0;
           // Obtener el UID de la categoría desde el cuerpo de la solicitud
           uid_categoria = req.body.uid_categoria;
           console.log("UID de la categor\xEDa: ".concat(uid_categoria));
 
           // Referencia a la subcolección "Subcategoría" dentro del documento de la categoría especificada
-          _context16.next = 5;
+          _context15.next = 5;
           return db.collection("Categorias").doc(uid_categoria).collection("Subcategorias").where("estatus", "==", true) // Filtro para obtener solo subcategorías activas
           .get();
         case 5:
-          subcategoriesSnapshot = _context16.sent;
+          subcategoriesSnapshot = _context15.sent;
           if (!subcategoriesSnapshot.empty) {
-            _context16.next = 9;
+            _context15.next = 9;
             break;
           }
           console.log("No se encontraron subcategorías para la categoría proporcionada");
-          return _context16.abrupt("return", res.status(404).send({
+          return _context15.abrupt("return", res.status(404).send({
             message: "No se encontraron subcategorías para la categoría proporcionada"
           }));
         case 9:
@@ -1066,34 +1221,201 @@ var getSubcategoriesByCategoryUid = /*#__PURE__*/function () {
               id: doc.id
             }, doc.data());
           }); // Enviar las subcategorías encontradas
-          return _context16.abrupt("return", res.status(200).send({
+          return _context15.abrupt("return", res.status(200).send({
             message: "Subcategorías encontradas",
             subcategories: subcategories
           }));
         case 13:
-          _context16.prev = 13;
-          _context16.t0 = _context16["catch"](0);
-          console.error("Error al obtener las subcategorías por UID de categoría:", _context16.t0);
+          _context15.prev = 13;
+          _context15.t0 = _context15["catch"](0);
+          console.error("Error al obtener las subcategorías por UID de categoría:", _context15.t0);
           res.status(500).send("Error al obtener las subcategorías");
         case 17:
         case "end":
-          return _context16.stop();
+          return _context15.stop();
       }
-    }, _callee16, null, [[0, 13]]);
+    }, _callee15, null, [[0, 13]]);
   }));
-  return function getSubcategoriesByCategoryUid(_x32, _x33) {
-    return _ref16.apply(this, arguments);
+  return function getSubcategoriesByCategoryUid(_x30, _x31) {
+    return _ref19.apply(this, arguments);
   };
 }();
+
+// const saveOrUpdateService = async (req, res) => {
+//   try {
+//     // Obtener los datos del servicio desde el cuerpo de la solicitud
+//     const {
+//       id,
+//       categoria,
+//       descripcion,
+//       estatus,
+//       garantia,
+//       nombre_servicio,
+//       precio,
+//       subcategoria,
+//       taller,
+//       uid_categoria,
+//       uid_servicio,
+//       uid_subcategoria,
+//       uid_taller,
+//       puntuacion,
+//       publicOrigin,
+//       base64
+//     } = req.body;
+
+//     console.log("Datos del servicio:", req.body);
+
+//     const serviceData = {
+//       categoria,
+//       descripcion,
+//       estatus,
+//       garantia,
+//       nombre_servicio,
+//       precio,
+//       subcategoria,
+//       taller,
+//       uid_categoria,
+//       uid_servicio,
+//       uid_subcategoria,
+//       uid_taller,
+//       puntuacion
+//     };
+
+//     // Si `id` tiene un valor, editar el documento en la colección "Servicios"
+//     if (id) {
+//       const serviceRef = db.collection("Servicios").doc(id);
+//       const serviceSnapshot = await serviceRef.get();
+
+//       if (!serviceSnapshot.exists) {
+//         return res.status(404).send({
+//           message: "No se encontró el servicio con el ID proporcionado para actualizar",
+//         });
+//       }
+
+//       await serviceRef.update(serviceData);
+//       console.log("Servicio actualizado:", id);
+
+//       if (serviceData.estatus){
+
+//         if(!publicOrigin){
+//           // Consulta el documento específico en la colección "Usuarios"
+//           const userId = uid_taller; // Reemplaza esto con el ID del usuario correspondiente
+//           const userRef = db.collection("Usuarios").doc(userId);
+
+//           // Obtiene el valor actual de cantidad_servicios, lo convierte a número, le resta 1 y actualiza
+//           const userDoc = await userRef.get();
+//           if (userDoc.exists) {
+//             const userData = userDoc.data();
+//             let cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0; // Convierte a número o usa 0 si no es válido
+//             cantidadServicios -= 1; // Resta 1
+
+//             await userRef.update({
+//               "subscripcion_actual.cantidad_servicios": cantidadServicios.toString(), // Guarda nuevamente como string
+//             });
+//           }
+//         }
+
+//         return res.status(200).send({
+//           message: "Servicio actualizado exitosamente",
+//           service: { id, ...serviceData },
+//         });
+//       } else {
+
+//         if(publicOrigin){
+//           // Consulta el documento específico en la colección "Usuarios"
+//           const userId = uid_taller; // Reemplaza esto con el ID del usuario correspondiente
+//           const userRef = db.collection("Usuarios").doc(userId);
+
+//           // Obtiene el valor actual de cantidad_servicios, lo convierte a número, le resta 1 y actualiza
+//           const userDoc = await userRef.get();
+//           if (userDoc.exists) {
+//             const userData = userDoc.data();
+//             let cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0; // Convierte a número o usa 0 si no es válido
+//             cantidadServicios += 1; // Resta 1
+
+//             await userRef.update({
+//               "subscripcion_actual.cantidad_servicios": cantidadServicios.toString(), // Guarda nuevamente como string
+//             });
+//           }
+//         }
+
+//         return res.status(200).send({
+//           message: "Servicio actualizado exitosamente",
+//           service: { id, ...serviceData },
+//         });
+//       }
+
+//     } else {
+//       const newServiceRef = await db.collection("Servicios").add(serviceData);
+//       console.log("Servicio creado con ID:", newServiceRef.id);
+
+//       if (serviceData.estatus){
+
+//         if (!publicOrigin){
+//           // Consulta el documento específico en la colección "Usuarios"
+//           const userId = uid_taller; // Reemplaza esto con el ID del usuario correspondiente
+//           const userRef = db.collection("Usuarios").doc(userId);
+
+//           // Obtiene el valor actual de cantidad_servicios, lo convierte a número, le resta 1 y actualiza
+//           const userDoc = await userRef.get();
+//           if (userDoc.exists) {
+//             const userData = userDoc.data();
+//             let cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0; // Convierte a número o usa 0 si no es válido
+//             cantidadServicios -= 1; // Resta 1
+
+//             await userRef.update({
+//               "subscripcion_actual.cantidad_servicios": cantidadServicios.toString(), // Guarda nuevamente como string
+//             });
+//           }
+//         }
+
+//         return res.status(201).send({
+//           message: "Servicio creado exitosamente",
+//           service: { id: newServiceRef.id, ...serviceData },
+//         });
+
+//       } else {
+
+//         if (publicOrigin){
+//           // Consulta el documento específico en la colección "Usuarios"
+//           const userId = uid_taller; // Reemplaza esto con el ID del usuario correspondiente
+//           const userRef = db.collection("Usuarios").doc(userId);
+
+//           // Obtiene el valor actual de cantidad_servicios, lo convierte a número, le resta 1 y actualiza
+//           const userDoc = await userRef.get();
+//           if (userDoc.exists) {
+//             const userData = userDoc.data();
+//             let cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0; // Convierte a número o usa 0 si no es válido
+//             cantidadServicios += 1; // Resta 1
+
+//             await userRef.update({
+//               "subscripcion_actual.cantidad_servicios": cantidadServicios.toString(), // Guarda nuevamente como string
+//             });
+//           }
+//         }
+
+//         return res.status(201).send({
+//           message: "Servicio creado exitosamente",
+//           service: { id: newServiceRef.id, ...serviceData },
+//         });
+//       }
+
+//     }
+//   } catch (error) {
+//     console.error("Error al guardar o actualizar el servicio:", error);
+//     res.status(500).send(error);
+//   }
+// };
+
 var saveOrUpdateService = /*#__PURE__*/function () {
-  var _ref17 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee17(req, res) {
-    var _req$body8, id, categoria, descripcion, estatus, garantia, nombre_servicio, precio, subcategoria, taller, uid_categoria, uid_servicio, uid_subcategoria, uid_taller, puntuacion, publicOrigin, serviceData, serviceRef, serviceSnapshot, userId, userRef, userDoc, userData, cantidadServicios, _userId, _userRef, _userDoc, _userData, _cantidadServicios, newServiceRef, _userId2, _userRef2, _userDoc2, _userData2, _cantidadServicios2, _userId3, _userRef3, _userDoc3, _userData3, _cantidadServicios3;
+  var _ref20 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee17(req, res) {
+    var _req$body8, id, categoria, descripcion, estatus, garantia, nombre_servicio, precio, subcategoria, taller, uid_categoria, uid_servicio, uid_subcategoria, uid_taller, puntuacion, publicOrigin, _base, _imageTodelete, serviceData, getLastImageIndex, processImage, deleteOldImage, serviceRef, serviceSnapshot, userId, userRef, userDoc, userData, cantidadServicios, imageUrl, _userId, _userRef, _userDoc, _userData, _cantidadServicios, _imageUrl, newServiceRef, _userId2, _userRef2, _userDoc2, _userData2, _cantidadServicios2, _imageUrl2, _userId3, _userRef3, _userDoc3, _userData3, _cantidadServicios3, _imageUrl3;
     return _regeneratorRuntime().wrap(function _callee17$(_context17) {
       while (1) switch (_context17.prev = _context17.next) {
         case 0:
           _context17.prev = 0;
           // Obtener los datos del servicio desde el cuerpo de la solicitud
-          _req$body8 = req.body, id = _req$body8.id, categoria = _req$body8.categoria, descripcion = _req$body8.descripcion, estatus = _req$body8.estatus, garantia = _req$body8.garantia, nombre_servicio = _req$body8.nombre_servicio, precio = _req$body8.precio, subcategoria = _req$body8.subcategoria, taller = _req$body8.taller, uid_categoria = _req$body8.uid_categoria, uid_servicio = _req$body8.uid_servicio, uid_subcategoria = _req$body8.uid_subcategoria, uid_taller = _req$body8.uid_taller, puntuacion = _req$body8.puntuacion, publicOrigin = _req$body8.publicOrigin;
+          _req$body8 = req.body, id = _req$body8.id, categoria = _req$body8.categoria, descripcion = _req$body8.descripcion, estatus = _req$body8.estatus, garantia = _req$body8.garantia, nombre_servicio = _req$body8.nombre_servicio, precio = _req$body8.precio, subcategoria = _req$body8.subcategoria, taller = _req$body8.taller, uid_categoria = _req$body8.uid_categoria, uid_servicio = _req$body8.uid_servicio, uid_subcategoria = _req$body8.uid_subcategoria, uid_taller = _req$body8.uid_taller, puntuacion = _req$body8.puntuacion, publicOrigin = _req$body8.publicOrigin, _base = _req$body8.base64, _imageTodelete = _req$body8.imageTodelete;
           console.log("Datos del servicio:", req.body);
           serviceData = {
             categoria: categoria,
@@ -1109,183 +1431,329 @@ var saveOrUpdateService = /*#__PURE__*/function () {
             uid_subcategoria: uid_subcategoria,
             uid_taller: uid_taller,
             puntuacion: puntuacion
+          };
+          getLastImageIndex = function getLastImageIndex(id) {
+            return new Promise(function (resolve, reject) {
+              var prefix = "service_images/".concat(id);
+              bucket.getFiles({
+                prefix: prefix
+              }).then(function (_ref21) {
+                var _ref22 = _slicedToArray(_ref21, 1),
+                  files = _ref22[0];
+                var maxIndex = 0;
+                files.forEach(function (file) {
+                  var match = file.name.match(/_(\d+)\.jpg$/);
+                  if (match) {
+                    var index = parseInt(match[1], 10);
+                    if (index > maxIndex) {
+                      maxIndex = index;
+                    }
+                  }
+                });
+                resolve(maxIndex);
+              })["catch"](function (error) {
+                reject(error);
+              });
+            });
+          };
+          processImage = /*#__PURE__*/function () {
+            var _ref23 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee16(id) {
+              var imageUrl, index, newFileName, buffer, file;
+              return _regeneratorRuntime().wrap(function _callee16$(_context16) {
+                while (1) switch (_context16.prev = _context16.next) {
+                  case 0:
+                    imageUrl = '';
+                    if (!(_base && _base.trim() !== '')) {
+                      _context16.next = 12;
+                      break;
+                    }
+                    _context16.next = 4;
+                    return getLastImageIndex(id);
+                  case 4:
+                    index = _context16.sent;
+                    newFileName = "service_images/".concat(id, "_").concat(index + 1, ".jpg");
+                    buffer = Buffer.from(_base, 'base64');
+                    file = bucket.file(newFileName);
+                    _context16.next = 10;
+                    return file.save(buffer, {
+                      metadata: {
+                        contentType: 'image/jpeg'
+                      },
+                      "public": true,
+                      validation: 'md5'
+                    });
+                  case 10:
+                    imageUrl = "https://storage.googleapis.com/".concat(bucket.name, "/").concat(newFileName);
+                    serviceData.image = imageUrl;
+                  case 12:
+                    return _context16.abrupt("return", imageUrl);
+                  case 13:
+                  case "end":
+                    return _context16.stop();
+                }
+              }, _callee16);
+            }));
+            return function processImage(_x34) {
+              return _ref23.apply(this, arguments);
+            };
+          }();
+          deleteOldImage = function deleteOldImage() {
+            return new Promise(function (resolve, reject) {
+              if (_base && _base.trim() !== '' && _imageTodelete && _imageTodelete.trim() !== '') {
+                var file = bucket.file("service_images/".concat(_imageTodelete));
+                file["delete"]().then(function () {
+                  return resolve();
+                })["catch"](function (error) {
+                  if (error.code === 404) {
+                    resolve(); // Resolver incluso si no se encuentra la imagen a eliminar
+                  } else {
+                    console.error("Error al eliminar la imagen anterior:", error);
+                    reject(error);
+                  }
+                });
+              } else {
+                resolve();
+              }
+            });
           }; // Si `id` tiene un valor, editar el documento en la colección "Servicios"
           if (!id) {
-            _context17.next = 45;
+            _context17.next = 64;
             break;
           }
           serviceRef = db.collection("Servicios").doc(id);
-          _context17.next = 8;
+          _context17.next = 11;
           return serviceRef.get();
-        case 8:
+        case 11:
           serviceSnapshot = _context17.sent;
           if (serviceSnapshot.exists) {
-            _context17.next = 11;
+            _context17.next = 14;
             break;
           }
           return _context17.abrupt("return", res.status(404).send({
             message: "No se encontró el servicio con el ID proporcionado para actualizar"
           }));
-        case 11:
-          _context17.next = 13;
+        case 14:
+          _context17.next = 16;
           return serviceRef.update(serviceData);
-        case 13:
+        case 16:
           console.log("Servicio actualizado:", id);
           if (!serviceData.estatus) {
+            _context17.next = 41;
+            break;
+          }
+          if (publicOrigin) {
             _context17.next = 30;
             break;
           }
-          if (publicOrigin) {
-            _context17.next = 27;
-            break;
-          }
-          // Consulta el documento específico en la colección "Usuarios"
-          userId = uid_taller; // Reemplaza esto con el ID del usuario correspondiente
-          userRef = db.collection("Usuarios").doc(userId); // Obtiene el valor actual de cantidad_servicios, lo convierte a número, le resta 1 y actualiza
-          _context17.next = 20;
+          userId = uid_taller;
+          userRef = db.collection("Usuarios").doc(userId);
+          _context17.next = 23;
           return userRef.get();
-        case 20:
+        case 23:
           userDoc = _context17.sent;
           if (!userDoc.exists) {
-            _context17.next = 27;
+            _context17.next = 30;
             break;
           }
           userData = userDoc.data();
-          cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0; // Convierte a número o usa 0 si no es válido
-          cantidadServicios -= 1; // Resta 1
-          _context17.next = 27;
+          cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0;
+          cantidadServicios -= 1;
+          _context17.next = 30;
           return userRef.update({
-            "subscripcion_actual.cantidad_servicios": cantidadServicios.toString() // Guarda nuevamente como string
+            "subscripcion_actual.cantidad_servicios": cantidadServicios.toString()
           });
-        case 27:
+        case 30:
+          _context17.next = 32;
+          return processImage(id);
+        case 32:
+          imageUrl = _context17.sent;
+          _context17.next = 35;
+          return deleteOldImage();
+        case 35:
+          if (!(_base && _base.trim() !== '')) {
+            _context17.next = 38;
+            break;
+          }
+          _context17.next = 38;
+          return serviceRef.update({
+            service_image: imageUrl
+          });
+        case 38:
           return _context17.abrupt("return", res.status(200).send({
             message: "Servicio actualizado exitosamente",
             service: _objectSpread({
               id: id
             }, serviceData)
           }));
-        case 30:
+        case 41:
           if (!publicOrigin) {
-            _context17.next = 42;
+            _context17.next = 53;
             break;
           }
-          // Consulta el documento específico en la colección "Usuarios"
-          _userId = uid_taller; // Reemplaza esto con el ID del usuario correspondiente
-          _userRef = db.collection("Usuarios").doc(_userId); // Obtiene el valor actual de cantidad_servicios, lo convierte a número, le resta 1 y actualiza
-          _context17.next = 35;
+          _userId = uid_taller;
+          _userRef = db.collection("Usuarios").doc(_userId);
+          _context17.next = 46;
           return _userRef.get();
-        case 35:
+        case 46:
           _userDoc = _context17.sent;
           if (!_userDoc.exists) {
-            _context17.next = 42;
+            _context17.next = 53;
             break;
           }
           _userData = _userDoc.data();
-          _cantidadServicios = parseInt(_userData.subscripcion_actual.cantidad_servicios, 10) || 0; // Convierte a número o usa 0 si no es válido
-          _cantidadServicios += 1; // Resta 1
-          _context17.next = 42;
+          _cantidadServicios = parseInt(_userData.subscripcion_actual.cantidad_servicios, 10) || 0;
+          _cantidadServicios += 1;
+          _context17.next = 53;
           return _userRef.update({
-            "subscripcion_actual.cantidad_servicios": _cantidadServicios.toString() // Guarda nuevamente como string
+            "subscripcion_actual.cantidad_servicios": _cantidadServicios.toString()
           });
-        case 42:
+        case 53:
+          _context17.next = 55;
+          return processImage(id);
+        case 55:
+          _imageUrl = _context17.sent;
+          _context17.next = 58;
+          return deleteOldImage();
+        case 58:
+          if (!(_base && _base.trim() !== '')) {
+            _context17.next = 61;
+            break;
+          }
+          _context17.next = 61;
+          return serviceRef.update({
+            service_image: _imageUrl
+          });
+        case 61:
           return _context17.abrupt("return", res.status(200).send({
             message: "Servicio actualizado exitosamente",
             service: _objectSpread({
               id: id
             }, serviceData)
           }));
-        case 43:
-          _context17.next = 78;
+        case 62:
+          _context17.next = 115;
           break;
-        case 45:
-          _context17.next = 47;
+        case 64:
+          _context17.next = 66;
           return db.collection("Servicios").add(serviceData);
-        case 47:
+        case 66:
           newServiceRef = _context17.sent;
           console.log("Servicio creado con ID:", newServiceRef.id);
           if (!serviceData.estatus) {
-            _context17.next = 65;
+            _context17.next = 93;
             break;
           }
           if (publicOrigin) {
-            _context17.next = 62;
+            _context17.next = 81;
             break;
           }
-          // Consulta el documento específico en la colección "Usuarios"
-          _userId2 = uid_taller; // Reemplaza esto con el ID del usuario correspondiente
-          _userRef2 = db.collection("Usuarios").doc(_userId2); // Obtiene el valor actual de cantidad_servicios, lo convierte a número, le resta 1 y actualiza
-          _context17.next = 55;
+          _userId2 = uid_taller;
+          _userRef2 = db.collection("Usuarios").doc(_userId2);
+          _context17.next = 74;
           return _userRef2.get();
-        case 55:
+        case 74:
           _userDoc2 = _context17.sent;
           if (!_userDoc2.exists) {
-            _context17.next = 62;
+            _context17.next = 81;
             break;
           }
           _userData2 = _userDoc2.data();
-          _cantidadServicios2 = parseInt(_userData2.subscripcion_actual.cantidad_servicios, 10) || 0; // Convierte a número o usa 0 si no es válido
-          _cantidadServicios2 -= 1; // Resta 1
-          _context17.next = 62;
+          _cantidadServicios2 = parseInt(_userData2.subscripcion_actual.cantidad_servicios, 10) || 0;
+          _cantidadServicios2 -= 1;
+          _context17.next = 81;
           return _userRef2.update({
-            "subscripcion_actual.cantidad_servicios": _cantidadServicios2.toString() // Guarda nuevamente como string
+            "subscripcion_actual.cantidad_servicios": _cantidadServicios2.toString()
           });
-        case 62:
+        case 81:
+          serviceData.id = newServiceRef.id;
+          _context17.next = 84;
+          return processImage(newServiceRef.id);
+        case 84:
+          _imageUrl2 = _context17.sent;
+          _context17.next = 87;
+          return deleteOldImage();
+        case 87:
+          if (!(_base && _base.trim() !== '')) {
+            _context17.next = 90;
+            break;
+          }
+          _context17.next = 90;
+          return newServiceRef.update({
+            service_image: _imageUrl2
+          });
+        case 90:
           return _context17.abrupt("return", res.status(201).send({
             message: "Servicio creado exitosamente",
             service: _objectSpread({
               id: newServiceRef.id
             }, serviceData)
           }));
-        case 65:
+        case 93:
           if (!publicOrigin) {
-            _context17.next = 77;
+            _context17.next = 105;
             break;
           }
-          // Consulta el documento específico en la colección "Usuarios"
-          _userId3 = uid_taller; // Reemplaza esto con el ID del usuario correspondiente
-          _userRef3 = db.collection("Usuarios").doc(_userId3); // Obtiene el valor actual de cantidad_servicios, lo convierte a número, le resta 1 y actualiza
-          _context17.next = 70;
+          _userId3 = uid_taller;
+          _userRef3 = db.collection("Usuarios").doc(_userId3);
+          _context17.next = 98;
           return _userRef3.get();
-        case 70:
+        case 98:
           _userDoc3 = _context17.sent;
           if (!_userDoc3.exists) {
-            _context17.next = 77;
+            _context17.next = 105;
             break;
           }
           _userData3 = _userDoc3.data();
-          _cantidadServicios3 = parseInt(_userData3.subscripcion_actual.cantidad_servicios, 10) || 0; // Convierte a número o usa 0 si no es válido
-          _cantidadServicios3 += 1; // Resta 1
-          _context17.next = 77;
+          _cantidadServicios3 = parseInt(_userData3.subscripcion_actual.cantidad_servicios, 10) || 0;
+          _cantidadServicios3 += 1;
+          _context17.next = 105;
           return _userRef3.update({
-            "subscripcion_actual.cantidad_servicios": _cantidadServicios3.toString() // Guarda nuevamente como string
+            "subscripcion_actual.cantidad_servicios": _cantidadServicios3.toString()
           });
-        case 77:
+        case 105:
+          serviceData.id = newServiceRef.id;
+          _context17.next = 108;
+          return processImage(newServiceRef.id);
+        case 108:
+          _imageUrl3 = _context17.sent;
+          _context17.next = 111;
+          return deleteOldImage();
+        case 111:
+          if (!(_base && _base.trim() !== '')) {
+            _context17.next = 114;
+            break;
+          }
+          _context17.next = 114;
+          return newServiceRef.update({
+            service_image: _imageUrl3
+          });
+        case 114:
           return _context17.abrupt("return", res.status(201).send({
             message: "Servicio creado exitosamente",
             service: _objectSpread({
               id: newServiceRef.id
             }, serviceData)
           }));
-        case 78:
-          _context17.next = 84;
+        case 115:
+          _context17.next = 121;
           break;
-        case 80:
-          _context17.prev = 80;
+        case 117:
+          _context17.prev = 117;
           _context17.t0 = _context17["catch"](0);
           console.error("Error al guardar o actualizar el servicio:", _context17.t0);
           res.status(500).send(_context17.t0);
-        case 84:
+        case 121:
         case "end":
           return _context17.stop();
       }
-    }, _callee17, null, [[0, 80]]);
+    }, _callee17, null, [[0, 117]]);
   }));
-  return function saveOrUpdateService(_x34, _x35) {
-    return _ref17.apply(this, arguments);
+  return function saveOrUpdateService(_x32, _x33) {
+    return _ref20.apply(this, arguments);
   };
 }();
 var getPlanes = /*#__PURE__*/function () {
-  var _ref18 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee18(req, res) {
+  var _ref24 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee18(req, res) {
     var result, planes;
     return _regeneratorRuntime().wrap(function _callee18$(_context18) {
       while (1) switch (_context18.prev = _context18.next) {
@@ -1319,12 +1787,12 @@ var getPlanes = /*#__PURE__*/function () {
       }
     }, _callee18, null, [[0, 10]]);
   }));
-  return function getPlanes(_x36, _x37) {
-    return _ref18.apply(this, arguments);
+  return function getPlanes(_x35, _x36) {
+    return _ref24.apply(this, arguments);
   };
 }();
 var getMetodosPago = /*#__PURE__*/function () {
-  var _ref19 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee19(req, res) {
+  var _ref25 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee19(req, res) {
     var result, planes;
     return _regeneratorRuntime().wrap(function _callee19$(_context19) {
       while (1) switch (_context19.prev = _context19.next) {
@@ -1358,21 +1826,52 @@ var getMetodosPago = /*#__PURE__*/function () {
       }
     }, _callee19, null, [[0, 10]]);
   }));
-  return function getMetodosPago(_x38, _x39) {
-    return _ref19.apply(this, arguments);
+  return function getMetodosPago(_x37, _x38) {
+    return _ref25.apply(this, arguments);
   };
 }();
 
 // Función para guardar la suscripción
+var uploadImage = function uploadImage(file, buffer) {
+  return new Promise(function (resolve, reject) {
+    file.save(buffer, {
+      metadata: {
+        contentType: 'image/jpeg'
+      },
+      "public": true,
+      validation: 'md5'
+    }, function (err) {
+      if (err) {
+        reject(err);
+      } else {
+        resolve();
+      }
+    });
+  });
+};
 var ReportarPagoData = /*#__PURE__*/function () {
-  var _ref20 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee20(req, res) {
-    var _req$body9, uid, emailZelle, cod_ref, bancoTranfe, identificacion, telefono, amount, paymentMethod, nombre, vigencia, cant_services, date, montoPago, SelectedBanco, SelectedBancoDestino, nombre_taller, userId, subscripcionData, serviciosSnapshot, batch;
+  var _ref26 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee20(req, res) {
+    var _req$body9, uid, emailZelle, cod_ref, bancoTranfe, identificacion, telefono, amount, paymentMethod, nombre, vigencia, cant_services, date, montoPago, SelectedBanco, SelectedBancoDestino, nombre_taller, base64, userId, timestamp, imageUrl, newFileName, buffer, file, subscripcionData, subscripcionRef, subscripcionId, serviciosSnapshot, batch;
     return _regeneratorRuntime().wrap(function _callee20$(_context20) {
       while (1) switch (_context20.prev = _context20.next) {
         case 0:
-          _req$body9 = req.body, uid = _req$body9.uid, emailZelle = _req$body9.emailZelle, cod_ref = _req$body9.cod_ref, bancoTranfe = _req$body9.bancoTranfe, identificacion = _req$body9.identificacion, telefono = _req$body9.telefono, amount = _req$body9.amount, paymentMethod = _req$body9.paymentMethod, nombre = _req$body9.nombre, vigencia = _req$body9.vigencia, cant_services = _req$body9.cant_services, date = _req$body9.date, montoPago = _req$body9.montoPago, SelectedBanco = _req$body9.SelectedBanco, SelectedBancoDestino = _req$body9.SelectedBancoDestino, nombre_taller = _req$body9.nombre_taller;
+          _req$body9 = req.body, uid = _req$body9.uid, emailZelle = _req$body9.emailZelle, cod_ref = _req$body9.cod_ref, bancoTranfe = _req$body9.bancoTranfe, identificacion = _req$body9.identificacion, telefono = _req$body9.telefono, amount = _req$body9.amount, paymentMethod = _req$body9.paymentMethod, nombre = _req$body9.nombre, vigencia = _req$body9.vigencia, cant_services = _req$body9.cant_services, date = _req$body9.date, montoPago = _req$body9.montoPago, SelectedBanco = _req$body9.SelectedBanco, SelectedBancoDestino = _req$body9.SelectedBancoDestino, nombre_taller = _req$body9.nombre_taller, base64 = _req$body9.base64;
           _context20.prev = 1;
-          userId = uid; // Reemplaza con el ID del usuario correspondiente
+          userId = uid;
+          timestamp = new Date().toISOString(); // Generar la fecha y hora actuales
+          imageUrl = '';
+          if (!(base64 && base64.trim() !== '')) {
+            _context20.next = 12;
+            break;
+          }
+          newFileName = "paymentcommitment/".concat(paymentMethod, "_").concat(userId, "_").concat(timestamp, ".jpg");
+          buffer = Buffer.from(base64, 'base64');
+          file = bucket.file(newFileName); // Subir la nueva imagen usando la función `uploadImage`
+          _context20.next = 11;
+          return uploadImage(file, buffer);
+        case 11:
+          imageUrl = "https://storage.googleapis.com/".concat(bucket.name, "/").concat(newFileName);
+        case 12:
           subscripcionData = {
             cantidad_servicios: cant_services == undefined ? "" : cant_services,
             comprobante_pago: {
@@ -1380,12 +1879,12 @@ var ReportarPagoData = /*#__PURE__*/function () {
               bancoOrigen: SelectedBanco == undefined ? "" : SelectedBanco,
               cedula: identificacion == undefined ? "" : identificacion,
               correo: emailZelle == undefined ? "" : emailZelle,
-              fechaPago: date == undefined ? "" : emailZelle,
+              fechaPago: date == undefined ? "" : date,
               metodo: paymentMethod == undefined ? "" : paymentMethod,
               monto: montoPago == undefined ? "" : montoPago,
               numReferencia: cod_ref == undefined ? "" : cod_ref,
               telefono: telefono == undefined ? "" : telefono,
-              receiptFile: "" == undefined ? "" : ""
+              comprobante: imageUrl
             },
             monto: amount == undefined ? "" : amount,
             nombre: nombre == undefined ? "" : nombre,
@@ -1394,17 +1893,19 @@ var ReportarPagoData = /*#__PURE__*/function () {
             vigencia: vigencia == undefined ? "" : vigencia,
             nombre_taller: nombre_taller == undefined ? "" : nombre_taller
           }; // Guardar en la colección Subscripciones
-          _context20.next = 6;
+          _context20.next = 15;
           return db.collection('Subscripciones').add(subscripcionData);
-        case 6:
-          _context20.next = 8;
+        case 15:
+          subscripcionRef = _context20.sent;
+          subscripcionId = subscripcionRef.id; // Guardar en el campo subscripcion_actual del documento en la colección Usuarios
+          _context20.next = 19;
           return db.collection('Usuarios').doc(userId).update({
             subscripcion_actual: subscripcionData
           });
-        case 8:
-          _context20.next = 10;
+        case 19:
+          _context20.next = 21;
           return db.collection('Servicios').where('uid_taller', '==', userId).get();
-        case 10:
+        case 21:
           serviciosSnapshot = _context20.sent;
           batch = db.batch();
           serviciosSnapshot.forEach(function (doc) {
@@ -1412,24 +1913,25 @@ var ReportarPagoData = /*#__PURE__*/function () {
               estatus: false
             });
           });
-          _context20.next = 15;
+          _context20.next = 26;
           return batch.commit();
-        case 15:
+        case 26:
           return _context20.abrupt("return", res.status(201).send({
             message: "Suscripción guardada con éxito."
           }));
-        case 18:
-          _context20.prev = 18;
+        case 29:
+          _context20.prev = 29;
           _context20.t0 = _context20["catch"](1);
+          console.error("Error al guardar la suscripción:", _context20.t0);
           res.status(500).send("Error al guardar la suscripción");
-        case 21:
+        case 33:
         case "end":
           return _context20.stop();
       }
-    }, _callee20, null, [[1, 18]]);
+    }, _callee20, null, [[1, 29]]);
   }));
-  return function ReportarPagoData(_x40, _x41) {
-    return _ref20.apply(this, arguments);
+  return function ReportarPagoData(_x39, _x40) {
+    return _ref26.apply(this, arguments);
   };
 }();
 module.exports = {

@@ -142,7 +142,7 @@ const SaveClient = async (req, res) => {
 const SaveTaller = async (req, res) => {
   try {
     // Recibir los datos del taller desde el cuerpo de la solicitud
-    const { Nombre, rif, phone, email, password, whats, metodos_pago, estado, base64 } = req.body;
+    const { Nombre, rif, phone, email, password, whats, metodos_pago, estado, base64, lat, lng } = req.body;
 
     let userRecord;
     try {
@@ -203,7 +203,11 @@ const SaveTaller = async (req, res) => {
       whatsapp: whats,
       metodos_pago: metodos_pago,
       estado: estado,
-      image_perfil: imageUrl // Guardar la URL de la imagen de perfil
+      image_perfil: imageUrl, // Guardar la URL de la imagen de perfil
+      ubicacion:{
+        lat:lat,
+        lng:lng
+      }
     };
 
     await db.collection("Usuarios").doc(uid).set(infoUserCreated, { merge: true });
@@ -351,75 +355,148 @@ const getUserByUid = async (req, res) => {
   }
 };
 
-const SaveTallerAll = async (req, res) => {
+
+const SaveTallerAll = (req, res) => {
   try {
-    const { uid, base64 } = req.body;
+    const { uid, base64, imageTodelete } = req.body;
 
     // Verificar que el UID no esté vacío
     if (!uid) {
       return res.status(400).send({ message: "El UID es obligatorio." });
     }
 
-    // Subir la imagen de perfil al Storage si el base64 no está vacío ni nulo
-    let imageUrl = '';
-    if (base64 && base64.trim() !== '') {
-      const file = bucket.file(`profileImages/${uid}.jpg`);
+    const getLastImageIndex = () => {
+      return new Promise((resolve, reject) => {
+        const prefix = `profileImages/${uid}`;
+        bucket.getFiles({ prefix })
+          .then(([files]) => {
+            let maxIndex = 0;
+            files.forEach(file => {
+              const match = file.name.match(/(\d+)\.jpg$/);
+              if (match) {
+                const index = parseInt(match[1], 10);
+                if (index > maxIndex) {
+                  maxIndex = index;
+                }
+              }
+            });
+            resolve(maxIndex);
+          })
+          .catch(error => {
+            reject(error);
+          });
+      });
+    };
 
-      // Eliminar la imagen anterior si existe
-      await file.delete().catch((error) => {
-        if (error.code !== 404) {
-          console.error("Error al eliminar la imagen anterior:", error);
+    const processImage = (index) => {
+      return new Promise((resolve, reject) => {
+        if (base64 && base64.trim() !== '') {
+          const newFileName = `profileImages/${uid}_${index + 1}.jpg`;
+          const buffer = Buffer.from(base64, 'base64');
+          const file = bucket.file(newFileName);
+
+          // Subir la nueva imagen
+          file.save(buffer, {
+            metadata: { contentType: 'image/jpeg' },
+            public: true,
+            validation: 'md5'
+          })
+          .then(() => {
+            const imageUrl = `https://storage.googleapis.com/${bucket.name}/${newFileName}`;
+            req.body.image_perfil = imageUrl;
+            resolve();
+          })
+          .catch(error => {
+            console.error("Error al guardar la nueva imagen:", error);
+            reject(error);
+          });
+        } else {
+          resolve();
         }
       });
+    };
 
-      // Subir la nueva imagen
-      const buffer = Buffer.from(base64, 'base64');
-      await file.save(buffer, {
-        metadata: { contentType: 'image/jpeg' },
-        public: true,
-        validation: 'md5',
+    const clearOldImageField = () => {
+      return new Promise((resolve, reject) => {
+        if (base64 && base64.trim() !== '' && imageTodelete && imageTodelete.trim() !== '') {
+          db.collection("Usuarios").doc(uid).update({ image_perfil: admin.firestore.FieldValue.delete() })
+            .then(() => resolve())
+            .catch(error => reject(error));
+        } else {
+          resolve();
+        }
       });
+    };
 
-      imageUrl = `https://storage.googleapis.com/${bucket.name}/profileImages/${uid}.jpg`;
+    const deleteOldImage = () => {
+      return new Promise((resolve, reject) => {
+        if (base64 && base64.trim() !== '' && imageTodelete && imageTodelete.trim() !== '') {
+          const file = bucket.file(`profileImages/${imageTodelete}`);
+          file.delete()
+            .then(() => resolve())
+            .catch(error => {
+              if (error.code === 404) {
+                resolve(); // Resolver incluso si no se encuentra la imagen a eliminar
+              } else {
+                console.error("Error al eliminar la imagen anterior:", error);
+                reject(error);
+              }
+            });
+        } else {
+          resolve();
+        }
+      });
+    };
 
-      // Añadir la URL de la imagen al cuerpo de la solicitud
-      req.body.image_perfil = imageUrl;
-    }
+    // Secuencia de ejecución de promesas
+    getLastImageIndex()
+      .then(index => {
+        if (base64 && base64.trim() !== '') {
+          return clearOldImageField()
+            .then(() => deleteOldImage())
+            .then(() => processImage(index));
+        } else {
+          return processImage(index);
+        }
+      })
+      .then(() => {
+        delete req.body.base64;
+        delete req.body.imageTodelete;
+        return db.collection("Usuarios").doc(uid).set(req.body, { merge: true });
+      })
+      .then(() => {
+        // Responder con el ID del documento creado y un mensaje de éxito
+        res.status(201).send({ message: "Usuario actualizado con éxito", uid: uid });
+      })
+      .catch(error => {
+        console.error("Error al guardar el usuario:", error);
 
-    delete req.body.base64;
-    
-    // Guardar el objeto en la colección "Usuarios"
-    const result = await db.collection("Usuarios").doc(uid).set(req.body, { merge: true });
-
-    // Verificar si el resultado de Firestore es válido
-    if (!result) {
-      return res
-        .status(500)
-        .send({ message: "Error al guardar el usuario en Firestore." });
-    }
-
-    // Responder con el ID del documento creado y un mensaje de éxito
-    res
-      .status(201)
-      .send({ message: "Usuario actualizado con éxito", uid: uid });
+        // Manejar errores específicos
+        if (error.code === "permission-denied") {
+          res.status(403).send({ message: "Permisos insuficientes para guardar el usuario." });
+        } else if (error.code === "not-found") {
+          res.status(404).send({ message: "Usuario no encontrado." });
+        } else {
+          // Error general
+          res.status(500).send({ message: "Error al guardar el usuario", error: error.message });
+        }
+      });
   } catch (error) {
     console.error("Error al guardar el usuario:", error);
 
     // Manejar errores específicos
     if (error.code === "permission-denied") {
-      return res
-        .status(403)
-        .send({ message: "Permisos insuficientes para guardar el usuario." });
+      return res.status(403).send({ message: "Permisos insuficientes para guardar el usuario." });
     } else if (error.code === "not-found") {
       return res.status(404).send({ message: "Usuario no encontrado." });
     }
 
     // Error general
-    res
-      .status(500)
-      .send({ message: "Error al guardar el usuario", error: error.message });
+    res.status(500).send({ message: "Error al guardar el usuario", error: error.message });
   }
 };
+
+
 
 const restorePass = async (req, res) => {
   // Recibir el email del cuerpo de la solicitud
@@ -471,10 +548,14 @@ const sendResetPasswordEmail = async (email, resetLink, res) => {
 
 const getTalleres = async (req, res) => {
   try {
+
+    const { estado } = req.body;
+
     const result = await db
       .collection("Usuarios")
       .where("status", "!=", "Aprobado")
       .where("typeUser", "==", "Taller") // Filtrar documentos por typeUser
+      .where("estado", "==", estado) // Filtrar documentos por typeUser
       .get();
 
     if (result.empty) {
@@ -495,7 +576,7 @@ const getTalleres = async (req, res) => {
 const actualizarStatusUsuario = async (req, res) => {
   try {
     // Obtener el UID y el nuevo estado desde el cuerpo de la solicitud
-    const { uid, nuevoStatus } = req.body;
+    const { uid, nuevoStatus, certificador_nombre, certificador_key } = req.body;
 
     // Verificar que se haya proporcionado un UID y un nuevo estado
     if (!uid || !nuevoStatus) {
@@ -507,6 +588,8 @@ const actualizarStatusUsuario = async (req, res) => {
     // Actualizar el campo 'status' en el documento del usuario
     await db.collection("Usuarios").doc(uid).update({
       status: nuevoStatus,
+      certificador_nombre,
+      certificador_key
     });
 
     // Devolver una respuesta de éxito
@@ -589,7 +672,7 @@ const UpdateTaller = async (req, res) => {
 const UpdateClient = async (req, res) => {
   try {
     // Recibir los datos del cliente desde el cuerpo de la solicitud
-    const { uid, Nombre, cedula, phone, email } = req.body;
+    const { uid, Nombre, cedula, phone, email, base64, imageTodelete, estado } = req.body;
 
     // Crear el objeto que se actualizará en la colección "Usuarios"
     const updatedUserInfo = {
@@ -599,15 +682,103 @@ const UpdateClient = async (req, res) => {
       typeUser: "Cliente",
       email: email,
       uid: uid,
+      estado: estado,
     };
 
-    // Actualizar el documento en la colección "Usuarios" con el UID proporcionado
-    await db.collection("Usuarios").doc(uid).update(updatedUserInfo);
+    const getLastImageIndex = () => {
+      return new Promise((resolve, reject) => {
+        const prefix = `profileImages/${uid}`;
+        bucket.getFiles({ prefix })
+          .then(([files]) => {
+            let maxIndex = 0;
+            files.forEach(file => {
+              const match = file.name.match(/(\d+)\.jpg$/);
+              if (match) {
+                const index = parseInt(match[1], 10);
+                if (index > maxIndex) {
+                  maxIndex = index;
+                }
+              }
+            });
+            resolve(maxIndex);
+          })
+          .catch(error => {
+            reject(error);
+          });
+      });
+    };
 
-    // Responder con un mensaje de éxito
-    res
-      .status(200)
-      .send({ message: "Usuario actualizado con éxito", uid: uid });
+    const processImage = (index) => {
+      return new Promise((resolve, reject) => {
+        if (base64 && base64.trim() !== '') {
+          const newFileName = `profileImages/${uid}_${index + 1}.jpg`;
+          const buffer = Buffer.from(base64, 'base64');
+          const file = bucket.file(newFileName);
+
+          // Subir la nueva imagen
+          file.save(buffer, {
+            metadata: { contentType: 'image/jpeg' },
+            public: true,
+            validation: 'md5'
+          })
+          .then(() => {
+            const imageUrl = `https://storage.googleapis.com/${bucket.name}/${newFileName}`;
+            updatedUserInfo.image_perfil = imageUrl;
+            resolve();
+          })
+          .catch(error => {
+            console.error("Error al guardar la nueva imagen:", error);
+            reject(error);
+          });
+        } else {
+          resolve();
+        }
+      });
+    };
+
+    const deleteOldImage = () => {
+      return new Promise((resolve, reject) => {
+        if (imageTodelete && imageTodelete.trim() !== '') {
+          const file = bucket.file(`profileImages/${imageTodelete}`);
+          file.delete()
+            .then(() => resolve())
+            .catch(error => {
+              if (error.code === 404) {
+                resolve(); // Resolver incluso si no se encuentra la imagen a eliminar
+              } else {
+                console.error("Error al eliminar la imagen anterior:", error);
+                reject(error);
+              }
+            });
+        } else {
+          resolve();
+        }
+      });
+    };
+
+    getLastImageIndex()
+      .then((index) => processImage(index))
+      .then(() => {
+        // Eliminar el campo base64 y imageTodelete del cuerpo de la solicitud
+        delete req.body.base64; 
+        delete req.body.imageTodelete;
+      })
+      .then(() => db.collection("Usuarios").doc(uid).update(updatedUserInfo))
+      .then(() => {
+        if (imageTodelete && imageTodelete.trim() !== '') {
+          return deleteOldImage();
+        }
+      })
+      .then(() => {
+        // Responder con un mensaje de éxito
+        res.status(200).send({ message: "Usuario actualizado con éxito", uid: uid });
+      })
+      .catch(error => {
+        console.error("Error al actualizar el usuario:", error);
+
+        // Manejar posibles errores en la actualización del documento
+        res.status(500).send("Error al actualizar el usuario");
+      });
   } catch (error) {
     console.error("Error al actualizar el usuario:", error);
 
@@ -615,6 +786,8 @@ const UpdateClient = async (req, res) => {
     res.status(500).send("Error al actualizar el usuario");
   }
 };
+
+
 
 const getServicesByTalleruid = async (req, res) => {
   try {
@@ -767,6 +940,181 @@ const getSubcategoriesByCategoryUid = async (req, res) => {
   }
 };
 
+// const saveOrUpdateService = async (req, res) => {
+//   try {
+//     // Obtener los datos del servicio desde el cuerpo de la solicitud
+//     const {
+//       id,
+//       categoria,
+//       descripcion,
+//       estatus,
+//       garantia,
+//       nombre_servicio,
+//       precio,
+//       subcategoria,
+//       taller,
+//       uid_categoria,
+//       uid_servicio,
+//       uid_subcategoria,
+//       uid_taller,
+//       puntuacion,
+//       publicOrigin,
+//       base64
+//     } = req.body;
+
+//     console.log("Datos del servicio:", req.body);
+
+//     const serviceData = {
+//       categoria,
+//       descripcion,
+//       estatus,
+//       garantia,
+//       nombre_servicio,
+//       precio,
+//       subcategoria,
+//       taller,
+//       uid_categoria,
+//       uid_servicio,
+//       uid_subcategoria,
+//       uid_taller,
+//       puntuacion
+//     };
+
+//     // Si `id` tiene un valor, editar el documento en la colección "Servicios"
+//     if (id) {
+//       const serviceRef = db.collection("Servicios").doc(id);
+//       const serviceSnapshot = await serviceRef.get();
+
+//       if (!serviceSnapshot.exists) {
+//         return res.status(404).send({
+//           message: "No se encontró el servicio con el ID proporcionado para actualizar",
+//         });
+//       }
+
+//       await serviceRef.update(serviceData);
+//       console.log("Servicio actualizado:", id);
+
+//       if (serviceData.estatus){
+
+//         if(!publicOrigin){
+//           // Consulta el documento específico en la colección "Usuarios"
+//           const userId = uid_taller; // Reemplaza esto con el ID del usuario correspondiente
+//           const userRef = db.collection("Usuarios").doc(userId);
+    
+//           // Obtiene el valor actual de cantidad_servicios, lo convierte a número, le resta 1 y actualiza
+//           const userDoc = await userRef.get();
+//           if (userDoc.exists) {
+//             const userData = userDoc.data();
+//             let cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0; // Convierte a número o usa 0 si no es válido
+//             cantidadServicios -= 1; // Resta 1
+    
+//             await userRef.update({
+//               "subscripcion_actual.cantidad_servicios": cantidadServicios.toString(), // Guarda nuevamente como string
+//             });
+//           }
+//         }
+
+//         return res.status(200).send({
+//           message: "Servicio actualizado exitosamente",
+//           service: { id, ...serviceData },
+//         });
+//       } else {
+
+//         if(publicOrigin){
+//           // Consulta el documento específico en la colección "Usuarios"
+//           const userId = uid_taller; // Reemplaza esto con el ID del usuario correspondiente
+//           const userRef = db.collection("Usuarios").doc(userId);
+    
+//           // Obtiene el valor actual de cantidad_servicios, lo convierte a número, le resta 1 y actualiza
+//           const userDoc = await userRef.get();
+//           if (userDoc.exists) {
+//             const userData = userDoc.data();
+//             let cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0; // Convierte a número o usa 0 si no es válido
+//             cantidadServicios += 1; // Resta 1
+    
+//             await userRef.update({
+//               "subscripcion_actual.cantidad_servicios": cantidadServicios.toString(), // Guarda nuevamente como string
+//             });
+//           }
+//         }
+
+
+
+//         return res.status(200).send({
+//           message: "Servicio actualizado exitosamente",
+//           service: { id, ...serviceData },
+//         });
+//       }
+
+
+
+
+      
+//     } else {
+//       const newServiceRef = await db.collection("Servicios").add(serviceData);
+//       console.log("Servicio creado con ID:", newServiceRef.id);
+
+//       if (serviceData.estatus){
+
+//         if (!publicOrigin){
+//           // Consulta el documento específico en la colección "Usuarios"
+//           const userId = uid_taller; // Reemplaza esto con el ID del usuario correspondiente
+//           const userRef = db.collection("Usuarios").doc(userId);
+    
+//           // Obtiene el valor actual de cantidad_servicios, lo convierte a número, le resta 1 y actualiza
+//           const userDoc = await userRef.get();
+//           if (userDoc.exists) {
+//             const userData = userDoc.data();
+//             let cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0; // Convierte a número o usa 0 si no es válido
+//             cantidadServicios -= 1; // Resta 1
+    
+//             await userRef.update({
+//               "subscripcion_actual.cantidad_servicios": cantidadServicios.toString(), // Guarda nuevamente como string
+//             });
+//           }
+//         }
+  
+//         return res.status(201).send({
+//           message: "Servicio creado exitosamente",
+//           service: { id: newServiceRef.id, ...serviceData },
+//         });
+
+//       } else {
+
+//         if (publicOrigin){
+//           // Consulta el documento específico en la colección "Usuarios"
+//           const userId = uid_taller; // Reemplaza esto con el ID del usuario correspondiente
+//           const userRef = db.collection("Usuarios").doc(userId);
+    
+//           // Obtiene el valor actual de cantidad_servicios, lo convierte a número, le resta 1 y actualiza
+//           const userDoc = await userRef.get();
+//           if (userDoc.exists) {
+//             const userData = userDoc.data();
+//             let cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0; // Convierte a número o usa 0 si no es válido
+//             cantidadServicios += 1; // Resta 1
+    
+//             await userRef.update({
+//               "subscripcion_actual.cantidad_servicios": cantidadServicios.toString(), // Guarda nuevamente como string
+//             });
+//           }
+//         }
+
+//         return res.status(201).send({
+//           message: "Servicio creado exitosamente",
+//           service: { id: newServiceRef.id, ...serviceData },
+//         });
+//       }
+
+
+//     }
+//   } catch (error) {
+//     console.error("Error al guardar o actualizar el servicio:", error);
+//     res.status(500).send(error);
+//   }
+// };
+
+
+
 const saveOrUpdateService = async (req, res) => {
   try {
     // Obtener los datos del servicio desde el cuerpo de la solicitud
@@ -785,7 +1133,9 @@ const saveOrUpdateService = async (req, res) => {
       uid_subcategoria,
       uid_taller,
       puntuacion,
-      publicOrigin
+      publicOrigin,
+      base64,
+      imageTodelete
     } = req.body;
 
     console.log("Datos del servicio:", req.body);
@@ -806,6 +1156,69 @@ const saveOrUpdateService = async (req, res) => {
       puntuacion
     };
 
+    const getLastImageIndex = (id) => {
+      return new Promise((resolve, reject) => {
+        const prefix = `service_images/${id}`;
+        bucket.getFiles({ prefix })
+          .then(([files]) => {
+            let maxIndex = 0;
+            files.forEach(file => {
+              const match = file.name.match(/_(\d+)\.jpg$/);
+              if (match) {
+                const index = parseInt(match[1], 10);
+                if (index > maxIndex) {
+                  maxIndex = index;
+                }
+              }
+            });
+            resolve(maxIndex);
+          })
+          .catch(error => {
+            reject(error);
+          });
+      });
+    };
+
+    const processImage = async (id) => {
+      let imageUrl = '';
+      if (base64 && base64.trim() !== '') {
+        const index = await getLastImageIndex(id);
+        const newFileName = `service_images/${id}_${index + 1}.jpg`;
+        const buffer = Buffer.from(base64, 'base64');
+        const file = bucket.file(newFileName);
+
+        await file.save(buffer, {
+          metadata: { contentType: 'image/jpeg' },
+          public: true,
+          validation: 'md5'
+        });
+
+        imageUrl = `https://storage.googleapis.com/${bucket.name}/${newFileName}`;
+        serviceData.image = imageUrl;
+      }
+      return imageUrl;
+    };
+
+    const deleteOldImage = () => {
+      return new Promise((resolve, reject) => {
+        if (base64 && base64.trim() !== '' && imageTodelete && imageTodelete.trim() !== '') {
+          const file = bucket.file(`service_images/${imageTodelete}`);
+          file.delete()
+            .then(() => resolve())
+            .catch(error => {
+              if (error.code === 404) {
+                resolve(); // Resolver incluso si no se encuentra la imagen a eliminar
+              } else {
+                console.error("Error al eliminar la imagen anterior:", error);
+                reject(error);
+              }
+            });
+        } else {
+          resolve();
+        }
+      });
+    };
+
     // Si `id` tiene un valor, editar el documento en la colección "Servicios"
     if (id) {
       const serviceRef = db.collection("Servicios").doc(id);
@@ -820,24 +1233,29 @@ const saveOrUpdateService = async (req, res) => {
       await serviceRef.update(serviceData);
       console.log("Servicio actualizado:", id);
 
-      if (serviceData.estatus){
-
-        if(!publicOrigin){
-          // Consulta el documento específico en la colección "Usuarios"
-          const userId = uid_taller; // Reemplaza esto con el ID del usuario correspondiente
+      if (serviceData.estatus) {
+        if (!publicOrigin) {
+          const userId = uid_taller;
           const userRef = db.collection("Usuarios").doc(userId);
-    
-          // Obtiene el valor actual de cantidad_servicios, lo convierte a número, le resta 1 y actualiza
           const userDoc = await userRef.get();
+
           if (userDoc.exists) {
             const userData = userDoc.data();
-            let cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0; // Convierte a número o usa 0 si no es válido
-            cantidadServicios -= 1; // Resta 1
-    
+            let cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0;
+            cantidadServicios -= 1;
+
             await userRef.update({
-              "subscripcion_actual.cantidad_servicios": cantidadServicios.toString(), // Guarda nuevamente como string
+              "subscripcion_actual.cantidad_servicios": cantidadServicios.toString(),
             });
           }
+        }
+
+        const imageUrl = await processImage(id);
+        await deleteOldImage();
+
+        if (base64 && base64.trim() !== '') {
+          // Actualizar el campo service_image en el documento del servicio solo si el base64 no está vacío ni es nulo
+          await serviceRef.update({ service_image: imageUrl });
         }
 
         return res.status(200).send({
@@ -845,84 +1263,93 @@ const saveOrUpdateService = async (req, res) => {
           service: { id, ...serviceData },
         });
       } else {
-
-        if(publicOrigin){
-          // Consulta el documento específico en la colección "Usuarios"
-          const userId = uid_taller; // Reemplaza esto con el ID del usuario correspondiente
+        if (publicOrigin) {
+          const userId = uid_taller;
           const userRef = db.collection("Usuarios").doc(userId);
-    
-          // Obtiene el valor actual de cantidad_servicios, lo convierte a número, le resta 1 y actualiza
           const userDoc = await userRef.get();
+
           if (userDoc.exists) {
             const userData = userDoc.data();
-            let cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0; // Convierte a número o usa 0 si no es válido
-            cantidadServicios += 1; // Resta 1
-    
+            let cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0;
+            cantidadServicios += 1;
+
             await userRef.update({
-              "subscripcion_actual.cantidad_servicios": cantidadServicios.toString(), // Guarda nuevamente como string
+              "subscripcion_actual.cantidad_servicios": cantidadServicios.toString(),
             });
           }
         }
 
+        const imageUrl = await processImage(id);
+        await deleteOldImage();
 
+        if (base64 && base64.trim() !== '') {
+          // Actualizar el campo service_image en el documento del servicio solo si el base64 no está vacío ni es nulo
+          await serviceRef.update({ service_image: imageUrl });
+        }
 
         return res.status(200).send({
           message: "Servicio actualizado exitosamente",
           service: { id, ...serviceData },
         });
       }
-
-
-
-
-      
     } else {
       const newServiceRef = await db.collection("Servicios").add(serviceData);
       console.log("Servicio creado con ID:", newServiceRef.id);
 
-      if (serviceData.estatus){
-
-        if (!publicOrigin){
-          // Consulta el documento específico en la colección "Usuarios"
-          const userId = uid_taller; // Reemplaza esto con el ID del usuario correspondiente
+      if (serviceData.estatus) {
+        if (!publicOrigin) {
+          const userId = uid_taller;
           const userRef = db.collection("Usuarios").doc(userId);
-    
-          // Obtiene el valor actual de cantidad_servicios, lo convierte a número, le resta 1 y actualiza
           const userDoc = await userRef.get();
+
           if (userDoc.exists) {
             const userData = userDoc.data();
-            let cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0; // Convierte a número o usa 0 si no es válido
-            cantidadServicios -= 1; // Resta 1
-    
+            let cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0;
+            cantidadServicios -= 1;
+
             await userRef.update({
-              "subscripcion_actual.cantidad_servicios": cantidadServicios.toString(), // Guarda nuevamente como string
+              "subscripcion_actual.cantidad_servicios": cantidadServicios.toString(),
             });
           }
         }
-  
+
+        serviceData.id = newServiceRef.id;
+        const imageUrl = await processImage(newServiceRef.id);
+        await deleteOldImage();
+
+        if (base64 && base64.trim() !== '') {
+          // Actualizar el campo service_image en el documento del servicio solo si el base64 no está vacío ni es nulo
+          await newServiceRef.update({ service_image: imageUrl });
+        }
+
         return res.status(201).send({
           message: "Servicio creado exitosamente",
           service: { id: newServiceRef.id, ...serviceData },
         });
-
       } else {
-
-        if (publicOrigin){
-          // Consulta el documento específico en la colección "Usuarios"
-          const userId = uid_taller; // Reemplaza esto con el ID del usuario correspondiente
+        if (publicOrigin) {
+          const userId = uid_taller;
           const userRef = db.collection("Usuarios").doc(userId);
-    
-          // Obtiene el valor actual de cantidad_servicios, lo convierte a número, le resta 1 y actualiza
           const userDoc = await userRef.get();
+
           if (userDoc.exists) {
             const userData = userDoc.data();
-            let cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0; // Convierte a número o usa 0 si no es válido
-            cantidadServicios += 1; // Resta 1
-    
+            let cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0;
+            cantidadServicios += 1;
+
             await userRef.update({
-              "subscripcion_actual.cantidad_servicios": cantidadServicios.toString(), // Guarda nuevamente como string
+              "subscripcion_actual.cantidad_servicios": cantidadServicios.toString(),
             });
           }
+        }
+
+        serviceData.id = newServiceRef.id;
+        const imageUrl = await processImage(newServiceRef.id);
+        await deleteOldImage();
+
+        if (base64 && base64.trim() !== '') {
+          // Actualizar el campo service_image en el documento del servicio solo si el base64 no está vacío ni es nulo
+          await newServiceRef.update({ service_image: imageUrl });
         }
 
         return res.status(201).send({
@@ -930,14 +1357,14 @@ const saveOrUpdateService = async (req, res) => {
           service: { id: newServiceRef.id, ...serviceData },
         });
       }
-
-
     }
   } catch (error) {
     console.error("Error al guardar o actualizar el servicio:", error);
     res.status(500).send(error);
   }
 };
+
+
 
 
 const getPlanes = async (req, res) => {
@@ -987,8 +1414,23 @@ const getMetodosPago = async (req, res) => {
 
 
 // Función para guardar la suscripción
-const ReportarPagoData = async (req, res) => {
+const uploadImage = (file, buffer) => {
+  return new Promise((resolve, reject) => {
+    file.save(buffer, {
+      metadata: { contentType: 'image/jpeg' },
+      public: true,
+      validation: 'md5',
+    }, (err) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve();
+      }
+    });
+  });
+};
 
+const ReportarPagoData = async (req, res) => {
   const {
     uid,
     emailZelle,
@@ -1005,36 +1447,51 @@ const ReportarPagoData = async (req, res) => {
     montoPago,
     SelectedBanco,
     SelectedBancoDestino,
-    nombre_taller
+    nombre_taller,
+    base64
   } = req.body;
 
   try {
-    const userId = uid;  // Reemplaza con el ID del usuario correspondiente
+    const userId = uid;
+    const timestamp = new Date().toISOString(); // Generar la fecha y hora actuales
+
+    let imageUrl = '';
+    if (base64 && base64.trim() !== '') {
+      const newFileName = `paymentcommitment/${paymentMethod}_${userId}_${timestamp}.jpg`;
+      const buffer = Buffer.from(base64, 'base64');
+      const file = bucket.file(newFileName);
+
+      // Subir la nueva imagen usando la función `uploadImage`
+      await uploadImage(file, buffer);
+
+      imageUrl = `https://storage.googleapis.com/${bucket.name}/${newFileName}`;
+    }
 
     const subscripcionData = {
       cantidad_servicios: cant_services == undefined ? "" : cant_services,
       comprobante_pago: {
         bancoDestino: SelectedBancoDestino == undefined ? "" : SelectedBancoDestino,
         bancoOrigen: SelectedBanco == undefined ? "" : SelectedBanco,
-        cedula:identificacion == undefined ? "" : identificacion,
-        correo:emailZelle == undefined ? "" : emailZelle,
-        fechaPago: date== undefined ? "" : emailZelle,
+        cedula: identificacion == undefined ? "" : identificacion,
+        correo: emailZelle == undefined ? "" : emailZelle,
+        fechaPago: date == undefined ? "" : date,
         metodo: paymentMethod == undefined ? "" : paymentMethod,
-        monto:montoPago == undefined ? "" : montoPago,
+        monto: montoPago == undefined ? "" : montoPago,
         numReferencia: cod_ref == undefined ? "" : cod_ref,
         telefono: telefono == undefined ? "" : telefono,
-        receiptFile: "" == undefined ? "" : "",
+        comprobante: imageUrl,
       },
       monto: amount == undefined ? "" : amount,
       nombre: nombre == undefined ? "" : nombre,
       status: "Por Aprobar",
       taller_uid: userId == undefined ? "" : userId,
       vigencia: vigencia == undefined ? "" : vigencia,
-      nombre_taller:nombre_taller == undefined ? "" : nombre_taller,
+      nombre_taller: nombre_taller == undefined ? "" : nombre_taller,
     };
 
     // Guardar en la colección Subscripciones
-    await db.collection('Subscripciones').add(subscripcionData);
+    const subscripcionRef = await db.collection('Subscripciones').add(subscripcionData);
+    const subscripcionId = subscripcionRef.id;
 
     // Guardar en el campo subscripcion_actual del documento en la colección Usuarios
     await db
@@ -1057,6 +1514,7 @@ const ReportarPagoData = async (req, res) => {
     });
 
   } catch (error) {
+    console.error("Error al guardar la suscripción:", error);
     res.status(500).send("Error al guardar la suscripción");
   }
 };

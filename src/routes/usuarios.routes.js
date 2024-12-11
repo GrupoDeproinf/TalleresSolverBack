@@ -17,7 +17,7 @@ router.post('/SaveTallerAll', Usuarios.SaveTallerAll);
 
 router.post('/restorePass', Usuarios.restorePass);  
 
-router.get('/getTalleres', Usuarios.getTalleres); 
+router.post('/getTalleres', Usuarios.getTalleres); 
 
 router.post('/actualizarStatusUsuario', Usuarios.actualizarStatusUsuario);    
 
