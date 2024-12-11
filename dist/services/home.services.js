@@ -253,7 +253,60 @@ var getServicesCategories = /*#__PURE__*/function () {
     return _ref5.apply(this, arguments);
   };
 }();
+var getSubscriptionsById = /*#__PURE__*/function () {
+  var _ref6 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee5(req, res) {
+    var uid, subscripcionesSnapchot, subscripciones, subscripcionesAleatorios;
+    return _regeneratorRuntime().wrap(function _callee5$(_context5) {
+      while (1) switch (_context5.prev = _context5.next) {
+        case 0:
+          _context5.prev = 0;
+          // Obtener la categoría enviada en el request
+          uid = req.body.uid; // O req.body dependiendo del método HTTP
+          // Consultar los documentos que coincidan con la categoría
+          _context5.next = 4;
+          return db.collection("Subscripciones").where("taller_uid", "==", uid).get();
+        case 4:
+          subscripcionesSnapchot = _context5.sent;
+          // Transformar el snapshot en un array de objetos con los datos de los documentos
+          subscripciones = subscripcionesSnapchot.docs.map(function (doc) {
+            return _objectSpread({
+              id: doc.id
+            }, doc.data());
+          }); // Si no hay subscripciones, devolver un arreglo vacío
+          if (!(subscripciones.length === 0)) {
+            _context5.next = 8;
+            break;
+          }
+          return _context5.abrupt("return", res.status(200).json([]));
+        case 8:
+          // Obtener 3 subscripciones aleatorios
+          subscripcionesAleatorios = subscripciones.sort(function () {
+            return Math.random() - 0.5;
+          }) // Ordenar aleatoriamente
+          .slice(0, 3); // Tomar los primeros 3 elementos
+          console.log("subscripciones aleatorios con el uid \"".concat(uid, "\":"), subscripcionesAleatorios);
+
+          // Enviar los datos como respuesta
+          res.status(200).json(subscripcionesAleatorios);
+          _context5.next = 17;
+          break;
+        case 13:
+          _context5.prev = 13;
+          _context5.t0 = _context5["catch"](0);
+          console.error("Error obteniendo subscripciones por id:", _context5.t0);
+          res.status(500).send("Error obteniendo subscripciones por id.");
+        case 17:
+        case "end":
+          return _context5.stop();
+      }
+    }, _callee5, null, [[0, 13]]);
+  }));
+  return function getSubscriptionsById(_x9, _x10) {
+    return _ref6.apply(this, arguments);
+  };
+}();
 module.exports = {
+  getSubscriptionsById: getSubscriptionsById,
   getServicios: getServicios,
   saveContactService: saveContactService,
   getServicesContact: getServicesContact,
