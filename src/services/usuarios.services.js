@@ -940,6 +940,8 @@ const getSubcategoriesByCategoryUid = async (req, res) => {
   }
 };
 
+
+
 // const saveOrUpdateService = async (req, res) => {
 //   try {
 //     // Obtener los datos del servicio desde el cuerpo de la solicitud
@@ -959,7 +961,8 @@ const getSubcategoriesByCategoryUid = async (req, res) => {
 //       uid_taller,
 //       puntuacion,
 //       publicOrigin,
-//       base64
+//       base64,
+//       imageTodelete
 //     } = req.body;
 
 //     console.log("Datos del servicio:", req.body);
@@ -980,6 +983,69 @@ const getSubcategoriesByCategoryUid = async (req, res) => {
 //       puntuacion
 //     };
 
+//     const getLastImageIndex = (id) => {
+//       return new Promise((resolve, reject) => {
+//         const prefix = `service_images/${id}`;
+//         bucket.getFiles({ prefix })
+//           .then(([files]) => {
+//             let maxIndex = 0;
+//             files.forEach(file => {
+//               const match = file.name.match(/_(\d+)\.jpg$/);
+//               if (match) {
+//                 const index = parseInt(match[1], 10);
+//                 if (index > maxIndex) {
+//                   maxIndex = index;
+//                 }
+//               }
+//             });
+//             resolve(maxIndex);
+//           })
+//           .catch(error => {
+//             reject(error);
+//           });
+//       });
+//     };
+
+//     const processImage = async (id) => {
+//       let imageUrl = '';
+//       if (base64 && base64.trim() !== '') {
+//         const index = await getLastImageIndex(id);
+//         const newFileName = `service_images/${id}_${index + 1}.jpg`;
+//         const buffer = Buffer.from(base64, 'base64');
+//         const file = bucket.file(newFileName);
+
+//         await file.save(buffer, {
+//           metadata: { contentType: 'image/jpeg' },
+//           public: true,
+//           validation: 'md5'
+//         });
+
+//         imageUrl = `https://storage.googleapis.com/${bucket.name}/${newFileName}`;
+//         serviceData.image = imageUrl;
+//       }
+//       return imageUrl;
+//     };
+
+//     const deleteOldImage = () => {
+//       return new Promise((resolve, reject) => {
+//         if (base64 && base64.trim() !== '' && imageTodelete && imageTodelete.trim() !== '') {
+//           const file = bucket.file(`service_images/${imageTodelete}`);
+//           file.delete()
+//             .then(() => resolve())
+//             .catch(error => {
+//               if (error.code === 404) {
+//                 resolve(); // Resolver incluso si no se encuentra la imagen a eliminar
+//               } else {
+//                 console.error("Error al eliminar la imagen anterior:", error);
+//                 reject(error);
+//               }
+//             });
+//         } else {
+//           resolve();
+//         }
+//       });
+//     };
+
 //     // Si `id` tiene un valor, editar el documento en la colección "Servicios"
 //     if (id) {
 //       const serviceRef = db.collection("Servicios").doc(id);
@@ -994,24 +1060,29 @@ const getSubcategoriesByCategoryUid = async (req, res) => {
 //       await serviceRef.update(serviceData);
 //       console.log("Servicio actualizado:", id);
 
-//       if (serviceData.estatus){
-
-//         if(!publicOrigin){
-//           // Consulta el documento específico en la colección "Usuarios"
-//           const userId = uid_taller; // Reemplaza esto con el ID del usuario correspondiente
+//       if (serviceData.estatus) {
+//         if (!publicOrigin) {
+//           const userId = uid_taller;
 //           const userRef = db.collection("Usuarios").doc(userId);
-    
-//           // Obtiene el valor actual de cantidad_servicios, lo convierte a número, le resta 1 y actualiza
 //           const userDoc = await userRef.get();
+
 //           if (userDoc.exists) {
 //             const userData = userDoc.data();
-//             let cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0; // Convierte a número o usa 0 si no es válido
-//             cantidadServicios -= 1; // Resta 1
-    
+//             let cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0;
+//             cantidadServicios -= 1;
+
 //             await userRef.update({
-//               "subscripcion_actual.cantidad_servicios": cantidadServicios.toString(), // Guarda nuevamente como string
+//               "subscripcion_actual.cantidad_servicios": cantidadServicios.toString(),
 //             });
 //           }
+//         }
+
+//         const imageUrl = await processImage(id);
+//         await deleteOldImage();
+
+//         if (base64 && base64.trim() !== '') {
+//           // Actualizar el campo service_image en el documento del servicio solo si el base64 no está vacío ni es nulo
+//           await serviceRef.update({ service_image: imageUrl });
 //         }
 
 //         return res.status(200).send({
@@ -1019,84 +1090,93 @@ const getSubcategoriesByCategoryUid = async (req, res) => {
 //           service: { id, ...serviceData },
 //         });
 //       } else {
-
-//         if(publicOrigin){
-//           // Consulta el documento específico en la colección "Usuarios"
-//           const userId = uid_taller; // Reemplaza esto con el ID del usuario correspondiente
+//         if (publicOrigin) {
+//           const userId = uid_taller;
 //           const userRef = db.collection("Usuarios").doc(userId);
-    
-//           // Obtiene el valor actual de cantidad_servicios, lo convierte a número, le resta 1 y actualiza
 //           const userDoc = await userRef.get();
+
 //           if (userDoc.exists) {
 //             const userData = userDoc.data();
-//             let cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0; // Convierte a número o usa 0 si no es válido
-//             cantidadServicios += 1; // Resta 1
-    
+//             let cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0;
+//             cantidadServicios += 1;
+
 //             await userRef.update({
-//               "subscripcion_actual.cantidad_servicios": cantidadServicios.toString(), // Guarda nuevamente como string
+//               "subscripcion_actual.cantidad_servicios": cantidadServicios.toString(),
 //             });
 //           }
 //         }
 
+//         const imageUrl = await processImage(id);
+//         await deleteOldImage();
 
+//         if (base64 && base64.trim() !== '') {
+//           // Actualizar el campo service_image en el documento del servicio solo si el base64 no está vacío ni es nulo
+//           await serviceRef.update({ service_image: imageUrl });
+//         }
 
 //         return res.status(200).send({
 //           message: "Servicio actualizado exitosamente",
 //           service: { id, ...serviceData },
 //         });
 //       }
-
-
-
-
-      
 //     } else {
 //       const newServiceRef = await db.collection("Servicios").add(serviceData);
 //       console.log("Servicio creado con ID:", newServiceRef.id);
 
-//       if (serviceData.estatus){
-
-//         if (!publicOrigin){
-//           // Consulta el documento específico en la colección "Usuarios"
-//           const userId = uid_taller; // Reemplaza esto con el ID del usuario correspondiente
+//       if (serviceData.estatus) {
+//         if (!publicOrigin) {
+//           const userId = uid_taller;
 //           const userRef = db.collection("Usuarios").doc(userId);
-    
-//           // Obtiene el valor actual de cantidad_servicios, lo convierte a número, le resta 1 y actualiza
 //           const userDoc = await userRef.get();
+
 //           if (userDoc.exists) {
 //             const userData = userDoc.data();
-//             let cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0; // Convierte a número o usa 0 si no es válido
-//             cantidadServicios -= 1; // Resta 1
-    
+//             let cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0;
+//             cantidadServicios -= 1;
+
 //             await userRef.update({
-//               "subscripcion_actual.cantidad_servicios": cantidadServicios.toString(), // Guarda nuevamente como string
+//               "subscripcion_actual.cantidad_servicios": cantidadServicios.toString(),
 //             });
 //           }
 //         }
-  
+
+//         serviceData.id = newServiceRef.id;
+//         const imageUrl = await processImage(newServiceRef.id);
+//         await deleteOldImage();
+
+//         if (base64 && base64.trim() !== '') {
+//           // Actualizar el campo service_image en el documento del servicio solo si el base64 no está vacío ni es nulo
+//           await newServiceRef.update({ service_image: imageUrl });
+//         }
+
 //         return res.status(201).send({
 //           message: "Servicio creado exitosamente",
 //           service: { id: newServiceRef.id, ...serviceData },
 //         });
-
 //       } else {
-
-//         if (publicOrigin){
-//           // Consulta el documento específico en la colección "Usuarios"
-//           const userId = uid_taller; // Reemplaza esto con el ID del usuario correspondiente
+//         if (publicOrigin) {
+//           const userId = uid_taller;
 //           const userRef = db.collection("Usuarios").doc(userId);
-    
-//           // Obtiene el valor actual de cantidad_servicios, lo convierte a número, le resta 1 y actualiza
 //           const userDoc = await userRef.get();
+
 //           if (userDoc.exists) {
 //             const userData = userDoc.data();
-//             let cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0; // Convierte a número o usa 0 si no es válido
-//             cantidadServicios += 1; // Resta 1
-    
+//             let cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0;
+//             cantidadServicios += 1;
+
 //             await userRef.update({
-//               "subscripcion_actual.cantidad_servicios": cantidadServicios.toString(), // Guarda nuevamente como string
+//               "subscripcion_actual.cantidad_servicios": cantidadServicios.toString(),
 //             });
 //           }
+//         }
+
+//         serviceData.id = newServiceRef.id;
+//         const imageUrl = await processImage(newServiceRef.id);
+//         await deleteOldImage();
+
+//         if (base64 && base64.trim() !== '') {
+//           // Actualizar el campo service_image en el documento del servicio solo si el base64 no está vacío ni es nulo
+//           await newServiceRef.update({ service_image: imageUrl });
 //         }
 
 //         return res.status(201).send({
@@ -1104,15 +1184,12 @@ const getSubcategoriesByCategoryUid = async (req, res) => {
 //           service: { id: newServiceRef.id, ...serviceData },
 //         });
 //       }
-
-
 //     }
 //   } catch (error) {
 //     console.error("Error al guardar o actualizar el servicio:", error);
 //     res.status(500).send(error);
 //   }
 // };
-
 
 
 const saveOrUpdateService = async (req, res) => {
@@ -1134,11 +1211,11 @@ const saveOrUpdateService = async (req, res) => {
       uid_taller,
       puntuacion,
       publicOrigin,
-      base64,
-      imageTodelete
+      images,
+      edit
     } = req.body;
-
     console.log("Datos del servicio:", req.body);
+
 
     const serviceData = {
       categoria,
@@ -1155,6 +1232,8 @@ const saveOrUpdateService = async (req, res) => {
       uid_taller,
       puntuacion
     };
+
+    console.log(serviceData)
 
     const getLastImageIndex = (id) => {
       return new Promise((resolve, reject) => {
@@ -1179,9 +1258,10 @@ const saveOrUpdateService = async (req, res) => {
       });
     };
 
-    const processImage = async (id) => {
-      let imageUrl = '';
-      if (base64 && base64.trim() !== '') {
+    const uploadImages = async (id, images) => {
+      const imageUrls = [];
+      for (let i = 0; i < images.length; i++) {
+        const base64 = images[i];
         const index = await getLastImageIndex(id);
         const newFileName = `service_images/${id}_${index + 1}.jpg`;
         const buffer = Buffer.from(base64, 'base64');
@@ -1193,30 +1273,19 @@ const saveOrUpdateService = async (req, res) => {
           validation: 'md5'
         });
 
-        imageUrl = `https://storage.googleapis.com/${bucket.name}/${newFileName}`;
-        serviceData.image = imageUrl;
+        const imageUrl = `https://storage.googleapis.com/${bucket.name}/${newFileName}`;
+        imageUrls.push(imageUrl);
       }
-      return imageUrl;
+      return imageUrls;
     };
 
-    const deleteOldImage = () => {
-      return new Promise((resolve, reject) => {
-        if (base64 && base64.trim() !== '' && imageTodelete && imageTodelete.trim() !== '') {
-          const file = bucket.file(`service_images/${imageTodelete}`);
-          file.delete()
-            .then(() => resolve())
-            .catch(error => {
-              if (error.code === 404) {
-                resolve(); // Resolver incluso si no se encuentra la imagen a eliminar
-              } else {
-                console.error("Error al eliminar la imagen anterior:", error);
-                reject(error);
-              }
-            });
-        } else {
-          resolve();
-        }
-      });
+    const deleteOldImages = async (id) => {
+      const prefix = `service_images/${id}`;
+      const [files] = await bucket.getFiles({ prefix });
+
+      for (const file of files) {
+        await file.delete();
+      }
     };
 
     // Si `id` tiene un valor, editar el documento en la colección "Servicios"
@@ -1250,13 +1319,14 @@ const saveOrUpdateService = async (req, res) => {
           }
         }
 
-        const imageUrl = await processImage(id);
-        await deleteOldImage();
-
-        if (base64 && base64.trim() !== '') {
-          // Actualizar el campo service_image en el documento del servicio solo si el base64 no está vacío ni es nulo
-          await serviceRef.update({ service_image: imageUrl });
+        if (edit) {
+          await deleteOldImages(id);
         }
+
+        const imageUrls = await uploadImages(id, images);
+        serviceData.service_image = imageUrls;
+
+        await serviceRef.update(serviceData);
 
         return res.status(200).send({
           message: "Servicio actualizado exitosamente",
@@ -1279,13 +1349,14 @@ const saveOrUpdateService = async (req, res) => {
           }
         }
 
-        const imageUrl = await processImage(id);
-        await deleteOldImage();
-
-        if (base64 && base64.trim() !== '') {
-          // Actualizar el campo service_image en el documento del servicio solo si el base64 no está vacío ni es nulo
-          await serviceRef.update({ service_image: imageUrl });
+        if (edit) {
+          await deleteOldImages(id);
         }
+
+        const imageUrls = await uploadImages(id, images);
+        serviceData.service_image = imageUrls;
+
+        await serviceRef.update(serviceData);
 
         return res.status(200).send({
           message: "Servicio actualizado exitosamente",
@@ -1314,13 +1385,10 @@ const saveOrUpdateService = async (req, res) => {
         }
 
         serviceData.id = newServiceRef.id;
-        const imageUrl = await processImage(newServiceRef.id);
-        await deleteOldImage();
+        const imageUrls = await uploadImages(newServiceRef.id, images);
+        serviceData.service_image = imageUrls;
 
-        if (base64 && base64.trim() !== '') {
-          // Actualizar el campo service_image en el documento del servicio solo si el base64 no está vacío ni es nulo
-          await newServiceRef.update({ service_image: imageUrl });
-        }
+        await newServiceRef.update(serviceData);
 
         return res.status(201).send({
           message: "Servicio creado exitosamente",
@@ -1344,13 +1412,10 @@ const saveOrUpdateService = async (req, res) => {
         }
 
         serviceData.id = newServiceRef.id;
-        const imageUrl = await processImage(newServiceRef.id);
-        await deleteOldImage();
+        const imageUrls = await uploadImages(newServiceRef.id, images);
+        serviceData.service_image = imageUrls;
 
-        if (base64 && base64.trim() !== '') {
-          // Actualizar el campo service_image en el documento del servicio solo si el base64 no está vacío ni es nulo
-          await newServiceRef.update({ service_image: imageUrl });
-        }
+        await newServiceRef.update(serviceData);
 
         return res.status(201).send({
           message: "Servicio creado exitosamente",
@@ -1363,6 +1428,8 @@ const saveOrUpdateService = async (req, res) => {
     res.status(500).send(error);
   }
 };
+
+
 
 
 
