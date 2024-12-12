@@ -233,8 +233,6 @@ const SaveTaller = async (req, res) => {
   }
 };
 
-
-
 // Función para autenticar usuarios
 const authenticateUser = async (req, res) => {
   try {
@@ -495,8 +493,6 @@ const SaveTallerAll = (req, res) => {
     res.status(500).send({ message: "Error al guardar el usuario", error: error.message });
   }
 };
-
-
 
 const restorePass = async (req, res) => {
   // Recibir el email del cuerpo de la solicitud
@@ -942,6 +938,7 @@ const getSubcategoriesByCategoryUid = async (req, res) => {
 
 
 
+
 // const saveOrUpdateService = async (req, res) => {
 //   try {
 //     // Obtener los datos del servicio desde el cuerpo de la solicitud
@@ -1323,10 +1320,12 @@ const saveOrUpdateService = async (req, res) => {
           await deleteOldImages(id);
         }
 
-        const imageUrls = await uploadImages(id, images);
-        serviceData.service_image = imageUrls;
+          const imageUrls = await uploadImages(id, images);
+          serviceData.service_image = imageUrls;
+  
+          await serviceRef.update(serviceData);
 
-        await serviceRef.update(serviceData);
+
 
         return res.status(200).send({
           message: "Servicio actualizado exitosamente",
@@ -1353,10 +1352,10 @@ const saveOrUpdateService = async (req, res) => {
           await deleteOldImages(id);
         }
 
-        const imageUrls = await uploadImages(id, images);
-        serviceData.service_image = imageUrls;
-
-        await serviceRef.update(serviceData);
+          const imageUrls = await uploadImages(id, images);
+          serviceData.service_image = imageUrls;
+  
+          await serviceRef.update(serviceData);
 
         return res.status(200).send({
           message: "Servicio actualizado exitosamente",
@@ -1412,6 +1411,7 @@ const saveOrUpdateService = async (req, res) => {
         }
 
         serviceData.id = newServiceRef.id;
+        
         const imageUrls = await uploadImages(newServiceRef.id, images);
         serviceData.service_image = imageUrls;
 
@@ -1428,11 +1428,6 @@ const saveOrUpdateService = async (req, res) => {
     res.status(500).send(error);
   }
 };
-
-
-
-
-
 
 const getPlanes = async (req, res) => {
   try {
@@ -1456,7 +1451,6 @@ const getPlanes = async (req, res) => {
   }
 };
 
-
 const getMetodosPago = async (req, res) => {
   try {
     const result = await db
@@ -1478,7 +1472,6 @@ const getMetodosPago = async (req, res) => {
     res.status(500).send("Error al obtener metodos");
   }
 };
-
 
 // Función para guardar la suscripción
 const uploadImage = (file, buffer) => {
@@ -1587,6 +1580,62 @@ const ReportarPagoData = async (req, res) => {
 };
 
 
+const getPlanesActivos = async() =>{
+  try {
+    const result = await db.collection("Usuarios")
+      .where("subscripcion_actual.status", "==", "Aprobado")
+      .get();
+  
+    if (result.empty) {
+      return console.log("No se encontraron usuarios");
+    }
+  
+    const usuarios = result.docs.map((doc) => doc.data());
+  
+    const fechaActual = new Date();
+  
+    const usuariosFiltrados = usuarios.filter(usuario => {
+      const { subscripcion_actual } = usuario;
+      const fechaInicio = subscripcion_actual.fecha_inicio.toDate();
+      const fechaFin = subscripcion_actual.fecha_fin.toDate();
+      return fechaActual < fechaInicio || fechaActual > fechaFin;
+    });
+  
+    if (usuariosFiltrados.length === 0) {
+      return console.log("No se encontraron usuarios con subscripción fuera de vigencia");
+    }
+  
+    // Actualizar subscripcion_actual.cantidad_servicios a 0 y estatus a false en "Servicios"
+    for (const usuario of usuariosFiltrados) {
+      const userRef = db.collection("Usuarios").doc(usuario.uid);
+      await userRef.update({ "subscripcion_actual.cantidad_servicios": 0 });
+  
+      const serviciosSnapshot = await db.collection("Servicios")
+        .where("uid_taller", "==", usuario.uid)
+        .get();
+  
+      const batch = db.batch();
+      serviciosSnapshot.forEach(doc => {
+        const servicioRef = db.collection("Servicios").doc(doc.id);
+        batch.update(servicioRef, { estatus: false });
+      });
+  
+      await batch.commit();
+    }
+  
+    console.log("Usuarios y servicios actualizados correctamente.");
+  } catch (error) {
+    console.error("Error al actualizar usuarios y servicios:", error); // Muestra el error en la consola del servidor
+    console.log(`Error al actualizar usuarios y servicios: ${error.message}`); // Muestra el mensaje del error
+  }
+  
+  
+  
+  
+}
+
+
+
 module.exports = {
   getUsuarios,
   SaveClient,
@@ -1606,5 +1655,6 @@ module.exports = {
   saveOrUpdateService,
   getPlanes,
   getMetodosPago,
-  ReportarPagoData
+  ReportarPagoData,
+  getPlanesActivos
 };

@@ -1516,6 +1516,7 @@ var saveOrUpdateService = /*#__PURE__*/function () {
             uid_taller: uid_taller,
             puntuacion: puntuacion
           };
+          console.log(serviceData);
           getLastImageIndex = function getLastImageIndex(id) {
             return new Promise(function (resolve, reject) {
               var prefix = "service_images/".concat(id);
@@ -1639,218 +1640,218 @@ var saveOrUpdateService = /*#__PURE__*/function () {
             };
           }(); // Si `id` tiene un valor, editar el documento en la colección "Servicios"
           if (!id) {
-            _context18.next = 66;
+            _context18.next = 67;
             break;
           }
           serviceRef = db.collection("Servicios").doc(id);
-          _context18.next = 11;
+          _context18.next = 12;
           return serviceRef.get();
-        case 11:
+        case 12:
           serviceSnapshot = _context18.sent;
           if (serviceSnapshot.exists) {
-            _context18.next = 14;
+            _context18.next = 15;
             break;
           }
           return _context18.abrupt("return", res.status(404).send({
             message: "No se encontró el servicio con el ID proporcionado para actualizar"
           }));
-        case 14:
-          _context18.next = 16;
+        case 15:
+          _context18.next = 17;
           return serviceRef.update(serviceData);
-        case 16:
+        case 17:
           console.log("Servicio actualizado:", id);
           if (!serviceData.estatus) {
-            _context18.next = 42;
+            _context18.next = 43;
             break;
           }
           if (publicOrigin) {
-            _context18.next = 30;
+            _context18.next = 31;
             break;
           }
           userId = uid_taller;
           userRef = db.collection("Usuarios").doc(userId);
-          _context18.next = 23;
+          _context18.next = 24;
           return userRef.get();
-        case 23:
+        case 24:
           userDoc = _context18.sent;
           if (!userDoc.exists) {
-            _context18.next = 30;
+            _context18.next = 31;
             break;
           }
           userData = userDoc.data();
           cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0;
           cantidadServicios -= 1;
-          _context18.next = 30;
+          _context18.next = 31;
           return userRef.update({
             "subscripcion_actual.cantidad_servicios": cantidadServicios.toString()
           });
-        case 30:
+        case 31:
           if (!edit) {
-            _context18.next = 33;
+            _context18.next = 34;
             break;
           }
-          _context18.next = 33;
+          _context18.next = 34;
           return deleteOldImages(id);
-        case 33:
-          _context18.next = 35;
+        case 34:
+          _context18.next = 36;
           return uploadImages(id, images);
-        case 35:
+        case 36:
           imageUrls = _context18.sent;
           serviceData.service_image = imageUrls;
-          _context18.next = 39;
+          _context18.next = 40;
           return serviceRef.update(serviceData);
-        case 39:
+        case 40:
           return _context18.abrupt("return", res.status(200).send({
             message: "Servicio actualizado exitosamente",
             service: _objectSpread({
               id: id
             }, serviceData)
           }));
-        case 42:
+        case 43:
           if (!publicOrigin) {
-            _context18.next = 54;
+            _context18.next = 55;
             break;
           }
           _userId = uid_taller;
           _userRef = db.collection("Usuarios").doc(_userId);
-          _context18.next = 47;
+          _context18.next = 48;
           return _userRef.get();
-        case 47:
+        case 48:
           _userDoc = _context18.sent;
           if (!_userDoc.exists) {
-            _context18.next = 54;
+            _context18.next = 55;
             break;
           }
           _userData = _userDoc.data();
           _cantidadServicios = parseInt(_userData.subscripcion_actual.cantidad_servicios, 10) || 0;
           _cantidadServicios += 1;
-          _context18.next = 54;
+          _context18.next = 55;
           return _userRef.update({
             "subscripcion_actual.cantidad_servicios": _cantidadServicios.toString()
           });
-        case 54:
+        case 55:
           if (!edit) {
-            _context18.next = 57;
+            _context18.next = 58;
             break;
           }
-          _context18.next = 57;
+          _context18.next = 58;
           return deleteOldImages(id);
-        case 57:
-          _context18.next = 59;
+        case 58:
+          _context18.next = 60;
           return uploadImages(id, images);
-        case 59:
+        case 60:
           _imageUrls = _context18.sent;
           serviceData.service_image = _imageUrls;
-          _context18.next = 63;
+          _context18.next = 64;
           return serviceRef.update(serviceData);
-        case 63:
+        case 64:
           return _context18.abrupt("return", res.status(200).send({
             message: "Servicio actualizado exitosamente",
             service: _objectSpread({
               id: id
             }, serviceData)
           }));
-        case 64:
-          _context18.next = 113;
+        case 65:
+          _context18.next = 114;
           break;
-        case 66:
-          _context18.next = 68;
+        case 67:
+          _context18.next = 69;
           return db.collection("Servicios").add(serviceData);
-        case 68:
+        case 69:
           newServiceRef = _context18.sent;
           console.log("Servicio creado con ID:", newServiceRef.id);
           if (!serviceData.estatus) {
-            _context18.next = 93;
+            _context18.next = 94;
             break;
           }
           if (publicOrigin) {
-            _context18.next = 83;
+            _context18.next = 84;
             break;
           }
           _userId2 = uid_taller;
           _userRef2 = db.collection("Usuarios").doc(_userId2);
-          _context18.next = 76;
+          _context18.next = 77;
           return _userRef2.get();
-        case 76:
+        case 77:
           _userDoc2 = _context18.sent;
           if (!_userDoc2.exists) {
-            _context18.next = 83;
+            _context18.next = 84;
             break;
           }
           _userData2 = _userDoc2.data();
           _cantidadServicios2 = parseInt(_userData2.subscripcion_actual.cantidad_servicios, 10) || 0;
           _cantidadServicios2 -= 1;
-          _context18.next = 83;
+          _context18.next = 84;
           return _userRef2.update({
             "subscripcion_actual.cantidad_servicios": _cantidadServicios2.toString()
           });
-        case 83:
+        case 84:
           serviceData.id = newServiceRef.id;
-          _context18.next = 86;
+          _context18.next = 87;
           return uploadImages(newServiceRef.id, images);
-        case 86:
+        case 87:
           _imageUrls2 = _context18.sent;
           serviceData.service_image = _imageUrls2;
-          _context18.next = 90;
+          _context18.next = 91;
           return newServiceRef.update(serviceData);
-        case 90:
+        case 91:
           return _context18.abrupt("return", res.status(201).send({
             message: "Servicio creado exitosamente",
             service: _objectSpread({
               id: newServiceRef.id
             }, serviceData)
           }));
-        case 93:
+        case 94:
           if (!publicOrigin) {
-            _context18.next = 105;
+            _context18.next = 106;
             break;
           }
           _userId3 = uid_taller;
           _userRef3 = db.collection("Usuarios").doc(_userId3);
-          _context18.next = 98;
+          _context18.next = 99;
           return _userRef3.get();
-        case 98:
+        case 99:
           _userDoc3 = _context18.sent;
           if (!_userDoc3.exists) {
-            _context18.next = 105;
+            _context18.next = 106;
             break;
           }
           _userData3 = _userDoc3.data();
           _cantidadServicios3 = parseInt(_userData3.subscripcion_actual.cantidad_servicios, 10) || 0;
           _cantidadServicios3 += 1;
-          _context18.next = 105;
+          _context18.next = 106;
           return _userRef3.update({
             "subscripcion_actual.cantidad_servicios": _cantidadServicios3.toString()
           });
-        case 105:
+        case 106:
           serviceData.id = newServiceRef.id;
-          _context18.next = 108;
+          _context18.next = 109;
           return uploadImages(newServiceRef.id, images);
-        case 108:
+        case 109:
           _imageUrls3 = _context18.sent;
           serviceData.service_image = _imageUrls3;
-          _context18.next = 112;
+          _context18.next = 113;
           return newServiceRef.update(serviceData);
-        case 112:
+        case 113:
           return _context18.abrupt("return", res.status(201).send({
             message: "Servicio creado exitosamente",
             service: _objectSpread({
               id: newServiceRef.id
             }, serviceData)
           }));
-        case 113:
-          _context18.next = 119;
+        case 114:
+          _context18.next = 120;
           break;
-        case 115:
-          _context18.prev = 115;
+        case 116:
+          _context18.prev = 116;
           _context18.t0 = _context18["catch"](0);
           console.error("Error al guardar o actualizar el servicio:", _context18.t0);
           res.status(500).send(_context18.t0);
-        case 119:
+        case 120:
         case "end":
           return _context18.stop();
       }
-    }, _callee18, null, [[0, 115]]);
+    }, _callee18, null, [[0, 116]]);
   }));
   return function saveOrUpdateService(_x32, _x33) {
     return _ref20.apply(this, arguments);
@@ -2038,6 +2039,113 @@ var ReportarPagoData = /*#__PURE__*/function () {
     return _ref27.apply(this, arguments);
   };
 }();
+var getPlanesActivos = /*#__PURE__*/function () {
+  var _ref28 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee22() {
+    var result, usuarios, fechaActual, usuariosFiltrados, _iterator2, _step2, _loop;
+    return _regeneratorRuntime().wrap(function _callee22$(_context23) {
+      while (1) switch (_context23.prev = _context23.next) {
+        case 0:
+          _context23.prev = 0;
+          _context23.next = 3;
+          return db.collection("Usuarios").where("subscripcion_actual.status", "==", "Aprobado").get();
+        case 3:
+          result = _context23.sent;
+          if (!result.empty) {
+            _context23.next = 6;
+            break;
+          }
+          return _context23.abrupt("return", console.log("No se encontraron usuarios"));
+        case 6:
+          usuarios = result.docs.map(function (doc) {
+            return doc.data();
+          });
+          fechaActual = new Date();
+          usuariosFiltrados = usuarios.filter(function (usuario) {
+            var subscripcion_actual = usuario.subscripcion_actual;
+            var fechaInicio = subscripcion_actual.fecha_inicio.toDate();
+            var fechaFin = subscripcion_actual.fecha_fin.toDate();
+            return fechaActual < fechaInicio || fechaActual > fechaFin;
+          });
+          if (!(usuariosFiltrados.length === 0)) {
+            _context23.next = 11;
+            break;
+          }
+          return _context23.abrupt("return", console.log("No se encontraron usuarios con subscripción fuera de vigencia"));
+        case 11:
+          // Actualizar subscripcion_actual.cantidad_servicios a 0 y estatus a false en "Servicios"
+          _iterator2 = _createForOfIteratorHelper(usuariosFiltrados);
+          _context23.prev = 12;
+          _loop = /*#__PURE__*/_regeneratorRuntime().mark(function _loop() {
+            var usuario, userRef, serviciosSnapshot, batch;
+            return _regeneratorRuntime().wrap(function _loop$(_context22) {
+              while (1) switch (_context22.prev = _context22.next) {
+                case 0:
+                  usuario = _step2.value;
+                  userRef = db.collection("Usuarios").doc(usuario.uid);
+                  _context22.next = 4;
+                  return userRef.update({
+                    "subscripcion_actual.cantidad_servicios": 0
+                  });
+                case 4:
+                  _context22.next = 6;
+                  return db.collection("Servicios").where("uid_taller", "==", usuario.uid).get();
+                case 6:
+                  serviciosSnapshot = _context22.sent;
+                  batch = db.batch();
+                  serviciosSnapshot.forEach(function (doc) {
+                    var servicioRef = db.collection("Servicios").doc(doc.id);
+                    batch.update(servicioRef, {
+                      estatus: false
+                    });
+                  });
+                  _context22.next = 11;
+                  return batch.commit();
+                case 11:
+                case "end":
+                  return _context22.stop();
+              }
+            }, _loop);
+          });
+          _iterator2.s();
+        case 15:
+          if ((_step2 = _iterator2.n()).done) {
+            _context23.next = 19;
+            break;
+          }
+          return _context23.delegateYield(_loop(), "t0", 17);
+        case 17:
+          _context23.next = 15;
+          break;
+        case 19:
+          _context23.next = 24;
+          break;
+        case 21:
+          _context23.prev = 21;
+          _context23.t1 = _context23["catch"](12);
+          _iterator2.e(_context23.t1);
+        case 24:
+          _context23.prev = 24;
+          _iterator2.f();
+          return _context23.finish(24);
+        case 27:
+          console.log("Usuarios y servicios actualizados correctamente.");
+          _context23.next = 34;
+          break;
+        case 30:
+          _context23.prev = 30;
+          _context23.t2 = _context23["catch"](0);
+          console.error("Error al actualizar usuarios y servicios:", _context23.t2); // Muestra el error en la consola del servidor
+          console.log("Error al actualizar usuarios y servicios: ".concat(_context23.t2.message)); // Muestra el mensaje del error
+        case 34:
+        case "end":
+          return _context23.stop();
+      }
+    }, _callee22, null, [[0, 30], [12, 21, 24, 27]]);
+  }));
+  return function getPlanesActivos() {
+    return _ref28.apply(this, arguments);
+  };
+}();
 module.exports = {
   getUsuarios: getUsuarios,
   SaveClient: SaveClient,
@@ -2057,5 +2165,6 @@ module.exports = {
   saveOrUpdateService: saveOrUpdateService,
   getPlanes: getPlanes,
   getMetodosPago: getMetodosPago,
-  ReportarPagoData: ReportarPagoData
+  ReportarPagoData: ReportarPagoData,
+  getPlanesActivos: getPlanesActivos
 };

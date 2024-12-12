@@ -1,5 +1,7 @@
 const express = require('express');
 const morgan = require('morgan');
+const cron = require('node-cron');
+const Usuarios = require('../src/services/usuarios.services');
 
 // Rutas
 const usuarios = require('./routes/usuarios.routes');
@@ -20,5 +22,15 @@ app.get('/', async (req, res) => {
 
 app.use('/api/usuarios', usuarios);
 app.use('/api/home', home);
+
+
+// Job que se ejecuta cada 10 horas
+cron.schedule('0 */10 * * *', () => {
+  console.log('Ejecutando job cada 10 horas');
+  Usuarios.getPlanesActivos();
+  // Aquí va tu lógica del job
+});
+
+
 
 module.exports = app;

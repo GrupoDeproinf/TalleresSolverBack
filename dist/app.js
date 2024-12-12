@@ -6,6 +6,8 @@ function asyncGeneratorStep(n, t, e, r, o, a, c) { try { var i = n[a](c), u = i.
 function _asyncToGenerator(n) { return function () { var t = this, e = arguments; return new Promise(function (r, o) { var a = n.apply(t, e); function _next(n) { asyncGeneratorStep(a, r, o, _next, _throw, "next", n); } function _throw(n) { asyncGeneratorStep(a, r, o, _next, _throw, "throw", n); } _next(void 0); }); }; }
 var express = require('express');
 var morgan = require('morgan');
+var cron = require('node-cron');
+var Usuarios = require('../src/services/usuarios.services');
 
 // Rutas
 var usuarios = require('./routes/usuarios.routes');
@@ -41,4 +43,11 @@ app.get('/', /*#__PURE__*/function () {
 }());
 app.use('/api/usuarios', usuarios);
 app.use('/api/home', home);
+
+// Job que se ejecuta cada 10 horas
+cron.schedule('0 */10 * * *', function () {
+  console.log('Ejecutando job cada 10 horas');
+  Usuarios.getPlanesActivos();
+  // Aquí va tu lógica del job
+});
 module.exports = app;
