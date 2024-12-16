@@ -1608,7 +1608,7 @@ const getPlanesActivos = async() =>{
     // Actualizar subscripcion_actual.cantidad_servicios a 0 y estatus a false en "Servicios"
     for (const usuario of usuariosFiltrados) {
       const userRef = db.collection("Usuarios").doc(usuario.uid);
-      await userRef.update({ "subscripcion_actual.cantidad_servicios": 0 });
+      await userRef.update({ "subscripcion_actual.cantidad_servicios": 0, "subscripcion_actual.status": 'Vencido' });
   
       const serviciosSnapshot = await db.collection("Servicios")
         .where("uid_taller", "==", usuario.uid)
