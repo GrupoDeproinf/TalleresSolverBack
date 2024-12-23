@@ -205,6 +205,46 @@ const saveContactService = async (req, res) => {
   };
   
   
+  const getProductsByCategory = async (req, res) => {
+    try {
+      // Log del cuerpo recibido (temporal para depuración)
+      console.log('Cuerpo recibido:', req.body);
+  
+      // Obtener la categoría enviada en el request
+      const { uid_categoria } = req.body;
+  
+      // Validar que uid_categoria esté definido y sea un string no vacío
+      if (!uid_categoria || typeof uid_categoria !== 'string' || uid_categoria.trim() === '') {
+        return res.status(400).json({ error: 'uid_categoria es requerido y debe ser un string no vacío.' });
+      }
+  
+      // Consulta a Firestore
+      const querySnapshot = await db
+        .collection('Servicios')
+        .where('uid_categoria', '==', uid_categoria.trim())
+        .get();
+  
+      // Verificar si hay productos en la categoría
+      if (querySnapshot.empty) {
+        return res.status(404).json({ error: 'No se encontraron productos para esta categoría.' });
+      }
+  
+      // Procesar los documentos del QuerySnapshot
+      const products = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+  
+      // Respuesta con los productos obtenidos
+      return res.status(200).json(products);
+    } catch (error) {
+      console.error('Error al obtener productos:', error);
+      return res.status(500).json({ error: 'Error al obtener productos' });
+    }
+  };
+  
+  
+  
   
 
 module.exports = {
@@ -212,5 +252,6 @@ module.exports = {
   getServicios,
   saveContactService,
   getServicesContact,
-  getServicesCategories
+  getServicesCategories,
+  getProductsByCategory
 };

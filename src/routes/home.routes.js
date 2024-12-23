@@ -8,5 +8,6 @@ router.post('/contactService', Home.saveContactService)
 router.get('/getContactService', Home.getServicesContact)
 router.post('/getServicesByCategory', Home.getServicesCategories)
 router.post('/getSubscriptionById', Home.getSubscriptionsById)
+router.post('/getProductsByCategory', Home.getProductsByCategory)
 
 module.exports = router;
