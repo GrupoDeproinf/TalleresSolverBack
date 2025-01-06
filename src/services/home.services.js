@@ -242,16 +242,118 @@ const saveContactService = async (req, res) => {
       return res.status(500).json({ error: 'Error al obtener productos' });
     }
   };
-  
-  
-  
-  
 
+  const getCommentsByService = async (req, res) => {
+    try {
+      const { uid_service } = req.body;
+  
+      // Validar que uid_service esté definido y sea un string no vacío
+      if (!uid_service || typeof uid_service !== 'string' || uid_service.trim() === '') {
+        return res.status(400).json({ error: 'uid_service es requerido y debe ser un string no vacío.' });
+      }
+  
+      // Consulta a Firestore para obtener el servicio
+      const querySnapshot = await db
+        .collection('Servicios')
+        .where('uid_servicio', '==', uid_service)
+        .get();
+  
+      // Verificar si se encontró el servicio
+      if (querySnapshot.empty) {
+        return res.status(404).json({ error: 'No se encontraron servicios para este UID.' });
+      }
+  
+      let comments = [];
+  
+      // Recorrer los documentos de servicios y obtener la subcolección "Comentarios"
+      for (const doc of querySnapshot.docs) {
+        const commentsSnapshot = await db
+          .collection('Servicios')
+          .doc(doc.id)
+          .collection('calificaciones') // Nombre de la subcolección
+          .get();
+  
+        // Si hay comentarios, agregarlos al arreglo
+        if (!commentsSnapshot.empty) {
+          commentsSnapshot.forEach((commentDoc) => {
+            comments.push({ id: commentDoc.id, ...commentDoc.data() });
+          });
+        }
+      }
+  
+      // Verificar si se encontraron comentarios
+      if (comments.length === 0) {
+        return res.status(404).json({ error: 'No se encontraron comentarios para este servicio.' });
+      }
+  
+      // Responder con los comentarios encontrados
+      return res.status(200).json(comments);
+    } catch (error) {
+      console.error('Error al obtener comentarios:', error);
+      return res.status(500).json({ error: 'Error al obtener comentarios' });
+    }
+  };
+  
+  const addCommentToService = async (req, res) => {
+    try {
+      const {
+        uid_service,
+        comentario,
+        puntuación,
+        nombre_taller,
+        uid_taller,
+        usuario, // Mantén `usuario` como un objeto completo
+      } = req.body;
+  
+      // Validar que el objeto `usuario` y el campo `userId` existan
+      if (!usuario || !usuario.uid) {
+        return res.status(400).json({ error: 'El objeto "usuario" con el campo "userId" es obligatorio.' });
+      }
+  
+      // Consulta para encontrar el servicio
+      const querySnapshot = await db
+        .collection('Servicios')
+        .where('uid_servicio', '==', uid_service)
+        .get();
+  
+      if (querySnapshot.empty) {
+        return res.status(404).json({ error: 'No se encontró un servicio con este UID.' });
+      }
+  
+      // Obtener el ID del documento del servicio
+      const serviceDocId = querySnapshot.docs[0].id;
+  
+      // Crear un nuevo comentario en la subcolección "calificaciones"
+      const newComment = {
+        comentario,
+        puntuación,
+        nombre_taller,
+        uid_taller,
+        usuario, // Incluye el objeto `usuario` tal cual
+        fecha_creacion: new Date(), // Fecha de creación
+      };
+  
+      await db
+        .collection('Servicios')
+        .doc(serviceDocId)
+        .collection('calificaciones')
+        .add(newComment);
+  
+      // Responder con éxito
+      return res.status(201).json({ message: 'Comentario agregado exitosamente.', comment: newComment });
+    } catch (error) {
+      console.error('Error al agregar comentario:', error);
+      return res.status(500).json({ error: 'Error al agregar comentario.' });
+    }
+  };
+  
 module.exports = {
   getSubscriptionsById,
   getServicios,
   saveContactService,
   getServicesContact,
   getServicesCategories,
-  getProductsByCategory
+  getProductsByCategory,
+  getCommentsByService,
+  addCommentToService
 };

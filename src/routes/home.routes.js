@@ -9,5 +9,7 @@ router.get('/getContactService', Home.getServicesContact)
 router.post('/getServicesByCategory', Home.getServicesCategories)
 router.post('/getSubscriptionById', Home.getSubscriptionsById)
 router.post('/getProductsByCategory', Home.getProductsByCategory)
+router.post('/getCommentsByService', Home.getCommentsByService)
+router.post('/addCommentToService', Home.addCommentToService)
 
 module.exports = router;
