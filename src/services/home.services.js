@@ -299,7 +299,7 @@ const saveContactService = async (req, res) => {
       const {
         uid_service,
         comentario,
-        puntuación,
+        puntuacion,
         nombre_taller,
         uid_taller,
         usuario, // Mantén `usuario` como un objeto completo
@@ -326,7 +326,7 @@ const saveContactService = async (req, res) => {
       // Crear un nuevo comentario en la subcolección "calificaciones"
       const newComment = {
         comentario,
-        puntuación,
+        puntuacion,
         nombre_taller,
         uid_taller,
         usuario, // Incluye el objeto `usuario` tal cual
