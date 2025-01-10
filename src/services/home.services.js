@@ -410,6 +410,48 @@ const addCommentToService = async (req, res) => {
   }
 };
 
+const validatePhone = async (req, res) => {
+  try {
+    const { phone, uid } = req.body;
+
+    // Verificar que se proporcionen los parámetros necesarios
+    if (!phone) {
+      return res
+        .status(400)
+        .send({ message: "El número de teléfono es obligatorio." });
+    }
+
+    // Buscar el número de teléfono en la colección "Usuarios"
+    const snapshot = await db
+      .collection("Usuarios")
+      .where("phone", "==", phone)
+      .get();
+
+    if (!snapshot.empty) {
+      const phoneExists = snapshot.docs.some((doc) => doc.id !== uid);
+
+      if (phoneExists) {
+        return res.status(409).send({
+          message: "El número de teléfono ya está registrado.",
+          valid: false,
+        });
+      }
+    }
+
+    // Si no hay conflictos, devolver que el número es válido
+    return res.status(200).send({
+      message: "El número de teléfono es válido.",
+      valid: true,
+    });
+  } catch (error) {
+    console.error("Error al validar el número de teléfono:", error);
+    res.status(500).send({
+      message: "Error al validar el número de teléfono.",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getSubscriptionsById,
   getServicios,
@@ -419,4 +461,5 @@ module.exports = {
   getProductsByCategory,
   getCommentsByService,
   addCommentToService,
+  validatePhone,
 };
