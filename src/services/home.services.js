@@ -265,6 +265,7 @@ const getProductsByCategory = async (req, res) => {
     const querySnapshot = await db
       .collection("Servicios")
       .where("uid_categoria", "==", uid_categoria.trim())
+      .where("estatus", "==", true)
       .get();
 
     // Verificar si hay productos en la categoría
