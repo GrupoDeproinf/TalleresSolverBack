@@ -353,7 +353,7 @@ const getCommentsByService = async (req, res) => {
 const addCommentToService = async (req, res) => {
   try {
     const {
-      uid_service,
+      uid_service, // Este será el ID del documento
       comentario,
       puntuacion,
       nombre_taller,
@@ -368,20 +368,15 @@ const addCommentToService = async (req, res) => {
       });
     }
 
-    // Consulta para encontrar el servicio
-    const querySnapshot = await db
-      .collection("Servicios")
-      .where("uid_servicio", "==", uid_service)
-      .get();
+    // Referencia al documento del servicio por su ID
+    const serviceRef = db.collection("Servicios").doc(uid_service);
+    const serviceDoc = await serviceRef.get();
 
-    if (querySnapshot.empty) {
+    if (!serviceDoc.exists) {
       return res
         .status(404)
-        .json({ error: "No se encontró un servicio con este UID." });
+        .json({ error: "No se encontró un servicio con este ID de documento." });
     }
-
-    // Obtener el ID del documento del servicio
-    const serviceDocId = querySnapshot.docs[0].id;
 
     // Crear un nuevo comentario en la subcolección "calificaciones"
     const newComment = {
@@ -393,11 +388,7 @@ const addCommentToService = async (req, res) => {
       fecha_creacion: new Date(), // Fecha de creación
     };
 
-    await db
-      .collection("Servicios")
-      .doc(serviceDocId)
-      .collection("calificaciones")
-      .add(newComment);
+    await serviceRef.collection("calificaciones").add(newComment);
 
     // Responder con éxito
     return res.status(201).json({
@@ -409,6 +400,7 @@ const addCommentToService = async (req, res) => {
     return res.status(500).json({ error: "Error al agregar comentario." });
   }
 };
+
 
 const validatePhone = async (req, res) => {
   try {
