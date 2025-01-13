@@ -12,5 +12,6 @@ router.post("/getProductsByCategory", Home.getProductsByCategory);
 router.post("/getCommentsByService", Home.getCommentsByService);
 router.post("/addCommentToService", Home.addCommentToService);
 router.post("/validatePhone", Home.validatePhone);
+router.post("/validateEmail", Home.validateEmail);
 
 module.exports = router;

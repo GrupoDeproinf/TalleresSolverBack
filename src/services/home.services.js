@@ -444,6 +444,48 @@ const validatePhone = async (req, res) => {
   }
 };
 
+const validateEmail = async (req, res) => {
+  try {
+    const { email, uid } = req.body;
+
+    // Verificar que se proporcionen los parámetros necesarios
+    if (!email) {
+      return res
+        .status(400)
+        .send({ message: "El correo electrónico es obligatorio." });
+    }
+
+    // Buscar el número de teléfono en la colección "Usuarios"
+    const snapshot = await db
+      .collection("Usuarios")
+      .where("email", "==", email)
+      .get();
+
+    if (!snapshot.empty) {
+      const phoneExists = snapshot.docs.some((doc) => doc.id !== uid);
+
+      if (phoneExists) {
+        return res.status(409).send({
+          message: "El correo electrónico ya está registrado.",
+          valid: false,
+        });
+      }
+    }
+
+    // Si no hay conflictos, devolver que el número es válido
+    return res.status(200).send({
+      message: "El correo electrónico es válido.",
+      valid: true,
+    });
+  } catch (error) {
+    console.error("Error al validar el correo electrónico:", error);
+    res.status(500).send({
+      message: "Error al validar el correo electrónico.",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getSubscriptionsById,
   getServicios,
@@ -454,4 +496,5 @@ module.exports = {
   getCommentsByService,
   addCommentToService,
   validatePhone,
+  validateEmail
 };
