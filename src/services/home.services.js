@@ -160,16 +160,16 @@ const getServicesContact = async (req, res) => {
 const getServicesCategories = async (req, res) => {
   try {
     // Obtener la categoría enviada en el request
-    const { nombre_categoria, id } = req.body; // O req.body dependiendo del método HTTP
+    const { uid_categoria, id } = req.body; // O req.body dependiendo del método HTTP
 
-    if (!nombre_categoria) {
+    if (!uid_categoria) {
       return res.status(400).send("Por favor, proporciona una categoría.");
     }
 
     // Consultar los documentos que coincidan con la categoría
     const serviciosSnapshot = await db
       .collection("Servicios")
-      .where("nombre_categoria", "==", nombre_categoria)
+      .where("uid_categoria", "==", uid_categoria)
       .where("uid_servicio", "!=", id) // Filtrar por categoría
       .get();
 
@@ -190,7 +190,7 @@ const getServicesCategories = async (req, res) => {
       .slice(0, 3); // Tomar los primeros 3 elementos
 
     console.log(
-      `Servicios aleatorios con la categoría "${nombre_categoria}":`,
+      `Servicios aleatorios con la categoría "${uid_categoria}":`,
       serviciosAleatorios
     );
 
@@ -294,53 +294,41 @@ const getCommentsByService = async (req, res) => {
     const { uid_service } = req.body;
 
     // Validar que uid_service esté definido y sea un string no vacío
-    if (
-      !uid_service ||
-      typeof uid_service !== "string" ||
-      uid_service.trim() === ""
-    ) {
+    if (!uid_service || typeof uid_service !== "string" || uid_service.trim() === "") {
       return res.status(400).json({
         error: "uid_service es requerido y debe ser un string no vacío.",
       });
     }
 
-    // Consulta a Firestore para obtener el servicio
-    const querySnapshot = await db
-      .collection("Servicios")
-      .where("uid_servicio", "==", uid_service)
-      .get();
+    // Consultar el documento del servicio directamente por su ID
+    const serviceDoc = await db.collection("Servicios").doc(uid_service).get();
 
-    // Verificar si se encontró el servicio
-    if (querySnapshot.empty) {
+    // Verificar si el documento existe
+    if (!serviceDoc.exists) {
       return res
         .status(404)
-        .json({ error: "No se encontraron servicios para este UID." });
+        .json({ error: "No se encontró un servicio con este ID." });
     }
 
-    let comments = [];
-
-    // Recorrer los documentos de servicios y obtener la subcolección "Comentarios"
-    for (const doc of querySnapshot.docs) {
-      const commentsSnapshot = await db
-        .collection("Servicios")
-        .doc(doc.id)
-        .collection("calificaciones") // Nombre de la subcolección
-        .get();
-
-      // Si hay comentarios, agregarlos al arreglo
-      if (!commentsSnapshot.empty) {
-        commentsSnapshot.forEach((commentDoc) => {
-          comments.push({ id: commentDoc.id, ...commentDoc.data() });
-        });
-      }
-    }
+    // Obtener la subcolección "calificaciones"
+    const commentsSnapshot = await db
+      .collection("Servicios")
+      .doc(uid_service)
+      .collection("calificaciones") // Nombre de la subcolección
+      .get();
 
     // Verificar si se encontraron comentarios
-    if (comments.length === 0) {
+    if (commentsSnapshot.empty) {
       return res
         .status(404)
         .json({ error: "No se encontraron comentarios para este servicio." });
     }
+
+    // Recorrer y extraer los comentarios
+    const comments = commentsSnapshot.docs.map((commentDoc) => ({
+      id: commentDoc.id,
+      ...commentDoc.data(),
+    }));
 
     // Responder con los comentarios encontrados
     return res.status(200).json(comments);
@@ -349,6 +337,7 @@ const getCommentsByService = async (req, res) => {
     return res.status(500).json({ error: "Error al obtener comentarios" });
   }
 };
+
 
 const addCommentToService = async (req, res) => {
   try {
