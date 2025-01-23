@@ -35,7 +35,7 @@ const getUsuarios = async (req, res) => {
 const SaveClient = async (req, res) => {
   try {
     // Recibir los datos del cliente desde el cuerpo de la solicitud
-    const { Nombre, cedula, phone, email, password, estado, base64 } = req.body;
+    const { Nombre, cedula, phone, email, password, estado, base64, token } = req.body;
 
     // Validar el formato del teléfono (ejemplo: debe tener 10 dígitos)
     const phoneRegex = /^\d{10}$/;
@@ -101,7 +101,8 @@ const SaveClient = async (req, res) => {
       typeUser: "Cliente",
       email: email,
       estado: estado,
-      image_perfil: imageUrl // Guardar la URL de la imagen de perfil
+      image_perfil: imageUrl, // Guardar la URL de la imagen de perfil
+      token:token
     };
 
     await db
@@ -142,7 +143,7 @@ const SaveClient = async (req, res) => {
 const SaveTaller = async (req, res) => {
   try {
     // Recibir los datos del taller desde el cuerpo de la solicitud
-    const { Nombre, rif, phone, email, password, whats, metodos_pago, estado, base64, lat, lng } = req.body;
+    const { Nombre, rif, phone, email, password, whats, metodos_pago, estado, base64, lat, lng, token } = req.body;
 
     let userRecord;
     try {
@@ -207,7 +208,8 @@ const SaveTaller = async (req, res) => {
       ubicacion:{
         lat:lat,
         lng:lng
-      }
+      },
+      token:token
     };
 
     await db.collection("Usuarios").doc(uid).set(infoUserCreated, { merge: true });
