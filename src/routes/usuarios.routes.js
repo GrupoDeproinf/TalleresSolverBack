@@ -41,6 +41,10 @@ router.get('/getMetodosPago', Usuarios.getMetodosPago);
 
 router.post('/ReportarPagoData', Usuarios.ReportarPagoData); 
 
+router.post('/sendNotification', Usuarios.sendNotification); 
+
+router.post('/UpdateUsuariosAll', Usuarios.UpdateUsuariosAll); 
+
 
 
 module.exports = router;

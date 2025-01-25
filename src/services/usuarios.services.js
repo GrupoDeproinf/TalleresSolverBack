@@ -1636,7 +1636,54 @@ const getPlanesActivos = async() =>{
   
 }
 
+const sendNotification = async (req, res) => {
+  const { token, title, body, secretCode } = req.body;
 
+  const message = {
+    notification: {
+      title: title,
+      body: body,
+    },
+    data: {
+      secretCode: secretCode,
+    },
+    token: token,
+  };
+
+  try {
+    const response = await admin.messaging().send(message);
+    console.log("Successfully sent message:", response);
+    res.status(200).send({ message: "Notification sent successfully" });
+  } catch (error) {
+    console.error("Error sending message:", error);
+    res.status(500).send({ message: "Error sending message", error: error.message });
+  }
+};
+
+const UpdateUsuariosAll = async (req, res) => {
+  try {
+    // Recibir los datos del cliente desde el cuerpo de la solicitud
+    const { uid } = req.body
+    
+    // Actualizar el documento en la colección "Usuarios" con el UID proporcionado
+    await db.collection("Usuarios").doc(uid).update(req.body);
+
+    // Responder con un mensaje de éxito
+    res
+      .status(200)
+      .send({ message: "Usuario actualizado con éxito", uid: uid });
+  } catch (error) {
+    console.error("Error al actualizar el usuario:", error);
+
+    // En caso de error, responder con el mensaje correspondiente
+    res
+      .status(500)
+      .send({
+        message: "Error al actualizar el usuario",
+        error: error.message,
+      });
+  }
+};
 
 module.exports = {
   getUsuarios,
@@ -1658,5 +1705,7 @@ module.exports = {
   getPlanes,
   getMetodosPago,
   ReportarPagoData,
-  getPlanesActivos
+  getPlanesActivos,
+  sendNotification,
+  UpdateUsuariosAll
 };

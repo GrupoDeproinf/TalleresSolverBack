@@ -75,13 +75,13 @@ var getUsuarios = /*#__PURE__*/function () {
 }();
 var SaveClient = /*#__PURE__*/function () {
   var _ref2 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee2(req, res) {
-    var _req$body, Nombre, cedula, phone, email, password, estado, base64, phoneRegex, userRecord, uid, imageUrl, buffer, file, infoUserCreated;
+    var _req$body, Nombre, cedula, phone, email, password, estado, base64, token, phoneRegex, userRecord, uid, imageUrl, buffer, file, infoUserCreated;
     return _regeneratorRuntime().wrap(function _callee2$(_context2) {
       while (1) switch (_context2.prev = _context2.next) {
         case 0:
           _context2.prev = 0;
           // Recibir los datos del cliente desde el cuerpo de la solicitud
-          _req$body = req.body, Nombre = _req$body.Nombre, cedula = _req$body.cedula, phone = _req$body.phone, email = _req$body.email, password = _req$body.password, estado = _req$body.estado, base64 = _req$body.base64; // Validar el formato del teléfono (ejemplo: debe tener 10 dígitos)
+          _req$body = req.body, Nombre = _req$body.Nombre, cedula = _req$body.cedula, phone = _req$body.phone, email = _req$body.email, password = _req$body.password, estado = _req$body.estado, base64 = _req$body.base64, token = _req$body.token; // Validar el formato del teléfono (ejemplo: debe tener 10 dígitos)
           phoneRegex = /^\d{10}$/;
           if (phoneRegex.test(phone)) {
             _context2.next = 5;
@@ -157,7 +157,9 @@ var SaveClient = /*#__PURE__*/function () {
             typeUser: "Cliente",
             email: email,
             estado: estado,
-            image_perfil: imageUrl // Guardar la URL de la imagen de perfil
+            image_perfil: imageUrl,
+            // Guardar la URL de la imagen de perfil
+            token: token
           };
           _context2.next = 34;
           return db.collection("Usuarios").doc(uid).set(infoUserCreated, {
@@ -223,13 +225,13 @@ var SaveClient = /*#__PURE__*/function () {
 }();
 var SaveTaller = /*#__PURE__*/function () {
   var _ref3 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee3(req, res) {
-    var _req$body2, Nombre, rif, phone, email, password, whats, metodos_pago, estado, base64, lat, lng, userRecord, uid, imageUrl, buffer, file, infoUserCreated;
+    var _req$body2, Nombre, rif, phone, email, password, whats, metodos_pago, estado, base64, lat, lng, token, userRecord, uid, imageUrl, buffer, file, infoUserCreated;
     return _regeneratorRuntime().wrap(function _callee3$(_context3) {
       while (1) switch (_context3.prev = _context3.next) {
         case 0:
           _context3.prev = 0;
           // Recibir los datos del taller desde el cuerpo de la solicitud
-          _req$body2 = req.body, Nombre = _req$body2.Nombre, rif = _req$body2.rif, phone = _req$body2.phone, email = _req$body2.email, password = _req$body2.password, whats = _req$body2.whats, metodos_pago = _req$body2.metodos_pago, estado = _req$body2.estado, base64 = _req$body2.base64, lat = _req$body2.lat, lng = _req$body2.lng;
+          _req$body2 = req.body, Nombre = _req$body2.Nombre, rif = _req$body2.rif, phone = _req$body2.phone, email = _req$body2.email, password = _req$body2.password, whats = _req$body2.whats, metodos_pago = _req$body2.metodos_pago, estado = _req$body2.estado, base64 = _req$body2.base64, lat = _req$body2.lat, lng = _req$body2.lng, token = _req$body2.token;
           _context3.prev = 2;
           _context3.next = 5;
           return admin.auth().getUserByEmail(email);
@@ -306,7 +308,8 @@ var SaveTaller = /*#__PURE__*/function () {
             ubicacion: {
               lat: lat,
               lng: lng
-            }
+            },
+            token: token
           };
           _context3.next = 31;
           return db.collection("Usuarios").doc(uid).set(infoUserCreated, {
@@ -2084,7 +2087,8 @@ var getPlanesActivos = /*#__PURE__*/function () {
                   userRef = db.collection("Usuarios").doc(usuario.uid);
                   _context22.next = 4;
                   return userRef.update({
-                    "subscripcion_actual.cantidad_servicios": 0
+                    "subscripcion_actual.cantidad_servicios": 0,
+                    "subscripcion_actual.status": 'Vencido'
                   });
                 case 4:
                   _context22.next = 6;
@@ -2146,6 +2150,91 @@ var getPlanesActivos = /*#__PURE__*/function () {
     return _ref28.apply(this, arguments);
   };
 }();
+var sendNotification = /*#__PURE__*/function () {
+  var _ref29 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee23(req, res) {
+    var _req$body10, token, title, body, secretCode, message, response;
+    return _regeneratorRuntime().wrap(function _callee23$(_context24) {
+      while (1) switch (_context24.prev = _context24.next) {
+        case 0:
+          _req$body10 = req.body, token = _req$body10.token, title = _req$body10.title, body = _req$body10.body, secretCode = _req$body10.secretCode;
+          message = {
+            notification: {
+              title: title,
+              body: body
+            },
+            data: {
+              secretCode: secretCode
+            },
+            token: token
+          };
+          _context24.prev = 2;
+          _context24.next = 5;
+          return admin.messaging().send(message);
+        case 5:
+          response = _context24.sent;
+          console.log("Successfully sent message:", response);
+          res.status(200).send({
+            message: "Notification sent successfully"
+          });
+          _context24.next = 14;
+          break;
+        case 10:
+          _context24.prev = 10;
+          _context24.t0 = _context24["catch"](2);
+          console.error("Error sending message:", _context24.t0);
+          res.status(500).send({
+            message: "Error sending message",
+            error: _context24.t0.message
+          });
+        case 14:
+        case "end":
+          return _context24.stop();
+      }
+    }, _callee23, null, [[2, 10]]);
+  }));
+  return function sendNotification(_x43, _x44) {
+    return _ref29.apply(this, arguments);
+  };
+}();
+var UpdateUsuariosAll = /*#__PURE__*/function () {
+  var _ref30 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee24(req, res) {
+    var _uid2;
+    return _regeneratorRuntime().wrap(function _callee24$(_context25) {
+      while (1) switch (_context25.prev = _context25.next) {
+        case 0:
+          _context25.prev = 0;
+          // Recibir los datos del cliente desde el cuerpo de la solicitud
+          _uid2 = req.body.uid; // Actualizar el documento en la colección "Usuarios" con el UID proporcionado
+          _context25.next = 4;
+          return db.collection("Usuarios").doc(_uid2).update(req.body);
+        case 4:
+          // Responder con un mensaje de éxito
+          res.status(200).send({
+            message: "Usuario actualizado con éxito",
+            uid: _uid2
+          });
+          _context25.next = 11;
+          break;
+        case 7:
+          _context25.prev = 7;
+          _context25.t0 = _context25["catch"](0);
+          console.error("Error al actualizar el usuario:", _context25.t0);
+
+          // En caso de error, responder con el mensaje correspondiente
+          res.status(500).send({
+            message: "Error al actualizar el usuario",
+            error: _context25.t0.message
+          });
+        case 11:
+        case "end":
+          return _context25.stop();
+      }
+    }, _callee24, null, [[0, 7]]);
+  }));
+  return function UpdateUsuariosAll(_x45, _x46) {
+    return _ref30.apply(this, arguments);
+  };
+}();
 module.exports = {
   getUsuarios: getUsuarios,
   SaveClient: SaveClient,
@@ -2166,5 +2255,7 @@ module.exports = {
   getPlanes: getPlanes,
   getMetodosPago: getMetodosPago,
   ReportarPagoData: ReportarPagoData,
-  getPlanesActivos: getPlanesActivos
+  getPlanesActivos: getPlanesActivos,
+  sendNotification: sendNotification,
+  UpdateUsuariosAll: UpdateUsuariosAll
 };
