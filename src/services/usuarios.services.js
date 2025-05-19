@@ -1685,6 +1685,35 @@ const UpdateUsuariosAll = async (req, res) => {
   }
 };
 
+
+
+const deleteUserFromAuth = async (req, res) => {
+  try {
+    const { uid } = req.body;
+
+    // Validar que se proporcione el UID
+    if (!uid) {
+      return res.status(400).send({ message: "El UID es requerido" });
+    }
+
+    // Eliminar al usuario de Firebase Authentication
+    await admin.auth().deleteUser(uid);
+
+    return res.status(200).send({ message: "Usuario eliminado exitosamente de Firebase Authentication" });
+  } catch (error) {
+    console.error("Error al eliminar al usuario:", error);
+
+    // Manejo de errores
+    if (error.code === "auth/user-not-found") {
+      return res.status(404).send({ message: "Usuario no encontrado en Firebase Authentication" });
+    } else {
+      return res.status(500).send({ message: "Error al eliminar al usuario", error: error.message });
+    }
+  }
+};
+
+
+
 module.exports = {
   getUsuarios,
   SaveClient,
@@ -1707,5 +1736,6 @@ module.exports = {
   ReportarPagoData,
   getPlanesActivos,
   sendNotification,
-  UpdateUsuariosAll
+  UpdateUsuariosAll,
+  deleteUserFromAuth
 };

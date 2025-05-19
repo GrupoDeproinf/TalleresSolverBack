@@ -11,6 +11,8 @@ router.post('/SaveTaller', Usuarios.SaveTaller);
 
 router.post('/authenticateUser', Usuarios.authenticateUser);  
 
+router.post('/deleteUserFromAuth', Usuarios.deleteUserFromAuth);  
+
 router.post('/getUserByUid', Usuarios.getUserByUid);
 
 router.post('/SaveTallerAll', Usuarios.SaveTallerAll); 
