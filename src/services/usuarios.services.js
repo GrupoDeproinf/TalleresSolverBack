@@ -517,9 +517,9 @@ const sendResetPasswordEmail = async (email, resetLink, res) => {
   // Configura el transporter
   const transporter = nodemailer.createTransport({
     service: "Gmail", // Puedes cambiarlo por el servicio de correo que uses
-    host: "smtp.gmail.com",
-    port: 465, // Cambiar a 465 para SSL
-    secure: true, // Usar SSL
+    // host: "smtp.gmail.com",
+    // port: 465, // Cambiar a 465 para SSL
+    // secure: true, // Usar SSL
     auth: {
       user: "solverstalleres@gmail.com", // Tu correo electrónico
       pass: "difg cvzy ndhe fqzw", // Tu contraseña de correo electrónico
