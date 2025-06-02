@@ -102,7 +102,7 @@ const SaveClient = async (req, res) => {
       email: email,
       estado: estado,
       image_perfil: imageUrl, // Guardar la URL de la imagen de perfil
-      token:token
+      token: token
     };
 
     await db
@@ -137,7 +137,7 @@ const SaveClient = async (req, res) => {
     // En caso de un error inesperado
     res.status(500).send("Error al guardar el usuario");
   }
-  
+
 };
 
 const SaveTaller = async (req, res) => {
@@ -205,11 +205,11 @@ const SaveTaller = async (req, res) => {
       metodos_pago: metodos_pago,
       estado: estado,
       image_perfil: imageUrl, // Guardar la URL de la imagen de perfil
-      ubicacion:{
-        lat:lat,
-        lng:lng
+      ubicacion: {
+        lat: lat,
+        lng: lng
       },
-      token:token
+      token: token
     };
 
     await db.collection("Usuarios").doc(uid).set(infoUserCreated, { merge: true });
@@ -401,15 +401,15 @@ const SaveTallerAll = (req, res) => {
             public: true,
             validation: 'md5'
           })
-          .then(() => {
-            const imageUrl = `https://storage.googleapis.com/${bucket.name}/${newFileName}`;
-            req.body.image_perfil = imageUrl;
-            resolve();
-          })
-          .catch(error => {
-            console.error("Error al guardar la nueva imagen:", error);
-            reject(error);
-          });
+            .then(() => {
+              const imageUrl = `https://storage.googleapis.com/${bucket.name}/${newFileName}`;
+              req.body.image_perfil = imageUrl;
+              resolve();
+            })
+            .catch(error => {
+              console.error("Error al guardar la nueva imagen:", error);
+              reject(error);
+            });
         } else {
           resolve();
         }
@@ -517,6 +517,9 @@ const sendResetPasswordEmail = async (email, resetLink, res) => {
   // Configura el transporter
   const transporter = nodemailer.createTransport({
     service: "Gmail", // Puedes cambiarlo por el servicio de correo que uses
+    host: "smtp.gmail.com",
+    port: 465, // Cambiar a 465 para SSL
+    secure: true, // Usar SSL
     auth: {
       user: "solverstalleres@gmail.com", // Tu correo electrónico
       pass: "difg cvzy ndhe fqzw", // Tu contraseña de correo electrónico
@@ -719,15 +722,15 @@ const UpdateClient = async (req, res) => {
             public: true,
             validation: 'md5'
           })
-          .then(() => {
-            const imageUrl = `https://storage.googleapis.com/${bucket.name}/${newFileName}`;
-            updatedUserInfo.image_perfil = imageUrl;
-            resolve();
-          })
-          .catch(error => {
-            console.error("Error al guardar la nueva imagen:", error);
-            reject(error);
-          });
+            .then(() => {
+              const imageUrl = `https://storage.googleapis.com/${bucket.name}/${newFileName}`;
+              updatedUserInfo.image_perfil = imageUrl;
+              resolve();
+            })
+            .catch(error => {
+              console.error("Error al guardar la nueva imagen:", error);
+              reject(error);
+            });
         } else {
           resolve();
         }
@@ -758,7 +761,7 @@ const UpdateClient = async (req, res) => {
       .then((index) => processImage(index))
       .then(() => {
         // Eliminar el campo base64 y imageTodelete del cuerpo de la solicitud
-        delete req.body.base64; 
+        delete req.body.base64;
         delete req.body.imageTodelete;
       })
       .then(() => db.collection("Usuarios").doc(uid).update(updatedUserInfo))
@@ -1322,10 +1325,10 @@ const saveOrUpdateService = async (req, res) => {
           await deleteOldImages(id);
         }
 
-          const imageUrls = await uploadImages(id, images);
-          serviceData.service_image = imageUrls;
-  
-          await serviceRef.update(serviceData);
+        const imageUrls = await uploadImages(id, images);
+        serviceData.service_image = imageUrls;
+
+        await serviceRef.update(serviceData);
 
 
 
@@ -1354,10 +1357,10 @@ const saveOrUpdateService = async (req, res) => {
           await deleteOldImages(id);
         }
 
-          const imageUrls = await uploadImages(id, images);
-          serviceData.service_image = imageUrls;
-  
-          await serviceRef.update(serviceData);
+        const imageUrls = await uploadImages(id, images);
+        serviceData.service_image = imageUrls;
+
+        await serviceRef.update(serviceData);
 
         return res.status(200).send({
           message: "Servicio actualizado exitosamente",
@@ -1413,7 +1416,7 @@ const saveOrUpdateService = async (req, res) => {
         }
 
         serviceData.id = newServiceRef.id;
-        
+
         const imageUrls = await uploadImages(newServiceRef.id, images);
         serviceData.service_image = imageUrls;
 
@@ -1582,58 +1585,58 @@ const ReportarPagoData = async (req, res) => {
 };
 
 
-const getPlanesActivos = async() =>{
+const getPlanesActivos = async () => {
   try {
     const result = await db.collection("Usuarios")
       .where("subscripcion_actual.status", "==", "Aprobado")
       .get();
-  
+
     if (result.empty) {
       return console.log("No se encontraron usuarios");
     }
-  
+
     const usuarios = result.docs.map((doc) => doc.data());
-  
+
     const fechaActual = new Date();
-  
+
     const usuariosFiltrados = usuarios.filter(usuario => {
       const { subscripcion_actual } = usuario;
       const fechaInicio = subscripcion_actual.fecha_inicio.toDate();
       const fechaFin = subscripcion_actual.fecha_fin.toDate();
       return fechaActual < fechaInicio || fechaActual > fechaFin;
     });
-  
+
     if (usuariosFiltrados.length === 0) {
       return console.log("No se encontraron usuarios con subscripción fuera de vigencia");
     }
-  
+
     // Actualizar subscripcion_actual.cantidad_servicios a 0 y estatus a false en "Servicios"
     for (const usuario of usuariosFiltrados) {
       const userRef = db.collection("Usuarios").doc(usuario.uid);
       await userRef.update({ "subscripcion_actual.cantidad_servicios": 0, "subscripcion_actual.status": 'Vencido' });
-  
+
       const serviciosSnapshot = await db.collection("Servicios")
         .where("uid_taller", "==", usuario.uid)
         .get();
-  
+
       const batch = db.batch();
       serviciosSnapshot.forEach(doc => {
         const servicioRef = db.collection("Servicios").doc(doc.id);
         batch.update(servicioRef, { estatus: false });
       });
-  
+
       await batch.commit();
     }
-  
+
     console.log("Usuarios y servicios actualizados correctamente.");
   } catch (error) {
     console.error("Error al actualizar usuarios y servicios:", error); // Muestra el error en la consola del servidor
     console.log(`Error al actualizar usuarios y servicios: ${error.message}`); // Muestra el mensaje del error
   }
-  
-  
-  
-  
+
+
+
+
 }
 
 const sendNotification = async (req, res) => {
@@ -1664,7 +1667,7 @@ const UpdateUsuariosAll = async (req, res) => {
   try {
     // Recibir los datos del cliente desde el cuerpo de la solicitud
     const { uid } = req.body
-    
+
     // Actualizar el documento en la colección "Usuarios" con el UID proporcionado
     await db.collection("Usuarios").doc(uid).update(req.body);
 
