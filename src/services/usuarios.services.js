@@ -1925,21 +1925,22 @@ const deleteUserFromAuth = async (req, res) => {
   try {
     const { uid } = req.body;
 
-    // Validar que se proporcione el UID
     if (!uid) {
       return res.status(400).send({ message: "El UID es requerido" });
     }
 
-    // Eliminar al usuario de Firebase Authentication
     await admin.auth().deleteUser(uid);
 
-    return res.status(200).send({ message: "Usuario eliminado exitosamente de Firebase Authentication" });
+    await db.collection("Usuarios").doc(uid).delete();
+
+    return res.status(200).send({ message: "Usuario eliminado exitosamente de Firebase Authentication y Firestore" });
   } catch (error) {
     console.error("Error al eliminar al usuario:", error);
 
-    // Manejo de errores
     if (error.code === "auth/user-not-found") {
       return res.status(404).send({ message: "Usuario no encontrado en Firebase Authentication" });
+    } else if (error.code === "not-found") {
+      return res.status(404).send({ message: "Documento no encontrado en Firestore" });
     } else {
       return res.status(500).send({ message: "Error al eliminar al usuario", error: error.message });
     }

@@ -271,7 +271,7 @@ const getProductsByCategory = async (req, res) => {
     // Verificar si hay productos en la categoría
     if (querySnapshot.empty) {
       return res
-        .status(404)
+        .status(201)
         .json({ error: "No se encontraron productos para esta categoría." });
     }
 
