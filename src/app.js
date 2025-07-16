@@ -6,6 +6,7 @@ const Usuarios = require('../src/services/usuarios.services');
 // Rutas
 const usuarios = require('./routes/usuarios.routes');
 const home = require('./routes/home.routes');
+const distance = require('./routes/distance.routes');
 
 const app = express();
 
@@ -22,6 +23,7 @@ app.get('/', async (req, res) => {
 
 app.use('/api/usuarios', usuarios);
 app.use('/api/home', home);
+app.use('/api/distance', distance);
 
 
 // Job que se ejecuta cada 10 horas
