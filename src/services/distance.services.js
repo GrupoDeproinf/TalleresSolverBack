@@ -18,7 +18,7 @@ function toRad(value) {
 
 const getNearby = async (req, res) => {
   try {
-    const { lat, lng, estado, radio = 20 } = req.body;
+    const { lat, lng, estado, radio } = req.body;
 
     if (!lat || !lng || !estado) {
       return res.status(400).json({
@@ -28,7 +28,7 @@ const getNearby = async (req, res) => {
 
     const result = await db
       .collection('Usuarios')
-      .where('status', '!=', 'Aprobado')
+      .where('status', '==', 'Aprobado')
       .where('typeUser', '==', 'Taller')
       .where('estado', '==', estado)
       .get();
