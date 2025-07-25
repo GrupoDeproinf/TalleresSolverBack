@@ -479,11 +479,47 @@ const authenticateUser = async (req, res) => {
     }
 
     // Autenticar al usuario con Firebase
-    const userCredential = await signInWithEmailAndPassword(
-      auth,
-      email,
-      password
-    );
+    let userCredential;
+    try {
+      userCredential = await signInWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+    } catch (authError) {
+      console.error("Error en autenticación Firebase:", authError);
+      if (authError.code === "auth/user-not-found") {
+        return res.status(404).send({
+          message: "Usuario no encontrado en Firebase Authentication",
+          error: authError.code
+        });
+      } else if (authError.code === "auth/wrong-password") {
+        return res.status(401).send({
+          message: "Contraseña incorrecta",
+          error: authError.code
+        });
+      } else if (authError.code === "auth/invalid-email") {
+        return res.status(400).send({
+          message: "Formato de email inválido",
+          error: authError.code
+        });
+      } else if (authError.code === "auth/user-disabled") {
+        return res.status(403).send({
+          message: "Usuario deshabilitado",
+          error: authError.code
+        });
+      } else if (authError.code === "auth/too-many-requests") {
+        return res.status(429).send({
+          message: "Demasiados intentos fallidos. Intenta más tarde",
+          error: authError.code
+        });
+      } else {
+        return res.status(500).send({
+          message: "Error de autenticación",
+          error: authError.code || authError.message
+        });
+      }
+    }
     const user = userCredential.user;
 
     // Verificar si el usuario está autenticado
