@@ -18,11 +18,11 @@ function toRad(value) {
 
 const getNearby = async (req, res) => {
   try {
-    const { lat, lng, estado, radio } = req.body;
+    const { lat, lng, radio } = req.body;
 
-    if (!lat || !lng || !estado) {
+    if (!lat || !lng || !radio) {
       return res.status(400).json({
-        error: 'Se requieren lat, lng y estado',
+        error: 'Se requieren lat, lng y radio para buscar talleres cercanos.',
       });
     }
 
@@ -30,7 +30,6 @@ const getNearby = async (req, res) => {
       .collection('Usuarios')
       .where('status', '==', 'Aprobado')
       .where('typeUser', '==', 'Taller')
-      .where('estado', '==', estado)
       .get();
 
     if (result.empty) {
@@ -48,7 +47,7 @@ const getNearby = async (req, res) => {
     });
     console.log(`Talleres encontrados: ${talleres.length}`);
     console.log(`Buscando talleres en un radio de ${radio} km desde (${lat}, ${lng})`);
-    console.log(`Estado: ${estado}`);
+    
     console.log(`Distancias calculadas: ${talleres.map(t => t.distancia).join(', ')}`);
     console.log(`Talleres antes de filtrar por radio:`, talleres);
     const cercanos = talleres
