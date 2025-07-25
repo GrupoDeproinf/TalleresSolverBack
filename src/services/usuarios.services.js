@@ -471,7 +471,6 @@ const authenticateUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-
     // Validar que se proporcione el email y la contraseña
     if (!email || !password) {
       return res
@@ -480,47 +479,11 @@ const authenticateUser = async (req, res) => {
     }
 
     // Autenticar al usuario con Firebase
-    let userCredential;
-    try {
-      userCredential = await signInWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
-    } catch (authError) {
-      console.error("Error en autenticación Firebase:", authError.code);
-      if (authError.code === " auth/user-not-found") {
-        return res.status(404).send({
-          message: "Usuario no encontrado en Firebase Authentication",
-          error: authError.code
-        });
-      } else if (authError.code === " auth/wrong-password") {
-        return res.status(401).send({
-          message: "Contraseña incorrecta",
-          error: authError.code
-        });
-      } else if (authError.code === " auth/invalid-email") {
-        return res.status(400).send({
-          message: "Formato de email inválido",
-          error: authError.code
-        });
-      } else if (authError.code === " auth/user-disabled") {
-        return res.status(403).send({
-          message: "Usuario deshabilitado",
-          error: authError.code
-        });
-      } else if (authError.code === " auth/too-many-requests") {
-        return res.status(429).send({
-          message: "Demasiados intentos fallidos. Intenta más tarde",
-          error: authError.code
-        });
-      } else {
-        return res.status(500).send({
-          message: "Error de autenticación",
-          error: authError.code || authError.message
-        });
-      }
-    }
+    const userCredential = await signInWithEmailAndPassword(
+      auth,
+      email,
+      password
+    );
     const user = userCredential.user;
 
     // Verificar si el usuario está autenticado
@@ -817,29 +780,15 @@ const sendResetPasswordEmail = async (email, resetLink, res) => {
 
 const getTalleres = async (req, res) => {
   try {
+
     const { estado } = req.body;
 
-    let query = db
+    const result = await db
       .collection("Usuarios")
-      .where("status", "==", "Aprobado")
-      .where("typeUser", "==", "Taller");
-
-    if (Array.isArray(estado)) {
-      // Validación para no pasar más de 10 elementos en un filtro "in"
-      if (estado.length === 0) {
-        return res.status(400).send("El array de estados está vacío.");
-      }
-      if (estado.length > 10) {
-        return res.status(400).send("El array de estados no puede tener más de 10 elementos.");
-      }
-      query = query.where("estado", "in", estado);
-    } else if (typeof estado === "string") {
-      query = query.where("estado", "==", estado);
-    } else {
-      return res.status(400).send("El parámetro 'estado' debe ser un string o un array de strings.");
-    }
-
-    const result = await query.get();
+      .where("status", "!=", "Aprobado")
+      .where("typeUser", "==", "Taller") // Filtrar documentos por typeUser
+      .where("estado", "==", estado) // Filtrar documentos por typeUser
+      .get();
 
     if (result.empty) {
       return res
@@ -855,7 +804,6 @@ const getTalleres = async (req, res) => {
     res.status(500).send("Error al obtener usuarios");
   }
 };
-
 
 const actualizarStatusUsuario = async (req, res) => {
   try {
