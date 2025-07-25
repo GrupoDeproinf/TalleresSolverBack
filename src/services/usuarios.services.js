@@ -780,9 +780,10 @@ const sendResetPasswordEmail = async (email, resetLink, res) => {
 
 const getTalleres = async (req, res) => {
   try {
+
     const { estado } = req.body;
 
-    let query = db
+    let query = await db
       .collection("Usuarios")
       .where("status", "!=", "Aprobado")
       .where("typeUser", "==", "Taller");
@@ -818,7 +819,6 @@ const getTalleres = async (req, res) => {
     res.status(500).send("Error al obtener usuarios");
   }
 };
-
 
 const actualizarStatusUsuario = async (req, res) => {
   try {
