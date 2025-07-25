@@ -784,7 +784,7 @@ const getTalleres = async (req, res) => {
 
     let query = db
       .collection("Usuarios")
-      .where("status", "==", "Aprobado")
+      .where("status", "!=", "Aprobado")
       .where("typeUser", "==", "Taller");
 
     if (Array.isArray(estado)) {
