@@ -780,15 +780,29 @@ const sendResetPasswordEmail = async (email, resetLink, res) => {
 
 const getTalleres = async (req, res) => {
   try {
-
     const { estado } = req.body;
 
-    const result = await db
+    let query = db
       .collection("Usuarios")
-      .where("status", "!=", "Aprobado")
-      .where("typeUser", "==", "Taller") // Filtrar documentos por typeUser
-      .where("estado", "==", estado) // Filtrar documentos por typeUser
-      .get();
+      .where("status", "==", "Aprobado")
+      .where("typeUser", "==", "Taller");
+
+    if (Array.isArray(estado)) {
+      // Validación para no pasar más de 10 elementos en un filtro "in"
+      if (estado.length === 0) {
+        return res.status(400).send("El array de estados está vacío.");
+      }
+      if (estado.length > 10) {
+        return res.status(400).send("El array de estados no puede tener más de 10 elementos.");
+      }
+      query = query.where("estado", "in", estado);
+    } else if (typeof estado === "string") {
+      query = query.where("estado", "==", estado);
+    } else {
+      return res.status(400).send("El parámetro 'estado' debe ser un string o un array de strings.");
+    }
+
+    const result = await query.get();
 
     if (result.empty) {
       return res
@@ -804,6 +818,7 @@ const getTalleres = async (req, res) => {
     res.status(500).send("Error al obtener usuarios");
   }
 };
+
 
 const actualizarStatusUsuario = async (req, res) => {
   try {
