@@ -471,6 +471,7 @@ const authenticateUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
+
     // Validar que se proporcione el email y la contraseña
     if (!email || !password) {
       return res
@@ -487,28 +488,28 @@ const authenticateUser = async (req, res) => {
         password
       );
     } catch (authError) {
-      console.error("Error en autenticación Firebase:", authError);
-      if (authError.code === "auth/user-not-found") {
+      console.error("Error en autenticación Firebase:", authError.code);
+      if (authError.code === " auth/user-not-found") {
         return res.status(404).send({
           message: "Usuario no encontrado en Firebase Authentication",
           error: authError.code
         });
-      } else if (authError.code === "auth/wrong-password") {
+      } else if (authError.code === " auth/wrong-password") {
         return res.status(401).send({
           message: "Contraseña incorrecta",
           error: authError.code
         });
-      } else if (authError.code === "auth/invalid-email") {
+      } else if (authError.code === " auth/invalid-email") {
         return res.status(400).send({
           message: "Formato de email inválido",
           error: authError.code
         });
-      } else if (authError.code === "auth/user-disabled") {
+      } else if (authError.code === " auth/user-disabled") {
         return res.status(403).send({
           message: "Usuario deshabilitado",
           error: authError.code
         });
-      } else if (authError.code === "auth/too-many-requests") {
+      } else if (authError.code === " auth/too-many-requests") {
         return res.status(429).send({
           message: "Demasiados intentos fallidos. Intenta más tarde",
           error: authError.code
