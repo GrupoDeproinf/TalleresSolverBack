@@ -117,7 +117,7 @@ const getNearbyWithCategories = async (req, res) => {
         serviciosSnapshot.docs.forEach((servDoc, index) => {
           const servData = servDoc.data();
           const uid_categoria = servData?.uid_categoria ?? 'sin_id';
-          const nombre_categoria = servData?.nombre_categoria;
+          const nombre_categoria = servData?.nombre_categoria ?? servData.categoria;
 
           console.log(`  └─ Servicio ${index + 1}:`, {
             uid_categoria,

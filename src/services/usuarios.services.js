@@ -728,21 +728,28 @@ const SaveTallerAll = (req, res) => {
 };
 
 const restorePass = async (req, res) => {
-  // Recibir el email del cuerpo de la solicitud
-  const { email } = req.body;
-  // Generar el enlace de restablecimiento de contraseña
-  await admin
-    .auth()
-    .generatePasswordResetLink(email)
-    .then((link) => {
-      return sendResetPasswordEmail(email, link, res);
-    })
-    .catch((error) => {
-      // Some error occurred.
-      console.log(error);
-      res.status(500).send({ message: "No existe el usuario", error });
-    });
+  const { email, nombre } = req.body;
+
+  try {
+    const link = await admin.auth().generatePasswordResetLink(email);
+
+    const htmlContent = `
+      <p>Hola ${nombre || 'usuario'},</p>
+      <p>Hemos recibido una solicitud para restablecer tu contraseña.</p>
+      <p>Haz clic en el siguiente enlace para cambiarla:</p>
+      <p><a href="${link}" target="_blank">Restablecer contraseña</a></p>
+      <p>Si tú no hiciste esta solicitud, puedes ignorar este correo.</p>
+    `;
+
+    await sendEmail(email, htmlContent, nombre || 'Usuario');
+    res.status(200).send({ message: "Correo enviado con éxito" });
+
+  } catch (error) {
+    console.error("❌ Error generando link:", error);
+    res.status(500).send({ message: "No existe el usuario o hubo un error", error });
+  }
 };
+
 
 const sendResetPasswordEmail = async (email, resetLink, res) => {
   // Configura el transporter
