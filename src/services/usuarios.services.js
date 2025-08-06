@@ -237,12 +237,12 @@ const SaveClient = async (req, res) => {
           </html>
     `;
 
-    try {
-      await sendEmail(email, htmlContent, Nombre);
-    } catch (emailError) {
-      console.error("Error al enviar el correo de bienvenida:", emailError);
-      // No interrumpimos el flujo si falla el envío del correo
-    }
+    // try {
+    //   await sendEmail(email, htmlContent, Nombre);
+    // } catch (emailError) {
+    //   console.error("Error al enviar el correo de bienvenida:", emailError);
+    //   // No interrumpimos el flujo si falla el envío del correo
+    // }
 
     // Responder con el ID del documento creado o actualizado
     res.status(201).send({ message: "Usuario guardado con éxito", uid: uid });
@@ -432,12 +432,12 @@ const SaveTaller = async (req, res) => {
           </html>
     `;
 
-    try {
-      await sendEmail(email, htmlContent, Nombre);
-    } catch (emailError) {
-      console.error("Error al enviar el correo de bienvenida:", emailError);
-      // No interrumpimos el flujo si falla el envío del correo
-    }
+    // try {
+    //   await sendEmail(email, htmlContent, Nombre);
+    // } catch (emailError) {
+    //   console.error("Error al enviar el correo de bienvenida:", emailError);
+    //   // No interrumpimos el flujo si falla el envío del correo
+    // }
 
     // Responder con el ID del documento creado o actualizado
     res.status(201).send({ message: "Usuario guardado con éxito", uid: uid });
@@ -741,7 +741,7 @@ const restorePass = async (req, res) => {
       <p>Si tú no hiciste esta solicitud, puedes ignorar este correo.</p>
     `;
 
-    await sendEmail(email, htmlContent, nombre || 'Usuario');
+    // await sendEmail(email, htmlContent, nombre || 'Usuario');
     res.status(200).send({ message: "Correo enviado con éxito" });
 
   } catch (error) {
