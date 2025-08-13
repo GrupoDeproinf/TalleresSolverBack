@@ -7,11 +7,11 @@ const { getFirestore } = require("firebase-admin/firestore");
 const { app } = require("../../firebaseConfig"); // Asegúrate de la ruta correcta
 
 
-const sendEmail = async (email, html, name, subject) => {
+const sendEmail = async (email, html, subject) => {
   try {
     const axios = require("axios");
 
-    if (!email || !html || !name) {
+    if (!email || !html ) {
       throw new Error("Email, HTML y nombre son requeridos");
     }
 
@@ -23,7 +23,6 @@ const sendEmail = async (email, html, name, subject) => {
       to: [
         {
           email: email,
-          name: name,
         },
       ],
       htmlContent: html,
@@ -241,7 +240,7 @@ const SaveClient = async (req, res) => {
     `;
 
     try {
-      await sendEmail(email, htmlContent, Nombre, '¡Bienvenido a Solvers!');
+      await sendEmail(email, htmlContent, '¡Bienvenido a Solvers!');
     } catch (emailError) {
       console.error("Error al enviar el correo de bienvenida:", emailError);
       // No interrumpimos el flujo si falla el envío del correo
@@ -436,7 +435,7 @@ const SaveTaller = async (req, res) => {
     `;
 
     try {
-      await sendEmail(email, htmlContent, Nombre, '¡Bienvenido a Solvers!');
+      await sendEmail(email, htmlContent,'¡Bienvenido a Solvers!');
     } catch (emailError) {
       console.error("Error al enviar el correo de bienvenida:", emailError);
       // No interrumpimos el flujo si falla el envío del correo
@@ -731,122 +730,59 @@ const SaveTallerAll = (req, res) => {
 };
 
 const restorePass = async (req, res) => {
-  const { email, nombre } = req.body;
+  const { email } = req.body;
 
   if (!email) {
     return res.status(400).json({ message: "El campo email es obligatorio" });
   }
 
   try {
-    
-
-    // Genera link directo de Firebase
+    // Genera link de restablecimiento de contraseña
     const link = await admin.auth().generatePasswordResetLink(email);
 
-    // HTML con enlace clickeable y versión en texto plano
+    if (!link || typeof link !== 'string') {
+      throw new Error("No se pudo generar el link de restablecimiento");
+    }
+
+    // HTML con enlace seguro
     const htmlContent = `
-  <div style="
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-    max-width: 600px; 
-    margin: 0 auto; 
-    background-color: #ffffff;
-    border-radius: 8px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-    overflow: hidden;
-  ">
-    <!-- Header -->
-    <div style="
-      background-color: #1e3a8a;
-      padding: 40px 30px;
-      text-align: center;
-    ">
-      <h1 style="
-        color: #ffffff;
-        margin: 0;
-        font-size: 28px;
-        font-weight: 600;
-        letter-spacing: -0.5px;
-      ">Restablecer Contraseña</h1>
-    </div>
-
-    <!-- Content -->
-    <div style="padding: 40px 30px;">
-      <h2 style="
-        color: #1e40af;
-        margin: 0 0 20px 0;
-        font-size: 24px;
-        font-weight: 500;
-      ">Hola ${nombre || 'usuario'},</h2>
-      
-      <p style="
-        color: #000000;
-        line-height: 1.6;
-        margin: 0 0 20px 0;
-        font-size: 16px;
-      ">Hemos recibido una solicitud para restablecer la contraseña de tu cuenta.</p>
-      
-      <p style="
-        color: #000000;
-       
-        line-height: 1.6;
-        margin: 0 0 30px 0;
-        font-size: 16px;
-      ">Usa el siguiente enlace para cambiar tu contraseña:</p>
-      
-      <!-- Link -->
-      <div style="
-        background-color: #dbeafe;
-        border: 2px solid #3b82f6;
-        border-radius: 6px;
-        padding: 20px;
-        margin: 30px 0;
-        text-align: center;
-      ">
-        <p style="
-          color: #1d4ed8;
-          text-decoration: underline;
-          font-weight: 600;
-          font-size: 16px;
-          word-break: break-all;
-          line-height: 1.4;
-        ">${link}</p>
+      <div style="font-family: 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow: hidden;">
+        <div style="background-color: #1e3a8a; padding: 40px 30px; text-align: center;">
+          <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 600;">Restablecer Contraseña</h1>
+        </div>
+        <div style="padding: 40px 30px;">
+          <h2 style="color: #1e40af; margin: 0 0 20px 0; font-size: 24px; font-weight: 500;">Hola,</h2>
+          <p style="color: #000000; line-height: 1.6; margin: 0 0 20px 0; font-size: 16px;">
+            Hemos recibido una solicitud para restablecer la contraseña de tu cuenta.
+          </p>
+          <p style="color: #000000; line-height: 1.6; margin: 0 0 30px 0; font-size: 16px;">
+            Usa el siguiente enlace para cambiar tu contraseña:
+          </p>
+          <div style="background-color: #dbeafe; border: 2px solid #3b82f6; border-radius: 6px; padding: 20px; margin: 30px 0; text-align: center;">
+            <p style="color: #1d4ed8; text-decoration: underline; font-weight: 600; font-size: 16px; word-break: break-all; line-height: 1.4;">
+              ${String(link)}
+            </p>
+          </div>
+          <p style="color: #3730a3; font-size: 14px; line-height: 1.5; margin: 30px 0 0 0; text-align: center;">
+            Si no solicitaste este cambio, puedes ignorar este mensaje de forma segura.
+          </p>
+        </div>
+        <div style="background-color: #eff6ff; padding: 20px 30px; text-align: center; border-top: 1px solid #bfdbfe;">
+          <p style="color: #3730a3; font-size: 12px; margin: 0; line-height: 1.4;">
+            Este enlace expirará en 24 horas por motivos de seguridad.
+          </p>
+        </div>
       </div>
-      
-      <p style="
-        color: #3730a3;
-        font-size: 14px;
-        line-height: 1.5;
-        margin: 30px 0 0 0;
-        text-align: center;
-      ">Si no solicitaste este cambio, puedes ignorar este mensaje de forma segura.</p>
-    </div>
+    `;
 
-    <!-- Footer -->
-    <div style="
-      background-color: #eff6ff;
-      padding: 20px 30px;
-      text-align: center;
-      border-top: 1px solid #bfdbfe;
-    ">
-      <p style="
-        color: #3730a3;
-        font-size: 12px;
-        margin: 0;
-        line-height: 1.4;
-      ">Este enlace expirará en 24 horas por motivos de seguridad.</p>
-    </div>
-  </div>
-`;
+    // Enviar email
+    await sendEmail(email, htmlContent, 'Restablecer contraseña');
 
-    // Enviar email SIN tracking para que el link no se rompa
-    await sendEmail(email, htmlContent, nombre || 'Usuario', 'Restablecer contraseña');
-
-    // Mensaje genérico (seguridad)
-    res.status(200).send({ message: "Si el correo existe, se enviará un enlace para restablecer la contraseña" });
+    res.status(200).json({ message: "Si el correo existe, se enviará un enlace para restablecer la contraseña" });
 
   } catch (error) {
     console.error("❌ Error generando link:", error);
-    res.status(500).send({ message: "Hubo un error al procesar la solicitud" });
+    res.status(500).json({ message: "Hubo un error al procesar la solicitud" });
   }
 };
 
