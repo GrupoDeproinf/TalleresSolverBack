@@ -244,50 +244,63 @@ const getSubscriptionsById = async (req, res) => {
 
 const getProductsByCategory = async (req, res) => {
   try {
-    // Log del cuerpo recibido (temporal para depuración)
     console.log("Cuerpo recibido:", req.body);
-
-    // Obtener la categoría enviada en el request
     const { uid_categoria } = req.body;
 
-    // Validar que uid_categoria esté definido y sea un string no vacío
-    if (
-      !uid_categoria ||
-      typeof uid_categoria !== "string" ||
-      uid_categoria.trim() === ""
-    ) {
+    if (!uid_categoria || typeof uid_categoria !== "string" || uid_categoria.trim() === "") {
       return res.status(400).json({
         error: "uid_categoria es requerido y debe ser un string no vacío.",
       });
     }
 
-    // Consulta a Firestore
+    // 1️⃣ Consulta de productos por categoría
     const querySnapshot = await db
       .collection("Servicios")
       .where("uid_categoria", "==", uid_categoria.trim())
       .where("estatus", "==", true)
       .get();
 
-    // Verificar si hay productos en la categoría
     if (querySnapshot.empty) {
-      return res
-        .status(201)
-        .json({ error: "No se encontraron productos para esta categoría." });
+      return res.status(201).json({
+        error: "No se encontraron productos para esta categoría.",
+      });
     }
 
-    // Procesar los documentos del QuerySnapshot
-    const products = querySnapshot.docs.map((doc) => ({
+    // 2️⃣ Obtener productos y recopilar IDs de taller
+    const products = querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
     }));
 
-    // Respuesta con los productos obtenidos
-    return res.status(200).json(products);
+    const tallerIds = [...new Set(products.map(p => p.uid_taller))]; // evita duplicados
+
+    // 3️⃣ Traer solo talleres aprobados que estén en esos IDs
+    const talleresSnapshot = await db
+      .collection("Usuarios")
+      .where("status", "==", "Aprobado")
+      .where("typeUser", "==", "Taller")
+      .where("uid", "in", tallerIds)
+      .get();
+
+    const talleresMap = {};
+    talleresSnapshot.forEach(doc => {
+      talleresMap[doc.data().uid] = { id: doc.id, ...doc.data() };
+    });
+
+    // 4️⃣ Combinar producto con taller
+    const productsWithTaller = products.map(product => ({
+      ...product,
+      taller: talleresMap[product.uid_taller] || null,
+    }));
+
+    return res.status(200).json(productsWithTaller);
+
   } catch (error) {
     console.error("Error al obtener productos:", error);
     return res.status(500).json({ error: "Error al obtener productos" });
   }
 };
+
 
 const getCommentsByService = async (req, res) => {
   try {
