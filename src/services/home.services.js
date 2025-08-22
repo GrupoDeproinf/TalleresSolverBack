@@ -39,6 +39,7 @@ const getServicios = async (req, res) => {
         const tallerSnapshot = await db
           .collection("Usuarios")
           .doc(uidTaller)
+          .where("status", "==", "Aprobado")
           .get();
 
         // Solo agregar el servicio si el taller existe
