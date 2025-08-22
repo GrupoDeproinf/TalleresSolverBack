@@ -39,18 +39,24 @@ const getServicios = async (req, res) => {
         const tallerSnapshot = await db
           .collection("Usuarios")
           .doc(uidTaller)
-          .where("status", "==", "Aprobado")
           .get();
 
-        // Solo agregar el servicio si el taller existe
+        // Solo agregar el servicio si el taller existe y está aprobado
         if (tallerSnapshot.exists) {
           const tallerData = tallerSnapshot.data();
           
-          // Agregar el servicio junto con el taller a la lista
-          serviciosConTalleres.push({
-            ...servicioData,
-            taller: tallerData,
-          });
+          // Verificar que el taller esté aprobado
+          if (tallerData.status === "Aprobado") {
+            // Agregar el servicio junto con el taller a la lista
+            serviciosConTalleres.push({
+              ...servicioData,
+              taller: tallerData,
+            });
+          } else {
+            console.warn(
+              `Taller ${uidTaller} no está aprobado para el servicio ${servicioDoc.id}. Servicio excluido.`
+            );
+          }
         } else {
           console.warn(
             `Taller no encontrado para el servicio ${servicioDoc.id}. Servicio excluido.`
