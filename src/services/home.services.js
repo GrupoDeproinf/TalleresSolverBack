@@ -41,14 +41,20 @@ const getServicios = async (req, res) => {
           .doc(uidTaller)
           .get();
 
-        // Si el taller existe, agregar su información al servicio
-        const tallerData = tallerSnapshot.exists ? tallerSnapshot.data() : null;
-
-        // Agregar el servicio junto con el taller a la lista
-        serviciosConTalleres.push({
-          ...servicioData,
-          taller: tallerData,
-        });
+        // Solo agregar el servicio si el taller existe
+        if (tallerSnapshot.exists) {
+          const tallerData = tallerSnapshot.data();
+          
+          // Agregar el servicio junto con el taller a la lista
+          serviciosConTalleres.push({
+            ...servicioData,
+            taller: tallerData,
+          });
+        } else {
+          console.warn(
+            `Taller no encontrado para el servicio ${servicioDoc.id}. Servicio excluido.`
+          );
+        }
       } else {
         console.warn(
           `UID de taller no válido para el servicio ${servicioDoc.id}`
