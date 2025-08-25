@@ -183,22 +183,70 @@ const getServicesCategories = async (req, res) => {
     const serviciosSnapshot = await db
       .collection("Servicios")
       .where("uid_categoria", "==", uid_categoria)
-      .where("uid_servicio", "!=", id) // Filtrar por categoría
+      .where("uid_servicio", "!=", id == undefined ? '' : id)
+      .where("estatus", "==", true) // Solo servicios habilitados
       .get();
 
-    // Transformar el snapshot en un array de objetos con los datos de los documentos
-    const servicios = serviciosSnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    // Crear un array para almacenar los servicios válidos con talleres aprobados
+    const serviciosValidos = [];
 
-    // Si no hay servicios, devolver un arreglo vacío
-    if (servicios.length === 0) {
+    // Iterar sobre los servicios y validar los talleres asociados
+    for (const servicioDoc of serviciosSnapshot.docs) {
+      const servicioData = servicioDoc.data();
+
+      // Agregar el uid del servicio al objeto de datos
+      servicioData.uid_servicio = servicioDoc.id;
+
+      // Obtener el UID del taller del servicio
+      const uidTaller = servicioData.uid_taller;
+
+      // Validar que uid_taller exista y sea una cadena válida
+      if (
+        uidTaller &&
+        typeof uidTaller === "string" &&
+        uidTaller.trim() !== ""
+      ) {
+        // Obtener el taller asociado al servicio usando el uid_taller
+        const tallerSnapshot = await db
+          .collection("Usuarios")
+          .doc(uidTaller)
+          .get();
+
+        // Solo agregar el servicio si el taller existe y está aprobado
+        if (tallerSnapshot.exists) {
+          const tallerData = tallerSnapshot.data();
+          
+          // Verificar que el taller esté aprobado
+          if (tallerData.status === "Aprobado") {
+            // Agregar el servicio a la lista de servicios válidos
+            serviciosValidos.push({
+              id: servicioDoc.id,
+              ...servicioData,
+            });
+          } else {
+            console.warn(
+              `Taller ${uidTaller} no está aprobado para el servicio ${servicioDoc.id}. Servicio excluido.`
+            );
+          }
+        } else {
+          console.warn(
+            `Taller no encontrado para el servicio ${servicioDoc.id}. Servicio excluido.`
+          );
+        }
+      } else {
+        console.warn(
+          `UID de taller no válido para el servicio ${servicioDoc.id}`
+        );
+      }
+    }
+
+    // Si no hay servicios válidos, devolver un arreglo vacío
+    if (serviciosValidos.length === 0) {
       return res.status(200).json([]);
     }
 
-    // Obtener 3 servicios aleatorios
-    const serviciosAleatorios = servicios
+    // Obtener 3 servicios aleatorios de los servicios válidos
+    const serviciosAleatorios = serviciosValidos
       .sort(() => Math.random() - 0.5) // Ordenar aleatoriamente
       .slice(0, 3); // Tomar los primeros 3 elementos
 
