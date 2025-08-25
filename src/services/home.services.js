@@ -348,11 +348,22 @@ const getProductsByCategory = async (req, res) => {
       talleresMap[doc.data().uid] = { id: doc.id, ...doc.data() };
     });
 
-    // 4️⃣ Combinar producto con taller
-    const productsWithTaller = products.map(product => ({
-      ...product,
-      taller: talleresMap[product.uid_taller] || null,
-    }));
+    // 4️⃣ Combinar producto con taller y filtrar solo productos con talleres aprobados
+    const productsWithTaller = products
+      .map(product => ({
+        ...product,
+        taller: talleresMap[product.uid_taller] || null,
+      }))
+      .filter(product => {
+        // Solo incluir productos que tengan un taller aprobado asociado
+        if (product.taller === null) {
+          console.warn(
+            `Producto ${product.id} excluido: taller ${product.uid_taller} no encontrado o no aprobado.`
+          );
+          return false;
+        }
+        return true;
+      });
 
     return res.status(200).json(productsWithTaller);
 
