@@ -309,9 +309,10 @@ const getProductsByCategory = async (req, res) => {
     const { uid_categoria } = req.body;
 
     if (!uid_categoria || typeof uid_categoria !== "string" || uid_categoria.trim() === "") {
-      return res.status(400).json({
-        error: "uid_categoria es requerido y debe ser un string no vacío.",
-      });
+      // return res.status(400).json({
+      //   error: "uid_categoria es requerido y debe ser un string no vacío.",
+      // });
+      return res.status(200).json([]);
     }
 
     // 1️⃣ Consulta de productos por categoría
@@ -322,9 +323,10 @@ const getProductsByCategory = async (req, res) => {
       .get();
 
     if (querySnapshot.empty) {
-      return res.status(201).json({
-        error: "No se encontraron productos para esta categoría.",
-      });
+      return res.status(200).json([]);
+      // return res.status(201).json({
+      //   error: "No se encontraron productos para esta categoría.",
+      // });
     }
 
     // 2️⃣ Obtener productos y recopilar IDs de taller
@@ -368,8 +370,9 @@ const getProductsByCategory = async (req, res) => {
     return res.status(200).json(productsWithTaller);
 
   } catch (error) {
-    console.error("Error al obtener productos:", error);
-    return res.status(500).json({ error: "Error al obtener productos" });
+    return res.status(200).json([]);
+    // console.error("Error al obtener productos:", error);
+    // return res.status(500).json({ error: "Error al obtener productos" });
   }
 };
 
