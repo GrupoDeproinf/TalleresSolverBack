@@ -614,7 +614,7 @@ const SaveTallerExtended = async (req, res) => {
                   <table cellpadding="0" cellspacing="0" border="0" style="width: 100%;">
                     <tr>
                      <td>
-  <h2 style="margin: 0 0 20px; color: #2B3445; font-size: 18px; font-weight: 600;">Hola ${Nombre},</h2>
+  <h2 style="margin: 0 0 20px; color: #2B3445; font-size: 18px; font-weight: 600;">Hola ${nombre},</h2>
   
   <p style="margin: 0 0 20px; color: #2B3445; font-size: 15px; line-height: 1.6;">
     Tu taller ha sido registrado exitosamente en nuestra plataforma con información extendida.
