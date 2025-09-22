@@ -11,7 +11,7 @@ const sendEmail = async (email, html, subject) => {
   try {
     const axios = require("axios");
 
-    if (!email || !html ) {
+    if (!email || !html) {
       throw new Error("Email, HTML y nombre son requeridos");
     }
 
@@ -352,7 +352,7 @@ const SaveTaller = async (req, res) => {
       .doc(uid)
       .set(infoUserCreated, { merge: true });
 
-       const htmlContent = `
+    const htmlContent = `
       <!DOCTYPE html>
           <html>
           <head>
@@ -435,7 +435,232 @@ const SaveTaller = async (req, res) => {
     `;
 
     try {
-      await sendEmail(email, htmlContent,'¡Bienvenido a Solvers!');
+      await sendEmail(email, htmlContent, '¡Bienvenido a Solvers!');
+    } catch (emailError) {
+      console.error("Error al enviar el correo de bienvenida:", emailError);
+      // No interrumpimos el flujo si falla el envío del correo
+    }
+
+    // Responder con el ID del documento creado o actualizado
+    res.status(201).send({ message: "Usuario guardado con éxito", uid: uid });
+  } catch (error) {
+    console.error("Error al guardar el usuario:", error);
+
+    // Manejar errores específicos de Firebase
+    if (error.code === "auth/email-already-exists") {
+      return res
+        .status(400)
+        .send({ message: "Este email ya está registrado." });
+    } else if (error.code === "auth/phone-number-already-exists") {
+      return res
+        .status(400)
+        .send({ message: "Este número de teléfono ya está registrado." });
+    } else if (error.code === "auth/invalid-phone-number") {
+      return res
+        .status(400)
+        .send({ message: "El número de teléfono no es válido." });
+    } else if (error.code === "auth/invalid-password") {
+      return res.status(400).send({ message: "La contraseña es inválida." });
+    }
+
+    // En caso de un error inesperado
+    res.status(500).send("Error al guardar el usuario");
+  }
+};
+
+const SaveTallerExtended = async (req, res) => {
+  try {
+    // Recibir los datos del taller desde el cuerpo de la solicitud
+    const {
+      Nombre,
+      cedula,
+      selectedPrefix,
+      phone,
+      email,
+      password,
+      Direccion,
+      RegComercial,
+      Caracteristicas,
+      Experiencia,
+      LinkFacebook,
+      LinkInstagram,
+      LinkTiktok,
+      seguro,
+      checked,
+      whats,
+      metodos_pago,
+      estadoSelected,
+      base64,
+      lat,
+      lng,
+      token
+    } = req.body;
+
+    let userRecord;
+    try {
+      // Intentar obtener el usuario por email
+      userRecord = await admin.auth().getUserByEmail(email);
+
+      // Si existe, actualizar la clave y otros detalles
+      userRecord = await admin.auth().updateUser(userRecord.uid, {
+        email: email,
+        password: password,
+        phoneNumber: `+58${phone}`,
+        displayName: Nombre,
+        disabled: false,
+      });
+    } catch (error) {
+      if (error.code === "auth/user-not-found") {
+        // Si no existe, crearlo
+        userRecord = await admin.auth().createUser({
+          email: email,
+          password: password,
+          phoneNumber: `+58${phone}`,
+          displayName: Nombre,
+          disabled: false,
+        });
+      } else {
+        // Si otro error ocurre, lanzarlo
+        throw error;
+      }
+    }
+
+    // Obtener el UID del usuario
+    const uid = userRecord.uid;
+
+    // Subir la imagen de perfil al Storage
+    let imageUrl = "";
+    if (base64 && base64 !== "") {
+      const buffer = Buffer.from(base64, "base64");
+      const file = bucket.file(`profileImages/${uid}.jpg`);
+
+      await file.save(buffer, {
+        metadata: { contentType: "image/jpeg" },
+        public: true,
+        validation: "md5",
+      });
+
+      imageUrl = `https://storage.googleapis.com/${bucket.name}/profileImages/${uid}.jpg`;
+    }
+
+    // Crear o actualizar el documento en la colección "Usuarios" con campos extendidos
+    const infoUserCreated = {
+      nombre: Nombre == undefined ? '' : Nombre,
+      rif: cedula == undefined ? '' : selectedPrefix + '' + cedula,
+      phone: phone == undefined ? '' : phone?.replace(/\s+/g, ""),
+      typeUser: 'Taller',
+      email: email == undefined ? '' : email.toLowerCase(),
+      password: password,
+      status: 'En espera por aprobación',
+      Direccion: Direccion == undefined ? '' : Direccion,
+      RegComercial: RegComercial == undefined ? '' : RegComercial,
+      Caracteristicas: Caracteristicas == undefined ? '' : Caracteristicas,
+      Experiencia: Experiencia == undefined ? '' : Experiencia,
+      LinkFacebook: LinkFacebook == undefined ? '' : LinkFacebook,
+      LinkInstagram: LinkInstagram == undefined ? '' : LinkInstagram,
+      LinkTiktok: LinkTiktok == undefined ? '' : LinkTiktok,
+      seguro: seguro == undefined ? '' : seguro,
+      agenteAutorizado: checked == undefined ? false : checked,
+      whatsapp: whats?.replace(/\s+/g, ""),
+      metodos_pago: metodos_pago,
+      estado: estadoSelected,
+      image_perfil: imageUrl, // Guardar la URL de la imagen de perfil
+      ubicacion: {
+        lat: lat,
+        lng: lng
+      },
+      token: token
+    };
+
+    await db
+      .collection("Usuarios")
+      .doc(uid)
+      .set(infoUserCreated, { merge: true });
+
+    const htmlContent = `
+      <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Bienvenido a Solvers</title>
+          </head>
+          <body style="font-family: 'Plus Jakarta Sans', 'Segoe UI', Arial, sans-serif; line-height: 1.6; margin: 0; padding: 0; background-color: #eef5f9;">
+            <table cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; width: 100%; margin: 20px auto; border-radius: 12px; overflow: hidden; background-color: #ffffff; box-shadow: 0px 7px 30px 0px rgba(90, 114, 123, 0.11);">
+              <!-- Header superior con borde azul -->
+              <tr>
+                <td style="height: 5px; background: linear-gradient(135deg, #5D87FF 0%, #4669d9 100%);"></td>
+              </tr>
+
+              <!-- Logo y título -->
+              <tr>
+                <td style="padding: 40px 30px; text-align: center; background-color: #ffffff;">
+                  <table cellpadding="0" cellspacing="0" border="0" style="width: 100%;">
+                    <tr>
+                      <td style="text-align: center;">
+                        <img src="https://firebasestorage.googleapis.com/v0/b/talleres-solvers-app.firebasestorage.app/o/data%2Flogo%2Fsolverslogo.png?alt=media&token=c2937894-0be6-431b-a0df-4b5288fecfd5" 
+                            alt="Solvers Logo" 
+                            style="height: 40px; margin-bottom: 20px;">
+                        <h1 style="margin: 0; font-size: 24px; color: #2B3445; font-weight: 600;">¡Bienvenido a <strong>Solvers</strong>! Nos alegra tenerte con nosotros.</h1>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              
+              <!-- Contenido principal -->
+              <tr>
+                <td style="padding: 0 30px 30px;">
+                  <table cellpadding="0" cellspacing="0" border="0" style="width: 100%;">
+                    <tr>
+                     <td>
+  <h2 style="margin: 0 0 20px; color: #2B3445; font-size: 18px; font-weight: 600;">Hola ${Nombre},</h2>
+  
+  <p style="margin: 0 0 20px; color: #2B3445; font-size: 15px; line-height: 1.6;">
+    Tu taller ha sido registrado exitosamente en nuestra plataforma con información extendida.
+  </p>
+  
+  <p style="margin: 0 0 20px; color: #2B3445; font-size: 15px; line-height: 1.6;">
+    A partir de ahora podrás recibir solicitudes de clientes que necesitan asistencia con sus vehículos, gestionar tus servicios, y hacer crecer tu negocio con el respaldo de Solvers.
+  </p>
+  
+  <p style="margin: 0 0 20px; color: #2B3445; font-size: 15px; line-height: 1.6;">
+    La cuenta del taller está asociada al correo:  
+    <span style="color: #5D87FF; font-weight: 600;">${email}</span>
+  </p>
+
+  <p style="margin: 0 0 20px; color: #2B3445; font-size: 15px; line-height: 1.6;">
+    Tu solicitud está en proceso de revisión. Te notificaremos una vez que sea aprobada.
+  </p>
+</td>
+
+
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              
+              <!-- Footer -->
+              <tr>
+                <td style="background-color: #f5f6f8; padding: 30px; text-align: center; border-top: 1px solid #e9ecef;">
+                  <p style="margin: 0 0 10px; color: #2B3445; font-size: 14px; font-weight: 600;">
+                    Solvers, C.A.
+                  </p>
+                  <p style="margin: 0 0 5px; color: #6C757D; font-size: 12px;">
+                    Este es un correo automático, por favor no respondas a este mensaje.
+                  </p>
+                  <p style="margin: 0; color: #6C757D; font-size: 12px;">
+                    © ${new Date().getFullYear()} Solvers, C.A. Todos los derechos reservados.
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </body>
+          </html>
+    `;
+
+    try {
+      await sendEmail(email, htmlContent, '¡Bienvenido a Solvers!');
     } catch (emailError) {
       console.error("Error al enviar el correo de bienvenida:", emailError);
       // No interrumpimos el flujo si falla el envío del correo
@@ -1981,6 +2206,7 @@ module.exports = {
   authenticateUser,
   getUserByUid,
   SaveTallerAll,
+  SaveTallerExtended,
   restorePass,
   getTalleres,
   actualizarStatusUsuario,

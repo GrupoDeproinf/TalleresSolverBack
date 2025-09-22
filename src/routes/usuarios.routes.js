@@ -8,6 +8,8 @@ router.get('/GetUsers', Usuarios.getUsuarios);
 router.post('/SaveClient', Usuarios.SaveClient);
 
 router.post('/SaveTaller', Usuarios.SaveTaller); 
+ 
+router.post('/SaveTallerExtended', Usuarios.SaveTallerExtended); 
 
 router.post('/authenticateUser', Usuarios.authenticateUser);  
 
