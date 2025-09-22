@@ -489,7 +489,7 @@ const SaveTallerExtended = async (req, res) => {
       checked,
       whatsapp,
       metodos_pago,
-      estadoSelected,
+      estado,
       base64,
       lat,
       lng,
@@ -563,11 +563,11 @@ const SaveTallerExtended = async (req, res) => {
       agenteAutorizado: checked == undefined ? false : checked,
       whatsapp: whatsapp == undefined ? '' : whatsapp,
       metodos_pago: metodos_pago == undefined ? [] : metodos_pago,
-      estado: estadoSelected,
+      estado: estado == undefined ? '' : estado,
       image_perfil: imageUrl, // Guardar la URL de la imagen de perfil
       ubicacion: {
-        lat: lat,
-        lng: lng
+        lat: lat == undefined ? '' : lat,
+        lng: lng == undefined ? '' : lng
       },
       token: token
     };
