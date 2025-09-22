@@ -545,6 +545,7 @@ const SaveTallerExtended = async (req, res) => {
 
     // Crear o actualizar el documento en la colección "Usuarios" con campos extendidos
     const infoUserCreated = {
+      uid: uid,
       nombre: nombre == undefined ? '' : nombre,
       rif: rif == undefined ? '' : rif + '' + cedula,
       phone: phone == undefined ? '' : phone?.replace(/\s+/g, ""),
