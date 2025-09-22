@@ -506,7 +506,7 @@ const SaveTallerExtended = async (req, res) => {
         email: email,
         password: password,
         phoneNumber: `+58${phone}`,
-        displayName: Nombre,
+        displayName: nombre,
         disabled: false,
       });
     } catch (error) {
@@ -516,7 +516,7 @@ const SaveTallerExtended = async (req, res) => {
           email: email,
           password: password,
           phoneNumber: `+58${phone}`,
-          displayName: Nombre,
+          displayName: nombre,
           disabled: false,
         });
       } else {
