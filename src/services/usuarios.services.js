@@ -547,7 +547,7 @@ const SaveTallerExtended = async (req, res) => {
     const infoUserCreated = {
       uid: uid,
       nombre: nombre == undefined ? '' : nombre,
-      rif: rif == undefined ? '' : rif + '' + cedula,
+      rif: rif == undefined ? '' : rif,
       phone: phone == undefined ? '' : phone?.replace(/\s+/g, ""),
       typeUser: 'Taller',
       email: email == undefined ? '' : email.toLowerCase(),
