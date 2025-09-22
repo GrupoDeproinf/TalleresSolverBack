@@ -472,9 +472,9 @@ const SaveTallerExtended = async (req, res) => {
   try {
     // Recibir los datos del taller desde el cuerpo de la solicitud
     const {
-      Nombre,
+      nombre,
       cedula,
-      selectedPrefix,
+      rif,
       phone,
       email,
       password,
@@ -545,8 +545,8 @@ const SaveTallerExtended = async (req, res) => {
 
     // Crear o actualizar el documento en la colección "Usuarios" con campos extendidos
     const infoUserCreated = {
-      nombre: Nombre == undefined ? '' : Nombre,
-      rif: cedula == undefined ? '' : selectedPrefix + '' + cedula,
+      nombre: nombre == undefined ? '' : nombre,
+      rif: rif == undefined ? '' : rif + '' + cedula,
       phone: phone == undefined ? '' : phone?.replace(/\s+/g, ""),
       typeUser: 'Taller',
       email: email == undefined ? '' : email.toLowerCase(),
