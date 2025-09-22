@@ -487,7 +487,7 @@ const SaveTallerExtended = async (req, res) => {
       LinkTiktok,
       seguro,
       checked,
-      whats,
+      whatsapp,
       metodos_pago,
       estadoSelected,
       base64,
@@ -561,8 +561,8 @@ const SaveTallerExtended = async (req, res) => {
       LinkTiktok: LinkTiktok == undefined ? '' : LinkTiktok,
       seguro: seguro == undefined ? '' : seguro,
       agenteAutorizado: checked == undefined ? false : checked,
-      whatsapp: whats?.replace(/\s+/g, ""),
-      metodos_pago: metodos_pago,
+      whatsapp: whatsapp == undefined ? '' : whatsapp,
+      metodos_pago: metodos_pago == undefined ? [] : metodos_pago,
       estado: estadoSelected,
       image_perfil: imageUrl, // Guardar la URL de la imagen de perfil
       ubicacion: {
