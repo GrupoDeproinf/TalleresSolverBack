@@ -33,6 +33,12 @@ cron.schedule('0 */10 * * *', () => {
   // Aquí va tu lógica del job
 });
 
+// Job que se ejecuta cada 10 horas
+cron.schedule('0 */5 * * *', () => {
+  console.log('Ejecutando job cada 5 horas');
+  Usuarios.getPlanesActivos3Days();
+});
+
 
 
 module.exports = app;

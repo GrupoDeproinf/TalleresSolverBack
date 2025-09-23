@@ -2067,6 +2067,79 @@ const ReportarPagoData = async (req, res) => {
 };
 
 
+const getPlanesActivos3Days = async () => {
+  try {
+    const result = await db.collection("Usuarios")
+      .where("subscripcion_actual.status", "==", "Aprobado")
+      .get();
+
+    if (result.empty) {
+      return console.log("No se encontraron usuarios");
+    }
+
+    const usuarios = result.docs.map((doc) => doc.data());
+
+    const fechaActual = new Date();
+    const fechaEn3Dias = new Date();
+    fechaEn3Dias.setDate(fechaActual.getDate() + 3);
+
+    // Filtrar usuarios cuya fecha_fin esté a 3 días de la fecha actual
+    const usuariosEn3Dias = usuarios.filter(usuario => {
+      const { subscripcion_actual } = usuario;
+      if (!subscripcion_actual || !subscripcion_actual.fecha_fin) {
+        return false;
+      }
+      
+      const fechaFin = subscripcion_actual.fecha_fin.toDate();
+      
+      // Verificar si la fecha_fin está entre hoy y 3 días
+      const fechaInicio = new Date(fechaActual);
+      fechaInicio.setHours(0, 0, 0, 0);
+      
+      const fechaFinComparacion = new Date(fechaEn3Dias);
+      fechaFinComparacion.setHours(23, 59, 59, 999);
+      
+      return fechaFin >= fechaInicio && fechaFin <= fechaFinComparacion;
+    });
+
+    if (usuariosEn3Dias.length === 0) {
+      return console.log("No se encontraron usuarios con subscripción que expire en 3 días");
+    }
+
+    // Mostrar los tokens de los usuarios que expiran en 3 días
+    console.log("Usuarios con subscripción que expira en 3 días:");
+    usuariosEn3Dias.forEach(async usuario => {
+      console.log(`Token: ${usuario.token}`);
+
+      //Send Notifications
+      const message = {
+        notification: {
+          title: 'Notificacion de plan por vencer',
+          body: 'Tu plan está por vencer en 3 días',
+        },
+        data: {
+          secretCode: 'plantoexpire',
+        },
+        token: usuario.token,
+      };
+    
+      try {
+        const response = await admin.messaging().send(message);
+        console.log("Successfully sent message:", response);
+      } catch (error) {
+        console.error("Error sending message:", error);
+      }
+    });
+
+
+
+  } catch (error) {
+    console.error("Error al actualizar usuarios y servicios:", error); // Muestra el error en la consola del servidor
+    console.log(`Error al actualizar usuarios y servicios: ${error.message}`); // Muestra el mensaje del error
+  }
+}
+
+
 const getPlanesActivos = async () => {
   try {
     const result = await db.collection("Usuarios")
@@ -2224,5 +2297,6 @@ module.exports = {
   getPlanesActivos,
   sendNotification,
   UpdateUsuariosAll,
-  deleteUserFromAuth
+  deleteUserFromAuth,
+  getPlanesActivos3Days
 };
