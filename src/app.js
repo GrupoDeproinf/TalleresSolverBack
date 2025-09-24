@@ -12,19 +12,30 @@ const distance = require('./routes/distance.routes');
 const app = express();
 
 // Configuración de CORS
-const corsOptions = {
-  origin: [
-    'https://app.solversapp.com',
-    'http://localhost:3000',
-    'http://localhost:3001',
-    'http://localhost:5173',
-  ],
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', "strict-origin-when-cross-origin" ],
-  credentials: true
-};
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Authorization, X-API-KEY, Origin, X-Requested-With, Content-Type, Accept, Access-Control-Allow-Request-Method"
+  );
+  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE");
+  res.header("Allow", "GET, POST, OPTIONS, PUT, DELETE");
+  next();
+});
 
-app.use(cors(corsOptions));
+app.use(
+  cors({
+    origin: [
+      "https://app.solversapp.com",
+      "http://localhost:19006/",
+      "http://localhost:3000/",
+      "http://localhost:3001/",
+      "http://localhost:21503/",
+      "http://localhost:5173/",
+    ],
+    methods: ["GET", "POST", "OPTIONS", "PUT", "DELETE"],
+  })
+);
 
 // Configuración de middleware
 app.use(express.json({ limit: '20mb' }));
