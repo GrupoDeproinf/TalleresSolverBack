@@ -153,7 +153,8 @@ const SaveClient = async (req, res) => {
       email: email,
       estado: estado,
       image_perfil: imageUrl, // Guardar la URL de la imagen de perfil
-      token: token
+      token: token,
+      createdAt: new Date(),
     };
 
     await db
@@ -570,7 +571,9 @@ const SaveTallerExtended = async (req, res) => {
         lat: lat == undefined ? '' : lat,
         lng: lng == undefined ? '' : lng
       },
-      token: token
+      token: token,
+      createdAt: new Date(),
+
     };
 
     await db
