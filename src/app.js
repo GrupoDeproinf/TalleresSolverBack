@@ -13,11 +13,11 @@ const app = express();
 
 // Configuración de CORS - Permisiva para desarrollo
 app.use(cors({
-  origin: true, // Permite cualquier origen
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  origin: '*',
+  methods: ['GET','POST','PUT','DELETE','OPTIONS','PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
 }));
+
 
 // Configuración de middleware
 app.use(express.json({ limit: '20mb' }));
