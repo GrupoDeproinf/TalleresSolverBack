@@ -1,7 +1,6 @@
 const express = require('express');
 const morgan = require('morgan');
 const cron = require('node-cron');
-const cors = require('cors');
 const Usuarios = require('../src/services/usuarios.services');
 
 // Rutas
@@ -10,14 +9,6 @@ const home = require('./routes/home.routes');
 const distance = require('./routes/distance.routes');
 
 const app = express();
-
-// Configuración de CORS - Permisiva para desarrollo
-app.use(cors({
-  origin: '*',
-  methods: ['GET','POST','PUT','DELETE','OPTIONS','PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
-}));
-
 
 // Configuración de middleware
 app.use(express.json({ limit: '20mb' }));
