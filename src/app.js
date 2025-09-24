@@ -11,31 +11,31 @@ const distance = require('./routes/distance.routes');
 
 const app = express();
 
-// Configuración de CORS
+// Configuración de CORS - SOLUCIÓN DEFINITIVA
 app.use((req, res, next) => {
+  // Permitir cualquier origen
   res.header("Access-Control-Allow-Origin", "*");
+  
+  // Headers permitidos
   res.header(
     "Access-Control-Allow-Headers",
-    "Authorization, X-API-KEY, Origin, X-Requested-With, Content-Type, Accept, Access-Control-Allow-Request-Method"
+    "Origin, X-Requested-With, Content-Type, Accept, Authorization, X-API-KEY"
   );
-  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE");
-  res.header("Allow", "GET, POST, OPTIONS, PUT, DELETE");
+  
+  // Métodos permitidos
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  
+  // Permitir credenciales
+  res.header("Access-Control-Allow-Credentials", "true");
+  
+  // Manejar peticiones OPTIONS (preflight)
+  if (req.method === "OPTIONS") {
+    res.status(200).end();
+    return;
+  }
+  
   next();
 });
-
-app.use(
-  cors({
-    origin: [
-      "https://app.solversapp.com",
-      "http://localhost:19006/",
-      "http://localhost:3000/",
-      "http://localhost:3001/",
-      "http://localhost:21503/",
-      "http://localhost:5173/",
-    ],
-    methods: ["GET", "POST", "OPTIONS", "PUT", "DELETE"],
-  })
-);
 
 // Configuración de middleware
 app.use(express.json({ limit: '20mb' }));
@@ -46,6 +46,14 @@ app.use(morgan('dev'));
 // Rutas
 app.get('/', async (req, res) => {
   res.send('API arriba');
+});
+
+// Middleware adicional para CORS en todas las rutas
+app.options('*', (req, res) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization, X-API-KEY");
+  res.status(200).end();
 });
 
 app.use('/api/usuarios', usuarios);
