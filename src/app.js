@@ -11,21 +11,12 @@ const distance = require('./routes/distance.routes');
 
 const app = express();
 
-// Configuración de CORS
+// Configuración de CORS - Permisiva para desarrollo
 app.use(cors({
-  origin: [
-    'https://app.solversapp.com',
-    'https://solversapp.com',
-    'http://localhost:3000',
-    'http://localhost:3001',
-    'http://127.0.0.1:3000',
-    'http://127.0.0.1:3001',
-    'http://localhost:5173'
-
-  ],
+  origin: true, // Permite cualquier origen
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
 }));
 
 // Configuración de middleware
