@@ -1,5 +1,6 @@
 const express = require('express');
 const morgan = require('morgan');
+const cors = require('cors');
 const cron = require('node-cron');
 const Usuarios = require('../src/services/usuarios.services');
 
@@ -9,6 +10,21 @@ const home = require('./routes/home.routes');
 const distance = require('./routes/distance.routes');
 
 const app = express();
+
+// Configuración de CORS
+const corsOptions = {
+  origin: [
+    'https://app.solversapp.com',
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:5173',
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', "strict-origin-when-cross-origin" ],
+  credentials: true
+};
+
+app.use(cors(corsOptions));
 
 // Configuración de middleware
 app.use(express.json({ limit: '20mb' }));
