@@ -492,6 +492,11 @@ const SaveTallerExtended = async (req, res) => {
       metodos_pago,
       estado,
       base64,
+      rifIdFiscal,
+      permisoOperacion,
+      logotipoNegocio,
+      fotoFrenteTaller,
+      fotoInternaTaller,
       lat,
       lng,
       token
@@ -529,8 +534,15 @@ const SaveTallerExtended = async (req, res) => {
     // Obtener el UID del usuario
     const uid = userRecord.uid;
 
-    // Subir la imagen de perfil al Storage
+    // Subir las imágenes al Storage
     let imageUrl = "";
+    let rifIdFiscalUrl = "";
+    let permisoOperacionUrl = "";
+    let logotipoNegocioUrl = "";
+    let fotoFrenteTallerUrl = "";
+    let fotoInternaTallerUrl = "";
+
+    // Subir imagen de perfil
     if (base64 && base64 !== "") {
       const buffer = Buffer.from(base64, "base64");
       const file = bucket.file(`profileImages/${uid}.jpg`);
@@ -542,6 +554,76 @@ const SaveTallerExtended = async (req, res) => {
       });
 
       imageUrl = `https://storage.googleapis.com/${bucket.name}/profileImages/${uid}.jpg`;
+    }
+
+    // Subir RIF ID Fiscal
+    if (rifIdFiscal && rifIdFiscal !== "") {
+      const buffer = Buffer.from(rifIdFiscal, "base64");
+      const file = bucket.file(`documents/${uid}/rifIdFiscal.jpg`);
+
+      await file.save(buffer, {
+        metadata: { contentType: "image/jpeg" },
+        public: true,
+        validation: "md5",
+      });
+
+      rifIdFiscalUrl = `https://storage.googleapis.com/${bucket.name}/documents/${uid}/rifIdFiscal.jpg`;
+    }
+
+    // Subir Permiso de Operación
+    if (permisoOperacion && permisoOperacion !== "") {
+      const buffer = Buffer.from(permisoOperacion, "base64");
+      const file = bucket.file(`documents/${uid}/permisoOperacion.jpg`);
+
+      await file.save(buffer, {
+        metadata: { contentType: "image/jpeg" },
+        public: true,
+        validation: "md5",
+      });
+
+      permisoOperacionUrl = `https://storage.googleapis.com/${bucket.name}/documents/${uid}/permisoOperacion.jpg`;
+    }
+
+    // Subir Logotipo del Negocio
+    if (logotipoNegocio && logotipoNegocio !== "") {
+      const buffer = Buffer.from(logotipoNegocio, "base64");
+      const file = bucket.file(`businessImages/${uid}/logotipoNegocio.jpg`);
+
+      await file.save(buffer, {
+        metadata: { contentType: "image/jpeg" },
+        public: true,
+        validation: "md5",
+      });
+
+      logotipoNegocioUrl = `https://storage.googleapis.com/${bucket.name}/businessImages/${uid}/logotipoNegocio.jpg`;
+    }
+
+    // Subir Foto Frente del Taller
+    if (fotoFrenteTaller && fotoFrenteTaller !== "") {
+      const buffer = Buffer.from(fotoFrenteTaller, "base64");
+      const file = bucket.file(`businessImages/${uid}/fotoFrenteTaller.jpg`);
+
+      await file.save(buffer, {
+        metadata: { contentType: "image/jpeg" },
+        public: true,
+        validation: "md5",
+      });
+
+      fotoFrenteTallerUrl = `https://storage.googleapis.com/${bucket.name}/businessImages/${uid}/fotoFrenteTaller.jpg`;
+    }
+
+    // Subir Foto Interna del Taller
+    if (fotoInternaTaller && fotoInternaTaller !== "") {
+      const buffer = Buffer.from(fotoInternaTaller, "base64");
+      const file = bucket.file(`businessImages/${uid}/fotoInternaTaller.jpg`);
+
+      await file.save(buffer, {
+        metadata: { contentType: "image/jpeg" },
+        public: true,
+        validation: "md5",
+      });
+
+      fotoInternaTallerUrl = `https://storage.googleapis.com/${bucket.name}/businessImages/${uid}/fotoInternaTaller.jpg`;
     }
 
     // Crear o actualizar el documento en la colección "Usuarios" con campos extendidos
@@ -567,6 +649,11 @@ const SaveTallerExtended = async (req, res) => {
       metodos_pago: metodos_pago == undefined ? [] : metodos_pago,
       estado: estado == undefined ? '' : estado,
       image_perfil: imageUrl, // Guardar la URL de la imagen de perfil
+      rifIdFiscal: rifIdFiscalUrl, // URL del RIF ID Fiscal
+      permisoOperacion: permisoOperacionUrl, // URL del Permiso de Operación
+      logotipoNegocio: logotipoNegocioUrl, // URL del Logotipo del Negocio
+      fotoFrenteTaller: fotoFrenteTallerUrl, // URL de la Foto Frente del Taller
+      fotoInternaTaller: fotoInternaTallerUrl, // URL de la Foto Interna del Taller
       ubicacion: {
         lat: lat == undefined ? '' : lat,
         lng: lng == undefined ? '' : lng
@@ -2058,6 +2145,61 @@ const ReportarPagoData = async (req, res) => {
     });
 
     await batch.commit();
+
+    return res.status(201).send({
+      message: "Suscripción guardada con éxito.",
+    });
+
+  } catch (error) {
+    console.error("Error al guardar la suscripción:", error);
+    res.status(500).send("Error al guardar la suscripción");
+  }
+};
+
+const AsociarPlan = async (req, res) => {
+  const {
+    uid,
+    plan_uid
+  } = req.body;
+
+  try {
+    const userId = uid;
+    const timestamp = new Date().toISOString(); // Generar la fecha y hora actuales
+
+    
+
+    const subscripcionData = {
+      cantidad_servicios: cant_services == undefined ? "" : cant_services,
+      comprobante_pago: {
+        bancoDestino: SelectedBancoDestino == undefined ? "" : SelectedBancoDestino,
+        bancoOrigen: SelectedBanco == undefined ? "" : SelectedBanco,
+        cedula: identificacion == undefined ? "" : identificacion,
+        correo: emailZelle == undefined ? "" : emailZelle,
+        fechaPago: date == undefined ? "" : date,
+        metodo: paymentMethod == undefined ? "" : paymentMethod,
+        monto: montoPago == undefined ? "" : montoPago,
+        numReferencia: cod_ref == undefined ? "" : cod_ref,
+        telefono: telefono == undefined ? "" : telefono,
+        comprobante: imageUrl,
+      },
+      monto: amount == undefined ? "" : amount,
+      nombre: nombre == undefined ? "" : nombre,
+      status: "Aprobado",
+      taller_uid: userId == undefined ? "" : userId,
+      vigencia: vigencia == undefined ? "" : vigencia,
+      nombre_taller: nombre_taller == undefined ? "" : nombre_taller,
+    };
+
+    // Guardar en la colección Subscripciones
+    const subscripcionRef = await db.collection('Subscripciones').add(subscripcionData);
+    const subscripcionId = subscripcionRef.id;
+
+    // Guardar en el campo subscripcion_actual del documento en la colección Usuarios
+    await db
+      .collection('Usuarios')
+      .doc(userId)
+      .update({ subscripcion_actual: subscripcionData });
+
 
     return res.status(201).send({
       message: "Suscripción guardada con éxito.",
