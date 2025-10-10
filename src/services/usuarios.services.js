@@ -2197,6 +2197,9 @@ const AsociarPlan = async (req, res) => {
       };
 
       // Guardar en la colección Subscripciones
+      console.log(subscripcionData);
+
+
       const subscripcionRef = await db.collection('Subscripciones').add(subscripcionData);
       const subscripcionId = subscripcionRef.id;
       console.log(subscripcionId);
