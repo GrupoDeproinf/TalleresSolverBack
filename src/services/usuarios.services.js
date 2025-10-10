@@ -2166,6 +2166,9 @@ const AsociarPlan = async (req, res) => {
     const userId = uid;
     const timestamp = new Date().toISOString(); // Generar la fecha y hora actuales
 
+    console.log("plan_uid", plan_uid);
+    console.log("userId", userId);
+
 
     if (plan_uid == 'gratis') {
       const planRef = await db.collection("Planes").doc('IPbc9VN1kmvIwrZHzNpd').get();
