@@ -2166,49 +2166,62 @@ const AsociarPlan = async (req, res) => {
     const userId = uid;
     const timestamp = new Date().toISOString(); // Generar la fecha y hora actuales
 
-    
 
-    const subscripcionData = {
-      cantidad_servicios: cant_services == undefined ? "" : cant_services,
-      comprobante_pago: {
-        bancoDestino: SelectedBancoDestino == undefined ? "" : SelectedBancoDestino,
-        bancoOrigen: SelectedBanco == undefined ? "" : SelectedBanco,
-        cedula: identificacion == undefined ? "" : identificacion,
-        correo: emailZelle == undefined ? "" : emailZelle,
-        fechaPago: date == undefined ? "" : date,
-        metodo: paymentMethod == undefined ? "" : paymentMethod,
-        monto: montoPago == undefined ? "" : montoPago,
-        numReferencia: cod_ref == undefined ? "" : cod_ref,
-        telefono: telefono == undefined ? "" : telefono,
-        comprobante: imageUrl,
-      },
-      monto: amount == undefined ? "" : amount,
-      nombre: nombre == undefined ? "" : nombre,
-      status: "Aprobado",
-      taller_uid: userId == undefined ? "" : userId,
-      vigencia: vigencia == undefined ? "" : vigencia,
-      nombre_taller: nombre_taller == undefined ? "" : nombre_taller,
-    };
-
-    // Guardar en la colección Subscripciones
-    const subscripcionRef = await db.collection('Subscripciones').add(subscripcionData);
-    const subscripcionId = subscripcionRef.id;
-
-    // Guardar en el campo subscripcion_actual del documento en la colección Usuarios
-    await db
-      .collection('Usuarios')
-      .doc(userId)
-      .update({ subscripcion_actual: subscripcionData });
+    if (plan_uid == 'gratis') {
+      const planRef = await db.collection("Planes").doc('IPbc9VN1kmvIwrZHzNpd').get();
+      const planData = planRef.data();
+      const userRef = await db.collection("Usuarios").doc(userId).get();
+      const userData = userRef.data();
 
 
-    return res.status(201).send({
-      message: "Suscripción guardada con éxito.",
-    });
+      const subscripcionData = {
+        cantidad_servicios: planData.cantidad_servicios == undefined ? "" : planData.cantidad_servicios,
+        comprobante_pago: {
+          bancoDestino: "",
+          bancoOrigen: "",
+          cedula: "",
+          correo: "",
+          fechaPago: "",
+          metodo: "",
+          monto: "",
+          numReferencia: "",
+          telefono: "",
+          comprobante: "",
+        },
+        monto: planData.monto == undefined ? "" : planData.monto,
+        nombre: planData.nombre == undefined ? "" : planData.nombre,
+        status: "Aprobado",
+        taller_uid: userId == undefined ? "" : userId,
+        vigencia: planData.vigencia == undefined ? "" : planData.vigencia,
+        nombre_taller: userData.nombre == undefined ? "" : userData.nombre,
+      };
 
+      // Guardar en la colección Subscripciones
+      const subscripcionRef = await db.collection('Subscripciones').add(subscripcionData);
+      const subscripcionId = subscripcionRef.id;
+      console.log(subscripcionId);
+
+      // Guardar en el campo subscripcion_actual del documento en la colección Usuarios
+      await db
+        .collection('Usuarios')
+        .doc(userId)
+        .update({ subscripcion_actual: subscripcionData });
+
+
+      return res.status(201).send({
+        message: "Suscripción guardada con éxito.",
+      });
+
+    } else {
+      const planRef = await db.collection("Planes").doc(plan_uid).get();
+      const planData = planRef.data();
+      console.log(planData);
+    }
   } catch (error) {
-    console.error("Error al guardar la suscripción:", error);
-    res.status(500).send("Error al guardar la suscripción");
+    console.error("Error al asociar el plan:", error);
+    res.status(500).send("Error al asociar el plan");
   }
+
 };
 
 
@@ -2234,16 +2247,16 @@ const getPlanesActivos3Days = async () => {
       if (!subscripcion_actual || !subscripcion_actual.fecha_fin) {
         return false;
       }
-      
+
       const fechaFin = subscripcion_actual.fecha_fin.toDate();
-      
+
       // Verificar si la fecha_fin está entre hoy y 3 días
       const fechaInicio = new Date(fechaActual);
       fechaInicio.setHours(0, 0, 0, 0);
-      
+
       const fechaFinComparacion = new Date(fechaEn3Dias);
       fechaFinComparacion.setHours(23, 59, 59, 999);
-      
+
       return fechaFin >= fechaInicio && fechaFin <= fechaFinComparacion;
     });
 
@@ -2267,7 +2280,7 @@ const getPlanesActivos3Days = async () => {
         },
         token: usuario.token,
       };
-    
+
       try {
         const response = await admin.messaging().send(message);
         console.log("Successfully sent message:", response);
@@ -2418,6 +2431,7 @@ const deleteUserFromAuth = async (req, res) => {
 
 
 
+
 module.exports = {
   getUsuarios,
   SaveClient,
@@ -2443,5 +2457,6 @@ module.exports = {
   sendNotification,
   UpdateUsuariosAll,
   deleteUserFromAuth,
-  getPlanesActivos3Days
+  getPlanesActivos3Days,
+  AsociarPlan
 };
