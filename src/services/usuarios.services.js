@@ -2435,6 +2435,15 @@ const deleteUserFromAuth = async (req, res) => {
   }
 };
 
+const updateScheduleDate = async (req, res) => {
+  const { uid, scheduled_visit } = req.body;
+
+  await db.collection("Usuarios").doc(uid).update({ scheduled_visit: scheduled_visit });
+
+  return res.status(200).send({ message: "Fecha de programación actualizada con éxito" });
+
+  
+}
 
 
 
