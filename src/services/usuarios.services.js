@@ -2473,5 +2473,6 @@ module.exports = {
   UpdateUsuariosAll,
   deleteUserFromAuth,
   getPlanesActivos3Days,
-  AsociarPlan
+  AsociarPlan,
+  updateScheduleDate
 };
