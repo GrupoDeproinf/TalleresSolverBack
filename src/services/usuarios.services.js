@@ -2326,9 +2326,17 @@ const getPlanesActivos = async () => {
     const fechaActual = new Date();
 
     const usuariosFiltrados = usuarios.filter(usuario => {
+
+
       const { subscripcion_actual } = usuario;
-      const fechaInicio = subscripcion_actual.fecha_inicio.toDate();
-      const fechaFin = subscripcion_actual.fecha_fin.toDate();
+
+      // Si no existen fecha_inicio y fecha_fin, no tomar en cuenta este usuario
+      if (!subscripcion_actual?.fecha_inicio || !subscripcion_actual?.fecha_fin) {
+        return false;
+      }
+      
+      const fechaInicio = subscripcion_actual?.fecha_inicio?.toDate();
+      const fechaFin = subscripcion_actual?.fecha_fin?.toDate();
       return fechaActual < fechaInicio || fechaActual > fechaFin;
     });
 
