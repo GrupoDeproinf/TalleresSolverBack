@@ -2123,6 +2123,8 @@ const ReportarPagoData = async (req, res) => {
       status: "Por Aprobar",
       taller_uid: userId == undefined ? "" : userId,
       vigencia: vigencia == undefined ? "" : vigencia,
+      fecha_inicio: new Date().toISOString(),
+      fecha_fin: vigencia ? new Date(Date.now() + parseInt(vigencia) * 24 * 60 * 60 * 1000).toISOString() : "",
       nombre_taller: nombre_taller == undefined ? "" : nombre_taller,
     };
 
@@ -2196,6 +2198,11 @@ const AsociarPlan = async (req, res) => {
         status: "Aprobado",
         taller_uid: userId == undefined ? "" : userId,
         vigencia: planData.vigencia == undefined ? "" : planData.vigencia,
+
+        fecha_inicio: new Date().toISOString(),
+        fecha_fin: planData.vigencia ? new Date(Date.now() + parseInt(planData.vigencia) * 24 * 60 * 60 * 1000).toISOString() : "",
+
+
         nombre_taller: userData.nombre == undefined ? "" : userData.nombre,
       };
 
@@ -2442,7 +2449,6 @@ const updateScheduleDate = async (req, res) => {
 
   return res.status(200).send({ message: "Fecha de programación actualizada con éxito" });
 
-  
 }
 
 
