@@ -56,18 +56,18 @@ app.use('/api/distance', distance);
 
 
 // Job que se ejecuta cada 30 segundos
-cron.schedule('*/30 * * * * *', () => {
-  console.log('Ejecutando job cada 30 segundos');
-  Usuarios.getPlanesActivos();
-  // Aquí va tu lógica del job
-});
+// cron.schedule('*/30 * * * * *', () => {
+//   console.log('Ejecutando job cada 30 segundos');
+//   Usuarios.getPlanesActivos();
+//   // Aquí va tu lógica del job
+// });
 
 
 // Job que se ejecuta cada 10 horas
-// cron.schedule('0 */10 * * *', () => {
-//   console.log('Ejecutando job cada 10 horas');
-//   Usuarios.getPlanesActivos();
-// });
+cron.schedule('0 */10 * * *', () => {
+  console.log('Ejecutando job cada 10 horas');
+  Usuarios.getPlanesActivos();
+});
 
 
 
