@@ -2123,8 +2123,8 @@ const ReportarPagoData = async (req, res) => {
       status: "Por Aprobar",
       taller_uid: userId == undefined ? "" : userId,
       vigencia: vigencia == undefined ? "" : vigencia,
-      fecha_inicio: new Date().toISOString(),
-      fecha_fin: vigencia ? new Date(Date.now() + parseInt(vigencia) * 24 * 60 * 60 * 1000).toISOString() : "",
+      fecha_inicio: admin.firestore.Timestamp.now(),
+      fecha_fin: vigencia ? admin.firestore.Timestamp.fromMillis(Date.now() + parseInt(vigencia) * 24 * 60 * 60 * 1000) : "",
       nombre_taller: nombre_taller == undefined ? "" : nombre_taller,
     };
 
@@ -2199,8 +2199,8 @@ const AsociarPlan = async (req, res) => {
         taller_uid: userId == undefined ? "" : userId,
         vigencia: planData.vigencia == undefined ? "" : planData.vigencia,
 
-        fecha_inicio: new Date().toISOString(),
-        fecha_fin: planData.vigencia ? new Date(Date.now() + parseInt(planData.vigencia) * 24 * 60 * 60 * 1000).toISOString() : "",
+        fecha_inicio: admin.firestore.Timestamp.now(),
+        fecha_fin: planData.vigencia ? admin.firestore.Timestamp.fromMillis(Date.now() + parseInt(planData.vigencia) * 24 * 60 * 60 * 1000) : "",
 
 
         nombre_taller: userData.nombre == undefined ? "" : userData.nombre,
