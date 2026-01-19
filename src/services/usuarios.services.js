@@ -2398,7 +2398,6 @@ const getPlanesVencidos = async () => {
         return false;
       }
 
-      console.log("usuario testjsadsa", usuario.nombre);
       
       const fechaInicio = subscripcion_actual?.fecha_inicio?.toDate();
       const fechaFin = subscripcion_actual?.fecha_fin?.toDate();
