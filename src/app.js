@@ -69,7 +69,7 @@ cron.schedule('0 */10 * * *', () => {
   Usuarios.getPlanesActivos();
 });
 
-cron.schedule('*/30 * * * * *', () => {
+cron.schedule('0 */10 * * *', () => {
   console.log('Ejecutando job cada 30 segundos');
   Usuarios.getPlanesVencidos();
 });
