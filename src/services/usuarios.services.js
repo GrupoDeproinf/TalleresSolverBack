@@ -2373,6 +2373,71 @@ const getPlanesActivos = async () => {
 
 }
 
+
+const getPlanesVencidos = async () => {
+  try {
+    const result = await db.collection("Usuarios")
+      .where("subscripcion_actual.status", "==", "Vencido")
+      .get();
+
+    if (result.empty) {
+      return console.log("No se encontraron usuarios");
+    }
+
+    const usuarios = result.docs.map((doc) => doc.data());
+
+    const fechaActual = new Date();
+
+    const usuariosFiltrados = usuarios.filter(usuario => {
+
+
+      const { subscripcion_actual } = usuario;
+
+      // Si no existen fecha_inicio y fecha_fin, no tomar en cuenta este usuario
+      if (!subscripcion_actual?.fecha_inicio || !subscripcion_actual?.fecha_fin) {
+        return false;
+      }
+
+      console.log("usuario testjsadsa", usuario.nombre);
+      
+      const fechaInicio = subscripcion_actual?.fecha_inicio?.toDate();
+      const fechaFin = subscripcion_actual?.fecha_fin?.toDate();
+      return fechaActual < fechaInicio || fechaActual > fechaFin;
+    });
+
+    if (usuariosFiltrados.length === 0) {
+      return console.log("No se encontraron usuarios con subscripción fuera de vigencia");
+    }
+
+    // Actualizar subscripcion_actual.cantidad_servicios a 0 y estatus a false en "Servicios"
+    for (const usuario of usuariosFiltrados) {
+      const userRef = db.collection("Usuarios").doc(usuario.uid);
+      await userRef.update({ "subscripcion_actual.cantidad_servicios": 0, "subscripcion_actual.status": 'Vencido' });
+
+      const serviciosSnapshot = await db.collection("Servicios")
+        .where("uid_taller", "==", usuario.uid)
+        .get();
+
+      const batch = db.batch();
+      serviciosSnapshot.forEach(doc => {
+        const servicioRef = db.collection("Servicios").doc(doc.id);
+        batch.update(servicioRef, { estatus: false });
+      });
+
+      await batch.commit();
+    }
+
+    console.log("Usuarios y servicios actualizados correctamente.");
+  } catch (error) {
+    console.error("Error al actualizar usuarios y servicios:", error); // Muestra el error en la consola del servidor
+    console.log(`Error al actualizar usuarios y servicios: ${error.message}`); // Muestra el mensaje del error
+  }
+
+
+
+
+}
+
 const sendNotification = async (req, res) => {
   const { token, title, body, secretCode } = req.body;
 
@@ -2488,5 +2553,6 @@ module.exports = {
   deleteUserFromAuth,
   getPlanesActivos3Days,
   AsociarPlan,
-  updateScheduleDate
+  updateScheduleDate,
+  getPlanesVencidos
 };
