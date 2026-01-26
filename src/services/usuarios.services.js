@@ -1109,25 +1109,11 @@ const getTalleres = async (req, res) => {
 
     const { estado } = req.body;
 
-    let query = await db
+    // Hacer la consulta base sin el filtro de estado
+    const query = await db
       .collection("Usuarios")
       .where("status", "!=", "Aprobado")
       .where("typeUser", "==", "Taller");
-
-    if (Array.isArray(estado)) {
-      // Validación para no pasar más de 10 elementos en un filtro "in"
-      if (estado.length === 0) {
-        return res.status(400).send("El array de estados está vacío.");
-      }
-      if (estado.length > 10) {
-        return res.status(400).send("El array de estados no puede tener más de 10 elementos.");
-      }
-      query = query.where("estado", "in", estado);
-    } else if (typeof estado === "string") {
-      query = query.where("estado", "==", estado);
-    } else {
-      return res.status(400).send("El parámetro 'estado' debe ser un string o un array de strings.");
-    }
 
     const result = await query.get();
 
@@ -1137,7 +1123,21 @@ const getTalleres = async (req, res) => {
         .send('No se encontraron usuarios con el tipo "Taller"');
     }
 
-    const usuarios = result.docs.map((doc) => doc.data());
+    let usuarios = result.docs.map((doc) => doc.data());
+
+    // Filtrar en memoria según el estado
+    if (Array.isArray(estado)) {
+      if (estado.length === 0) {
+        return res.status(400).send("El array de estados está vacío.");
+      }
+      // Filtrar los usuarios cuyo estado esté en el array
+      usuarios = usuarios.filter(usuario => estado.includes(usuario.estado));
+    } else if (typeof estado === "string") {
+      // Filtrar los usuarios con ese estado específico
+      usuarios = usuarios.filter(usuario => usuario.estado === estado);
+    } else if (estado !== undefined) {
+      return res.status(400).send("El parámetro 'estado' debe ser un string o un array de strings.");
+    }
 
     res.send(usuarios);
   } catch (error) {
