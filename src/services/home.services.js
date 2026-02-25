@@ -77,6 +77,115 @@ const getServicios = async (req, res) => {
   }
 };
 
+
+const getServiciosPaginados = async (req, res) => {
+  try {
+    const {
+      pageIndex = 1,
+      pageSize = 10,
+      filter: filterNombre = "",
+      uid_categoria,
+      id,
+    } = req.body || {};
+
+    const page = Math.max(1, parseInt(pageIndex, 10) || 1);
+    const size = Math.max(1, Math.min(100, parseInt(pageSize, 10) || 10));
+    const filterStr =
+      typeof filterNombre === "string" ? filterNombre.trim().toLowerCase() : "";
+
+    let query = db.collection("Servicios").where("estatus", "==", true);
+
+    if (uid_categoria && typeof uid_categoria === "string" && uid_categoria.trim() !== "") {
+      query = query.where("uid_categoria", "==", uid_categoria);
+      query = query.where("uid_servicio", "!=", id === undefined || id === null ? "" : id);
+    }
+
+    const serviciosSnapshot = await query.get();
+
+    // Extraer uid_taller únicos para batch get (evita N+1)
+    const uidTalleresUnicos = new Set();
+    const serviciosPorTaller = new Map();
+    for (const servicioDoc of serviciosSnapshot.docs) {
+      const data = servicioDoc.data();
+      const uidTaller = data.uid_taller;
+      if (uidTaller && typeof uidTaller === "string" && uidTaller.trim() !== "") {
+        uidTalleresUnicos.add(uidTaller);
+        if (!serviciosPorTaller.has(uidTaller)) {
+          serviciosPorTaller.set(uidTaller, []);
+        }
+        serviciosPorTaller.get(uidTaller).push({ doc: servicioDoc, data });
+      } else {
+        console.warn(`UID de taller no válido para el servicio ${servicioDoc.id}`);
+      }
+    }
+
+    // Batch get de Usuarios (máx 30 por query en Firestore)
+    const IN_LIMIT = 30;
+    const uids = Array.from(uidTalleresUnicos);
+    const talleresMap = new Map();
+    for (let i = 0; i < uids.length; i += IN_LIMIT) {
+      const chunk = uids.slice(i, i + IN_LIMIT);
+      const talleresRef = db.collection("Usuarios");
+      const snapshot = await talleresRef
+        .where(admin.firestore.FieldPath.documentId(), "in", chunk)
+        .get();
+      snapshot.docs.forEach((d) => talleresMap.set(d.id, d.data()));
+    }
+
+    // Construir lista solo con talleres aprobados
+    const serviciosConTalleres = [];
+    for (const [uidTaller, talleres] of serviciosPorTaller) {
+      const tallerData = talleresMap.get(uidTaller);
+      if (!tallerData) {
+        talleres.forEach(({ doc }) =>
+          console.warn(`Taller no encontrado para el servicio ${doc.id}. Servicio excluido.`)
+        );
+        continue;
+      }
+      if (tallerData.status !== "Aprobado") {
+        talleres.forEach(({ doc }) =>
+          console.warn(
+            `Taller ${uidTaller} no está aprobado para el servicio ${doc.id}. Servicio excluido.`
+          )
+        );
+        continue;
+      }
+      for (const { doc: servicioDoc, data: servicioData } of talleres) {
+        servicioData.uid_servicio = servicioDoc.id;
+        serviciosConTalleres.push({
+          id: servicioDoc.id,
+          ...servicioData,
+          taller: tallerData,
+        });
+      }
+    }
+
+    // Filtro por nombre_servicio (like)
+    let listado = serviciosConTalleres;
+    if (filterStr.length > 0) {
+      listado = listado.filter((s) => {
+        const nombre =
+          (s.nombre_servicio && String(s.nombre_servicio).toLowerCase()) || "";
+        return nombre.includes(filterStr);
+      });
+    }
+
+    const totalCount = listado.length;
+    const from = (page - 1) * size;
+    const paginated = listado.slice(from, from + size);
+
+    res.status(200).json({
+      data: paginated,
+      totalCount,
+      pageIndex: page,
+      pageSize: size,
+    });
+  } catch (error) {
+    console.error("Error obteniendo servicios paginados:", error);
+    res.status(500).send("Error obteniendo servicios paginados.");
+  }
+};
+
 const saveContactService = async (req, res) => {
   try {
     const {
@@ -566,9 +675,10 @@ const validateEmail = async (req, res) => {
 module.exports = {
   getSubscriptionsById,
   getServicios,
+  getServicesCategories,
+  getServiciosPaginados,
   saveContactService,
   getServicesContact,
-  getServicesCategories,
   getProductsByCategory,
   getCommentsByService,
   addCommentToService,
