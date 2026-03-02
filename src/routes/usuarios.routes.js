@@ -19,6 +19,8 @@ router.post('/getUserByUid', Usuarios.getUserByUid);
 
 router.post('/getVehiculosByUsuarioUid', Usuarios.getVehiculosByUsuarioUid);
 
+router.get('/getTiposVehiculo', Usuarios.getTiposVehiculo);
+
 router.post('/saveOrUpdateVehiculo', Usuarios.saveOrUpdateVehiculo);
 
 router.post('/deleteVehiculo', Usuarios.deleteVehiculo);

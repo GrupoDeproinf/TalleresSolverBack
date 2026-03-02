@@ -112,6 +112,28 @@ const getVehiculosByUsuarioUid = async (req, res) => {
   }
 };
 
+const getTiposVehiculo = async (req, res) => {
+  try {
+    const snapshot = await db.collection("Tipo_Vehiculo").get();
+
+    if (snapshot.empty) {
+      return res.status(200).json([]);
+    }
+
+    const tipos = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    return res.status(200).json(tipos);
+  } catch (error) {
+    console.error("Error al obtener tipos de vehículo:", error);
+    return res
+      .status(500)
+      .json({ error: `Error al obtener tipos de vehículo: ${error.message}` });
+  }
+};
+
 const saveOrUpdateVehiculo = async (req, res) => {
   try {
     const body = req.body || {};
@@ -2708,6 +2730,7 @@ const deleteVehiculo = async (req, res) => {
 module.exports = {
   getUsuarios,
   getVehiculosByUsuarioUid,
+  getTiposVehiculo,
   saveOrUpdateVehiculo,
   SaveClient,
   SaveTaller,
