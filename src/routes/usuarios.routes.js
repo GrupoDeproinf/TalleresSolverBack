@@ -19,6 +19,8 @@ router.post('/getUserByUid', Usuarios.getUserByUid);
 
 router.post('/getVehiculosByUsuarioUid', Usuarios.getVehiculosByUsuarioUid);
 
+router.post('/saveOrUpdateVehiculo', Usuarios.saveOrUpdateVehiculo);
+
 router.post('/SaveTallerAll', Usuarios.SaveTallerAll); 
 
 router.post('/restorePass', Usuarios.restorePass);  

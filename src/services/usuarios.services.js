@@ -112,6 +112,91 @@ const getVehiculosByUsuarioUid = async (req, res) => {
   }
 };
 
+const saveOrUpdateVehiculo = async (req, res) => {
+  try {
+    const body = req.body || {};
+    const { uiduser, uidvehicle, imagen_base64 } = body;
+
+    if (!uiduser || typeof uiduser !== "string" || uiduser.trim() === "") {
+      return res.status(400).json({ error: "Se debe proporcionar uiduser." });
+    }
+
+    const usuarioRef = db.collection("Usuarios").doc(uiduser.trim());
+    const usuarioDoc = await usuarioRef.get();
+    if (!usuarioDoc.exists) {
+      return res.status(404).json({ error: "Usuario no encontrado." });
+    }
+
+    const empty = (v) => (v == null ? "" : v);
+    const docData = {
+      vehiculo_placa: empty(body.vehiculo_placa),
+      vehiculo_marca: empty(body.vehiculo_marca),
+      vehiculo_modelo: empty(body.vehiculo_modelo),
+      vehiculo_anio: empty(body.vehiculo_anio),
+      vehiculo_color: empty(body.vehiculo_color),
+      tipo_vehiculo: empty(body.tipo_vehiculo),
+      KM: empty(body.KM),
+      KM_correa_tiempo: empty(body.KM_correa_tiempo),
+      KM_ultima_rotacion_cauchos: empty(body.KM_ultima_rotacion_cauchos),
+      proximo_cambio_aceite: empty(body.proximo_cambio_aceite),
+      ultimo_cambio_bujias_filtro: empty(body.ultimo_cambio_bujias_filtro),
+      ultimo_cambio_pila_gasolina: empty(body.ultimo_cambio_pila_gasolina),
+      ultimo_lavado: empty(body.ultimo_lavado),
+      contratacion_RCV: empty(body.contratacion_RCV),
+      grua: empty(body.grua),
+    };
+
+    const vehiculosRef = usuarioRef.collection("Vehiculos");
+    const isCreate = !uidvehicle || (typeof uidvehicle === "string" && uidvehicle.trim() === "");
+
+    const uploadVehicleImage = async (vehicleId) => {
+      if (!imagen_base64 || typeof imagen_base64 !== "string" || !imagen_base64.trim()) return "";
+      const storagePath = `vehicles/${uiduser.trim()}/${vehicleId}/imagen.jpg`;
+      const file = bucket.file(storagePath);
+      const buffer = Buffer.from(imagen_base64, "base64");
+      await new Promise((resolve, reject) => {
+        file.save(buffer, {
+          metadata: { contentType: "image/jpeg" },
+          public: true,
+          validation: "md5",
+        }, (err) => (err ? reject(err) : resolve()));
+      });
+      return `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
+    };
+
+    if (isCreate) {
+      const newRef = await vehiculosRef.add(docData);
+      const vehicleId = newRef.id;
+      const pathUrl = await uploadVehicleImage(vehicleId);
+      if (pathUrl) await newRef.update({ path: pathUrl });
+      return res.status(201).json({
+        message: "Vehículo creado.",
+        uidvehicle: vehicleId,
+        path: pathUrl || undefined,
+      });
+    }
+
+    const vehicleId = uidvehicle.trim();
+    const vehicleRef = vehiculosRef.doc(vehicleId);
+    const vehicleDoc = await vehicleRef.get();
+    if (!vehicleDoc.exists) {
+      return res.status(404).json({ error: "Vehículo no encontrado en este usuario." });
+    }
+
+    const pathUrl = await uploadVehicleImage(vehicleId);
+    if (pathUrl) docData.path = pathUrl;
+    await vehicleRef.update(docData);
+    return res.status(200).json({
+      message: "Vehículo actualizado.",
+      uidvehicle: vehicleId,
+      path: pathUrl || undefined,
+    });
+  } catch (error) {
+    console.error("Error al guardar/actualizar vehículo:", error);
+    res.status(500).json({ error: `Error al guardar vehículo: ${error.message}` });
+  }
+};
+
 const SaveClient = async (req, res) => {
   try {
     // Recibir los datos del cliente desde el cuerpo de la solicitud
@@ -2557,6 +2642,7 @@ const updateScheduleDate = async (req, res) => {
 module.exports = {
   getUsuarios,
   getVehiculosByUsuarioUid,
+  saveOrUpdateVehiculo,
   SaveClient,
   SaveTaller,
   authenticateUser,
