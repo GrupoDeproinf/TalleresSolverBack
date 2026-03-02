@@ -128,6 +128,13 @@ const saveOrUpdateVehiculo = async (req, res) => {
     }
 
     const empty = (v) => (v == null ? "" : v);
+    const toTimestamp = (v) => {
+      if (!v) return "";
+      const d = new Date(v);
+      if (Number.isNaN(d.getTime())) return "";
+      return admin.firestore.Timestamp.fromDate(d);
+    };
+
     const docData = {
       vehiculo_placa: empty(body.vehiculo_placa),
       vehiculo_marca: empty(body.vehiculo_marca),
@@ -138,10 +145,10 @@ const saveOrUpdateVehiculo = async (req, res) => {
       KM: empty(body.KM),
       KM_correa_tiempo: empty(body.KM_correa_tiempo),
       KM_ultima_rotacion_cauchos: empty(body.KM_ultima_rotacion_cauchos),
-      proximo_cambio_aceite: empty(body.proximo_cambio_aceite),
-      ultimo_cambio_bujias_filtro: empty(body.ultimo_cambio_bujias_filtro),
-      ultimo_cambio_pila_gasolina: empty(body.ultimo_cambio_pila_gasolina),
-      ultimo_lavado: empty(body.ultimo_lavado),
+      proximo_cambio_aceite: toTimestamp(body.proximo_cambio_aceite),
+      ultimo_cambio_bujias_filtro: toTimestamp(body.ultimo_cambio_bujias_filtro),
+      ultimo_cambio_pila_gasolina: toTimestamp(body.ultimo_cambio_pila_gasolina),
+      ultimo_lavado: toTimestamp(body.ultimo_lavado),
       contratacion_RCV: empty(body.contratacion_RCV),
       grua: empty(body.grua),
     };
