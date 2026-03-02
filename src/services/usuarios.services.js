@@ -164,6 +164,8 @@ const saveOrUpdateVehiculo = async (req, res) => {
       vehiculo_anio: empty(body.vehiculo_anio),
       vehiculo_color: empty(body.vehiculo_color),
       tipo_vehiculo: empty(body.tipo_vehiculo),
+      uid_tipo_vehiculo: empty(body.uid_tipo_vehiculo),
+
       KM: empty(body.KM),
       KM_correa_tiempo: empty(body.KM_correa_tiempo),
       KM_ultima_rotacion_cauchos: empty(body.KM_ultima_rotacion_cauchos),
