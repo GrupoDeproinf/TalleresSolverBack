@@ -169,7 +169,9 @@ const saveOrUpdateVehiculo = async (req, res) => {
           validation: "md5",
         }, (err) => (err ? reject(err) : resolve()));
       });
-      return `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
+      // agregamos query param para forzar recarga en el front
+      const baseUrl = `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
+      return `${baseUrl}?t=${Date.now()}`;
     };
 
     if (isCreate) {
@@ -191,8 +193,16 @@ const saveOrUpdateVehiculo = async (req, res) => {
       return res.status(404).json({ error: "Vehículo no encontrado en este usuario." });
     }
 
-    const pathUrl = await uploadVehicleImage(vehicleId);
-    if (pathUrl) docData.path = pathUrl;
+    let pathUrl = "";
+    if (imagen_base64 && typeof imagen_base64 === "string" && imagen_base64.trim()) {
+      // eliminar campo path anterior antes de guardar el nuevo
+      await vehicleRef.update({ path: admin.firestore.FieldValue.delete() });
+      pathUrl = await uploadVehicleImage(vehicleId);
+      if (pathUrl) {
+        docData.path = pathUrl;
+      }
+    }
+
     await vehicleRef.update(docData);
     return res.status(200).json({
       message: "Vehículo actualizado.",
