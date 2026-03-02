@@ -158,7 +158,8 @@ const saveOrUpdateVehiculo = async (req, res) => {
 
     const uploadVehicleImage = async (vehicleId) => {
       if (!imagen_base64 || typeof imagen_base64 !== "string" || !imagen_base64.trim()) return "";
-      const storagePath = `vehicles/${uiduser.trim()}/${vehicleId}/imagen.jpg`;
+      // Carpeta vehicles / uiduser / uidvehicle y nombre de archivo = uidvehicle
+      const storagePath = `vehicles/${uiduser.trim()}/${vehicleId}/${vehicleId}.jpg`;
       const file = bucket.file(storagePath);
       const buffer = Buffer.from(imagen_base64, "base64");
       await new Promise((resolve, reject) => {
