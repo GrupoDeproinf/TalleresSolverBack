@@ -83,6 +83,35 @@ const getUsuarios = async (req, res) => {
   }
 };
 
+const getVehiculosByUsuarioUid = async (req, res) => {
+  try {
+    const { uid } = req.body || {};
+
+    if (!uid || typeof uid !== "string" || uid.trim() === "") {
+      return res.status(400).json({ error: "Se debe proporcionar el uid del usuario." });
+    }
+
+    const usuarioRef = db.collection("Usuarios").doc(uid.trim());
+    const usuarioDoc = await usuarioRef.get();
+
+    if (!usuarioDoc.exists) {
+      return res.status(404).json({ error: "Usuario no encontrado." });
+    }
+
+    const vehiculosSnapshot = await usuarioRef.collection("Vehiculos").get();
+
+    const vehiculos = vehiculosSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    res.status(200).json(vehiculos);
+  } catch (error) {
+    console.error("Error al obtener vehículos del usuario:", error);
+    res.status(500).json({ error: `Error al obtener vehículos: ${error.message}` });
+  }
+};
+
 const SaveClient = async (req, res) => {
   try {
     // Recibir los datos del cliente desde el cuerpo de la solicitud
@@ -2527,6 +2556,7 @@ const updateScheduleDate = async (req, res) => {
 
 module.exports = {
   getUsuarios,
+  getVehiculosByUsuarioUid,
   SaveClient,
   SaveTaller,
   authenticateUser,

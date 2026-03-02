@@ -17,6 +17,8 @@ router.post('/deleteUserFromAuth', Usuarios.deleteUserFromAuth);
 
 router.post('/getUserByUid', Usuarios.getUserByUid);
 
+router.post('/getVehiculosByUsuarioUid', Usuarios.getVehiculosByUsuarioUid);
+
 router.post('/SaveTallerAll', Usuarios.SaveTallerAll); 
 
 router.post('/restorePass', Usuarios.restorePass);  
