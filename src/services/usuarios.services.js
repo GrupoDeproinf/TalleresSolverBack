@@ -173,8 +173,12 @@ const saveOrUpdateVehiculo = async (req, res) => {
       ultimo_cambio_bujias_filtro: toTimestamp(body.ultimo_cambio_bujias_filtro),
       ultimo_cambio_pila_gasolina: toTimestamp(body.ultimo_cambio_pila_gasolina),
       ultimo_lavado: toTimestamp(body.ultimo_lavado),
+      ultima_vez_gasolina: toTimestamp(body.ultima_vez_gasolina),
+      ultima_vez_alineacion: toTimestamp(body.ultima_vez_alineacion),
       contratacion_RCV: empty(body.contratacion_RCV),
       grua: empty(body.grua),
+      activo: empty(body.activo),
+      por_defecto: empty(body.por_defecto),
     };
 
     const vehiculosRef = usuarioRef.collection("Vehiculos");
