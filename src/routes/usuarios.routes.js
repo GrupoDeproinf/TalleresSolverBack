@@ -53,6 +53,8 @@ router.get('/getMetodosPago', Usuarios.getMetodosPago);
 
 router.post('/ReportarPagoData', Usuarios.ReportarPagoData); 
 
+router.post('/saveSolicitud', Usuarios.saveSolicitud);
+
 router.post('/AsociarPlan', Usuarios.AsociarPlan);
 
 router.post('/updateScheduleDate', Usuarios.updateScheduleDate); 

@@ -2227,6 +2227,73 @@ const uploadImage = (file, buffer) => {
   });
 };
 
+const saveSolicitud = async (req, res) => {
+  try {
+    const {
+      nombreServicio,
+      vehiculo,
+      categoriaId,
+      descripcion,
+      urgencia,
+      fotos,
+    } = req.body || {};
+
+    if (!nombreServicio || !vehiculo || !vehiculo.id || !categoriaId) {
+      return res.status(400).json({
+        error:
+          "nombreServicio, vehiculo (con id) y categoriaId son requeridos.",
+      });
+    }
+
+    const solicitudData = {
+      nombreServicio,
+      vehiculo,
+      categoriaId,
+      descripcion: descripcion || "",
+      urgencia: urgencia || "",
+      solicitud_images: [],
+      fecha_solicitud: admin.firestore.Timestamp.now(),
+      createdAt: admin.firestore.Timestamp.now(),
+    };
+
+    const solicitudRef = await db.collection("Solicitudes").add(solicitudData);
+    const solicitudId = solicitudRef.id;
+
+    const imageUrls = [];
+    if (Array.isArray(fotos) && fotos.length > 0) {
+      for (let i = 0; i < fotos.length; i++) {
+        const base64 = fotos[i];
+        if (!base64 || typeof base64 !== "string" || !base64.trim()) {
+          continue;
+        }
+
+        const path = `Solicitudes/${solicitudId}/${i + 1}.jpg`;
+        const buffer = Buffer.from(base64, "base64");
+        const file = bucket.file(path);
+
+        await uploadImage(file, buffer);
+        const url = `https://storage.googleapis.com/${bucket.name}/${path}`;
+        imageUrls.push(url);
+      }
+    }
+
+    if (imageUrls.length > 0) {
+      await solicitudRef.update({ solicitud_images: imageUrls });
+    }
+
+    return res.status(201).json({
+      message: "Solicitud creada correctamente.",
+      id: solicitudId,
+      solicitud_images: imageUrls,
+    });
+  } catch (error) {
+    console.error("Error al guardar solicitud:", error);
+    return res.status(500).json({
+      error: `Error al guardar solicitud: ${error.message}`,
+    });
+  }
+};
+
 const ReportarPagoData = async (req, res) => {
   const {
     uid,
@@ -2757,6 +2824,7 @@ module.exports = {
   getPlanes,
   getMetodosPago,
   ReportarPagoData,
+  saveSolicitud,
   getPlanesActivos,
   sendNotification,
   UpdateUsuariosAll,
