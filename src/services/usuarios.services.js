@@ -2249,7 +2249,7 @@ const saveSolicitud = async (req, res) => {
     }
 
     const solicitudData = {
-      nombreServicio,
+      nombre_servicio: nombreServicio,
       vehiculo,
       categoriaId,
       descripcion: descripcion || "",
