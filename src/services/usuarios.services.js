@@ -2236,6 +2236,9 @@ const saveSolicitud = async (req, res) => {
       descripcion,
       urgencia,
       fotos,
+      nombre_usuario,
+      uid_usuario,
+      phone_usuario,
     } = req.body || {};
 
     if (!nombreServicio || !vehiculo || !vehiculo.id || !categoriaId) {
@@ -2251,9 +2254,11 @@ const saveSolicitud = async (req, res) => {
       categoriaId,
       descripcion: descripcion || "",
       urgencia: urgencia || "",
+      nombre_usuario: nombre_usuario || "",
+      uid_usuario: uid_usuario || "",
+      phone_usuario: phone_usuario || "",
       solicitud_images: [],
       fecha_solicitud: admin.firestore.Timestamp.now(),
-      createdAt: admin.firestore.Timestamp.now(),
     };
 
     const solicitudRef = await db.collection("Solicitudes").add(solicitudData);
