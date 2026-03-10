@@ -172,12 +172,35 @@ const getServiciosPaginados = async (req, res) => {
       }
       for (const { doc: servicioDoc, data: servicioData } of talleres) {
         servicioData.uid_servicio = servicioDoc.id;
-        serviciosConTalleres.push({
+        const item = {
           id: servicioDoc.id,
           ...servicioData,
           taller: tallerData,
-        });
+        };
+
+        // Precalcular distancia si hay coordenadas válidas
+        if (sortByDistance) {
+          const ubi = tallerData?.ubicacion;
+          const tLat = ubi?.lat != null ? Number(ubi.lat) : NaN;
+          const tLng = ubi?.lng != null ? Number(ubi.lng) : NaN;
+          if (!Number.isNaN(tLat) && !Number.isNaN(tLng)) {
+            item._distanceKm = getDistanceKm(userLat, userLng, tLat, tLng);
+          } else {
+            item._distanceKm = Infinity;
+          }
+        }
+
+        serviciosConTalleres.push(item);
       }
+    }
+
+    // Ordenar toda la data por distancia (más cercano primero) ANTES de paginar
+    if (sortByDistance && serviciosConTalleres.length > 0) {
+      serviciosConTalleres.sort((a, b) => {
+        const distA = typeof a._distanceKm === "number" ? a._distanceKm : Infinity;
+        const distB = typeof b._distanceKm === "number" ? b._distanceKm : Infinity;
+        return distA - distB;
+      });
     }
 
     // Filtro por nombre_servicio (like)
@@ -187,25 +210,6 @@ const getServiciosPaginados = async (req, res) => {
         const nombre =
           (s.nombre_servicio && String(s.nombre_servicio).toLowerCase()) || "";
         return nombre.includes(filterStr);
-      });
-    }
-
-    // Ordenar por distancia (más cercano primero) si se envían latitude y longitude
-    if (sortByDistance && listado.length > 0) {
-      listado = [...listado].sort((a, b) => {
-        const ubiA = a.taller?.ubicacion;
-        const ubiB = b.taller?.ubicacion;
-        const latA = ubiA?.lat != null ? Number(ubiA.lat) : NaN;
-        const lngA = ubiA?.lng != null ? Number(ubiA.lng) : NaN;
-        const latB = ubiB?.lat != null ? Number(ubiB.lat) : NaN;
-        const lngB = ubiB?.lng != null ? Number(ubiB.lng) : NaN;
-        const distA = Number.isNaN(latA) || Number.isNaN(lngA)
-          ? Infinity
-          : getDistanceKm(userLat, userLng, latA, lngA);
-        const distB = Number.isNaN(latB) || Number.isNaN(lngB)
-          ? Infinity
-          : getDistanceKm(userLat, userLng, latB, lngB);
-        return distA - distB;
       });
     }
 
