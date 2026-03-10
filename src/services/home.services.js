@@ -92,6 +92,17 @@ const getDistanceKm = (lat1, lon1, lat2, lon2) => {
   return R * c;
 };
 
+/** Obtiene lat y lng desde taller.ubicacion (soporta .lat/.lng o .latitude/.longitude como en GeoPoint) */
+const getLatLngFromUbicacion = (ubicacion) => {
+  if (!ubicacion || typeof ubicacion !== "object") return { lat: NaN, lng: NaN };
+  const lat = ubicacion.lat ?? ubicacion.latitude;
+  const lng = ubicacion.lng ?? ubicacion.longitude;
+  return {
+    lat: lat != null ? Number(lat) : NaN,
+    lng: lng != null ? Number(lng) : NaN,
+  };
+};
+
 const getServiciosPaginados = async (req, res) => {
   try {
     const {
@@ -178,11 +189,8 @@ const getServiciosPaginados = async (req, res) => {
           taller: tallerData,
         };
 
-        // Precalcular distancia si hay coordenadas válidas
         if (sortByDistance) {
-          const ubi = tallerData?.ubicacion;
-          const tLat = ubi?.lat != null ? Number(ubi.lat) : NaN;
-          const tLng = ubi?.lng != null ? Number(ubi.lng) : NaN;
+          const { lat: tLat, lng: tLng } = getLatLngFromUbicacion(tallerData?.ubicacion);
           if (!Number.isNaN(tLat) && !Number.isNaN(tLng)) {
             item._distanceKm = getDistanceKm(userLat, userLng, tLat, tLng);
           } else {
@@ -194,16 +202,16 @@ const getServiciosPaginados = async (req, res) => {
       }
     }
 
-    // Ordenar toda la data por distancia (más cercano primero) ANTES de paginar
+    // 1) Ordenar TODA la data por distancia: más cercano primero; sin ubicación al final
     if (sortByDistance && serviciosConTalleres.length > 0) {
       serviciosConTalleres.sort((a, b) => {
-        const distA = typeof a._distanceKm === "number" ? a._distanceKm : Infinity;
-        const distB = typeof b._distanceKm === "number" ? b._distanceKm : Infinity;
+        const distA = a._distanceKm ?? Infinity;
+        const distB = b._distanceKm ?? Infinity;
         return distA - distB;
       });
     }
 
-    // Filtro por nombre_servicio (like)
+    // 2) Filtro por nombre_servicio (like) sobre la lista ya ordenada
     let listado = serviciosConTalleres;
     if (filterStr.length > 0) {
       listado = listado.filter((s) => {
@@ -217,8 +225,11 @@ const getServiciosPaginados = async (req, res) => {
     const from = (page - 1) * size;
     const paginated = listado.slice(from, from + size);
 
+    // Quitar campo interno de distancia de la respuesta
+    const data = paginated.map(({ _distanceKm, ...rest }) => rest);
+
     res.status(200).json({
-      data: paginated,
+      data,
       totalCount,
       pageIndex: page,
       pageSize: size,
