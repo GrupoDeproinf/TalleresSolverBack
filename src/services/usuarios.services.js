@@ -2250,6 +2250,7 @@ const saveSolicitud = async (req, res) => {
 
     const solicitudData = {
       nombre_servicio: nombreServicio,
+      status: "En espera por aprobación del taller",
       vehiculo,
       categoriaId,
       descripcion: descripcion || "",
