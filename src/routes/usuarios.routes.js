@@ -55,6 +55,8 @@ router.post('/ReportarPagoData', Usuarios.ReportarPagoData);
 
 router.post('/saveSolicitud', Usuarios.saveSolicitud);
 
+router.post('/getSolicitudesByUsuario', Usuarios.getSolicitudesByUsuario);
+
 router.post('/AsociarPlan', Usuarios.AsociarPlan);
 
 router.post('/updateScheduleDate', Usuarios.updateScheduleDate); 

@@ -2300,6 +2300,39 @@ const saveSolicitud = async (req, res) => {
   }
 };
 
+const getSolicitudesByUsuario = async (req, res) => {
+  try {
+    const { uid_usuario } = req.body || {};
+
+    if (!uid_usuario || typeof uid_usuario !== "string" || uid_usuario.trim() === "") {
+      return res
+        .status(400)
+        .json({ error: "uid_usuario es requerido." });
+    }
+
+    const snapshot = await db
+      .collection("Solicitudes")
+      .where("uid_usuario", "==", uid_usuario.trim())
+      .get();
+
+    if (snapshot.empty) {
+      return res.status(200).json([]);
+    }
+
+    const solicitudes = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    return res.status(200).json(solicitudes);
+  } catch (error) {
+    console.error("Error al obtener solicitudes por usuario:", error);
+    return res
+      .status(500)
+      .json({ error: `Error al obtener solicitudes: ${error.message}` });
+  }
+};
+
 const ReportarPagoData = async (req, res) => {
   const {
     uid,
@@ -2831,6 +2864,7 @@ module.exports = {
   getMetodosPago,
   ReportarPagoData,
   saveSolicitud,
+  getSolicitudesByUsuario,
   getPlanesActivos,
   sendNotification,
   UpdateUsuariosAll,
