@@ -2302,7 +2302,7 @@ const saveSolicitud = async (req, res) => {
 
 const getSolicitudesByUsuario = async (req, res) => {
   try {
-    const { uid_usuario } = req.body || {};
+    const { uid_usuario, solo_ultima } = req.body || {};
 
     if (!uid_usuario || typeof uid_usuario !== "string" || uid_usuario.trim() === "") {
       return res
@@ -2316,13 +2316,28 @@ const getSolicitudesByUsuario = async (req, res) => {
       .get();
 
     if (snapshot.empty) {
-      return res.status(200).json([]);
+      return res.status(200).json(solo_ultima ? null : []);
     }
 
-    const solicitudes = snapshot.docs.map((doc) => ({
+    let solicitudes = snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     }));
+
+    // Si el flag viene en true, devolver solo la solicitud más nueva (por fecha_solicitud)
+    if (solo_ultima) {
+      solicitudes.sort((a, b) => {
+        const fa = a.fecha_solicitud?.toMillis
+          ? a.fecha_solicitud.toMillis()
+          : 0;
+        const fb = b.fecha_solicitud?.toMillis
+          ? b.fecha_solicitud.toMillis()
+          : 0;
+        return fb - fa; // más reciente primero
+      });
+
+      return res.status(200).json(solicitudes[0] || null);
+    }
 
     return res.status(200).json(solicitudes);
   } catch (error) {
@@ -2330,6 +2345,72 @@ const getSolicitudesByUsuario = async (req, res) => {
     return res
       .status(500)
       .json({ error: `Error al obtener solicitudes: ${error.message}` });
+  }
+};
+
+const getSolicitudByServicioUid = async (req, res) => {
+  try {
+    const { uid_servicio } = req.body || {};
+
+    if (!uid_servicio || typeof uid_servicio !== "string" || uid_servicio.trim() === "") {
+      return res
+        .status(400)
+        .json({ error: "uid_servicio es requerido." });
+    }
+
+    const docRef = db.collection("Solicitudes").doc(uid_servicio.trim());
+    const docSnap = await docRef.get();
+
+    if (!docSnap.exists) {
+      return res.status(200).json(null);
+    }
+
+    const solicitud = {
+      id: docSnap.id,
+      ...docSnap.data(),
+    };
+
+    return res.status(200).json(solicitud);
+  } catch (error) {
+    console.error("Error al obtener solicitud por uid_servicio:", error);
+    return res
+      .status(500)
+      .json({ error: `Error al obtener solicitud por uid_servicio: ${error.message}` });
+  }
+};
+
+const getPropuestasBySolicitud = async (req, res) => {
+  try {
+    const { uid_solicitud } = req.body || {};
+
+    if (!uid_solicitud || typeof uid_solicitud !== "string" || uid_solicitud.trim() === "") {
+      return res
+        .status(400)
+        .json({ error: "uid_solicitud es requerido." });
+    }
+
+    const solicitudId = uid_solicitud.trim();
+    const propuestasSnapshot = await db
+      .collection("Solicitudes")
+      .doc(solicitudId)
+      .collection("Propuestas")
+      .get();
+
+    if (propuestasSnapshot.empty) {
+      return res.status(200).json([]);
+    }
+
+    const propuestas = propuestasSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    return res.status(200).json(propuestas);
+  } catch (error) {
+    console.error("Error al obtener propuestas por solicitud:", error);
+    return res
+      .status(500)
+      .json({ error: `Error al obtener propuestas: ${error.message}` });
   }
 };
 
@@ -2865,6 +2946,8 @@ module.exports = {
   ReportarPagoData,
   saveSolicitud,
   getSolicitudesByUsuario,
+  getSolicitudByServicioUid,
+  getPropuestasBySolicitud,
   getPlanesActivos,
   sendNotification,
   UpdateUsuariosAll,
