@@ -2422,11 +2422,9 @@ const getPropuestasBySolicitud = async (req, res) => {
         .json({ error: "uid_solicitud es requerido." });
     }
 
-    const solicitudId = uid_solicitud.trim();
     const propuestasSnapshot = await db
-      .collection("Solicitudes")
-      .doc(solicitudId)
       .collection("Propuestas")
+      .where("uid_solicitud", "==", uid_solicitud.trim())
       .get();
 
     if (propuestasSnapshot.empty) {
@@ -2444,6 +2442,24 @@ const getPropuestasBySolicitud = async (req, res) => {
     return res
       .status(500)
       .json({ error: `Error al obtener propuestas: ${error.message}` });
+  }
+};
+
+const savePropuesta = async (req, res) => {
+  try {
+    const body = req.body || {};
+
+    const docRef = await db.collection("Propuestas").add(body);
+
+    return res.status(201).json({
+      message: "Propuesta creada correctamente.",
+      id: docRef.id,
+    });
+  } catch (error) {
+    console.error("Error al guardar propuesta:", error);
+    return res
+      .status(500)
+      .json({ error: `Error al guardar propuesta: ${error.message}` });
   }
 };
 
@@ -2982,6 +2998,7 @@ module.exports = {
   getSolicitudesByUsuarioAndStatus,
   getSolicitudByServicioUid,
   getPropuestasBySolicitud,
+  savePropuesta,
   getPlanesActivos,
   sendNotification,
   UpdateUsuariosAll,
