@@ -2449,6 +2449,8 @@ const savePropuesta = async (req, res) => {
   try {
     const body = req.body || {};
 
+     body.fecha_propuesta = admin.firestore.Timestamp.now();
+
     const docRef = await db.collection("Propuestas").add(body);
 
     return res.status(201).json({
