@@ -78,6 +78,20 @@ const getServicios = async (req, res) => {
 };
 
 
+const getDistanceKm = (lat1, lon1, lat2, lon2) => {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
 const getServiciosPaginados = async (req, res) => {
   try {
     const {
@@ -86,12 +100,18 @@ const getServiciosPaginados = async (req, res) => {
       filter: filterNombre = "",
       uid_categoria,
       id,
+      latitude,
+      longitude,
     } = req.body || {};
 
     const page = Math.max(1, parseInt(pageIndex, 10) || 1);
     const size = Math.max(1, Math.min(100, parseInt(pageSize, 10) || 10));
     const filterStr =
       typeof filterNombre === "string" ? filterNombre.trim().toLowerCase() : "";
+
+    const userLat = latitude != null ? Number(latitude) : NaN;
+    const userLng = longitude != null ? Number(longitude) : NaN;
+    const sortByDistance = !Number.isNaN(userLat) && !Number.isNaN(userLng);
 
     let query = db.collection("Servicios").where("estatus", "==", true);
 
@@ -167,6 +187,25 @@ const getServiciosPaginados = async (req, res) => {
         const nombre =
           (s.nombre_servicio && String(s.nombre_servicio).toLowerCase()) || "";
         return nombre.includes(filterStr);
+      });
+    }
+
+    // Ordenar por distancia (más cercano primero) si se envían latitude y longitude
+    if (sortByDistance && listado.length > 0) {
+      listado = [...listado].sort((a, b) => {
+        const ubiA = a.taller?.ubicacion;
+        const ubiB = b.taller?.ubicacion;
+        const latA = ubiA?.lat != null ? Number(ubiA.lat) : NaN;
+        const lngA = ubiA?.lng != null ? Number(ubiA.lng) : NaN;
+        const latB = ubiB?.lat != null ? Number(ubiB.lat) : NaN;
+        const lngB = ubiB?.lng != null ? Number(ubiB.lng) : NaN;
+        const distA = Number.isNaN(latA) || Number.isNaN(lngA)
+          ? Infinity
+          : getDistanceKm(userLat, userLng, latA, lngA);
+        const distB = Number.isNaN(latB) || Number.isNaN(lngB)
+          ? Infinity
+          : getDistanceKm(userLat, userLng, latB, lngB);
+        return distA - distB;
       });
     }
 
