@@ -57,6 +57,8 @@ router.post('/saveSolicitud', Usuarios.saveSolicitud);
 
 router.post('/getSolicitudesByUsuario', Usuarios.getSolicitudesByUsuario);
 
+router.post('/getSolicitudesByUsuarioAndStatus', Usuarios.getSolicitudesByUsuarioAndStatus);
+
 router.post('/getSolicitudByServicioUid', Usuarios.getSolicitudByServicioUid);
 
 router.post('/getPropuestasBySolicitud', Usuarios.getPropuestasBySolicitud);

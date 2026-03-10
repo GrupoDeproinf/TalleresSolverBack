@@ -2348,6 +2348,39 @@ const getSolicitudesByUsuario = async (req, res) => {
   }
 };
 
+const getSolicitudesByUsuarioAndStatus = async (req, res) => {
+  try {
+    const { status } = req.body || {};
+
+    if (!status || typeof status !== "string" || status.trim() === "") {
+      return res
+        .status(400)
+        .json({ error: "status es requerido." });
+    }
+
+    const snapshot = await db
+      .collection("Solicitudes")
+      .where("status", "==", status.trim())
+      .get();
+
+    if (snapshot.empty) {
+      return res.status(200).json([]);
+    }
+
+    const solicitudes = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    return res.status(200).json(solicitudes);
+  } catch (error) {
+    console.error("Error al obtener solicitudes por status:", error);
+    return res
+      .status(500)
+      .json({ error: `Error al obtener solicitudes: ${error.message}` });
+  }
+};
+
 const getSolicitudByServicioUid = async (req, res) => {
   try {
     const { uid_servicio } = req.body || {};
@@ -2946,6 +2979,7 @@ module.exports = {
   ReportarPagoData,
   saveSolicitud,
   getSolicitudesByUsuario,
+  getSolicitudesByUsuarioAndStatus,
   getSolicitudByServicioUid,
   getPropuestasBySolicitud,
   getPlanesActivos,
