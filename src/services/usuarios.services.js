@@ -2230,7 +2230,7 @@ const uploadImage = (file, buffer) => {
 const saveSolicitud = async (req, res) => {
   try {
     const {
-      nombreServicio,
+      nombreSolicitud,
       vehiculo,
       categoriaId,
       descripcion,
@@ -2241,15 +2241,15 @@ const saveSolicitud = async (req, res) => {
       phone_usuario,
     } = req.body || {};
 
-    if (!nombreServicio || !vehiculo || !vehiculo.id || !categoriaId) {
+    if (!nombreSolicitud || !vehiculo || !vehiculo.id || !categoriaId) {
       return res.status(400).json({
         error:
-          "nombreServicio, vehiculo (con id) y categoriaId son requeridos.",
+          "nombreSolicitud, vehiculo (con id) y categoriaId son requeridos.",
       });
     }
 
     const solicitudData = {
-      nombre_servicio: nombreServicio,
+      nombre_solicitud: nombreSolicitud,
       status: "En espera por aprobación del taller",
       vehiculo,
       categoriaId,
