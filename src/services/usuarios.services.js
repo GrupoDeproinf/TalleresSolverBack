@@ -2350,13 +2350,29 @@ const getSolicitudesByUsuario = async (req, res) => {
 
 const getSolicitudesByUsuarioAndStatus = async (req, res) => {
   try {
-    const { status } = req.body || {};
+    const { status, uid_taller } = req.body || {};
 
     if (!status || typeof status !== "string" || status.trim() === "") {
       return res
         .status(400)
         .json({ error: "status es requerido." });
     }
+    if (!uid_taller || typeof uid_taller !== "string" || uid_taller.trim() === "") {
+      return res
+        .status(400)
+        .json({ error: "uid_taller es requerido." });
+    }
+
+    const propuestasSnapshot = await db
+      .collection("Propuestas")
+      .where("uid_taller", "==", uid_taller.trim())
+      .get();
+
+    const solicitudesIdsConPropuesta = new Set();
+    propuestasSnapshot.docs.forEach((doc) => {
+      const uid_solicitud = doc.data().uid_solicitud;
+      if (uid_solicitud) solicitudesIdsConPropuesta.add(uid_solicitud);
+    });
 
     const snapshot = await db
       .collection("Solicitudes")
@@ -2367,10 +2383,12 @@ const getSolicitudesByUsuarioAndStatus = async (req, res) => {
       return res.status(200).json([]);
     }
 
-    const solicitudes = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    const solicitudes = snapshot.docs
+      .map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }))
+      .filter((s) => !solicitudesIdsConPropuesta.has(s.id));
 
     return res.status(200).json(solicitudes);
   } catch (error) {
