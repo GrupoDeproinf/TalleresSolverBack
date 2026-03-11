@@ -2503,11 +2503,18 @@ const updatePropuesta = async (req, res) => {
     }
 
     const propuestaData = propuestaSnap.data();
-    const updatePropuestaData = { ...body };
-    delete updatePropuestaData.uid_propuesta;
+    const statusLower = status.trim().toLowerCase();
+
+    const updatePropuestaData = {
+      status: statusLower === "aceptada" ? "Aceptada" : "Rechazada",
+    };
+    if (statusLower === "aceptada") {
+      updatePropuestaData.fecha_aceptada = admin.firestore.Timestamp.now();
+    } else if (statusLower === "rechazada") {
+      updatePropuestaData.fecha_rechazada = admin.firestore.Timestamp.now();
+    }
     await propuestaRef.update(updatePropuestaData);
 
-    const statusLower = status.trim().toLowerCase();
     if (statusLower === "aceptada") {
       const uid_solicitud = propuestaData.uid_solicitud;
       const uid_taller = propuestaData.uid_taller;
@@ -2524,10 +2531,21 @@ const updatePropuesta = async (req, res) => {
         return res.status(404).json({ error: "Solicitud no encontrada." });
       }
 
-      const solicitudUpdate = {
-        status: "aceptada",
-        uid_taller: uid_taller != null ? uid_taller : "",
-      };
+      const solicitudUpdate = {};
+
+      const statusAnterior = propuestaData.status && String(propuestaData.status).trim().toLowerCase();
+      if (statusAnterior === "cotizado") {
+        solicitudUpdate.nombre_taller = propuestaData.nombre_taller ?? "";
+        solicitudUpdate.uid_taller = propuestaData.uid_taller ?? "";
+        solicitudUpdate.comentario = propuestaData.comentario ?? "";
+        solicitudUpdate.fecha_propuesta = propuestaData.fecha_propuesta ?? "";
+        solicitudUpdate.precio_estimado = propuestaData.precio_estimado ?? "";
+        solicitudUpdate.tiempo_estimado = propuestaData.tiempo_estimado ?? "";
+      }
+
+      solicitudUpdate.status = "Aceptada";
+      solicitudUpdate.uid_taller = uid_taller != null ? uid_taller : "";
+
       for (const key of Object.keys(body)) {
         if (key !== "uid_propuesta" && key !== "status") {
           solicitudUpdate[key] = body[key];
