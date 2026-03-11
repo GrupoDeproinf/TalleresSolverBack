@@ -128,7 +128,6 @@ const getServiciosPaginados = async (req, res) => {
 
     if (uid_categoria && typeof uid_categoria === "string" && uid_categoria.trim() !== "") {
       query = query.where("uid_categoria", "==", uid_categoria);
-      query = query.where("uid_servicio", "!=", id === undefined || id === null ? "" : id);
     }
 
     const serviciosSnapshot = await query.get();
