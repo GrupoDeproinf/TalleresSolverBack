@@ -2302,7 +2302,7 @@ const saveSolicitud = async (req, res) => {
 
 const getSolicitudesByUsuario = async (req, res) => {
   try {
-    const { uid_usuario, solo_ultima } = req.body || {};
+    const { uid_usuario, solo_ultima, status } = req.body || {};
 
     if (!uid_usuario || typeof uid_usuario !== "string" || uid_usuario.trim() === "") {
       return res
@@ -2313,6 +2313,7 @@ const getSolicitudesByUsuario = async (req, res) => {
     const snapshot = await db
       .collection("Solicitudes")
       .where("uid_usuario", "==", uid_usuario.trim())
+      .where("status", "==", status.trim())
       .get();
 
     if (snapshot.empty) {
