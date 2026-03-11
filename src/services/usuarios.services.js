@@ -2449,10 +2449,11 @@ const getPropuestasBySolicitud = async (req, res) => {
       return res.status(200).json([]);
     }
 
-    const propuestas = propuestasSnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    const propuestas = propuestasSnapshot.docs.map((doc) => {
+      const data = doc.data();
+      const { id: _idDoc, ...rest } = data;
+      return { id: doc.id, ...rest };
+    });
 
     return res.status(200).json(propuestas);
   } catch (error) {
@@ -2470,6 +2471,7 @@ const savePropuesta = async (req, res) => {
      body.fecha_propuesta = admin.firestore.Timestamp.now();
 
     const docRef = await db.collection("Propuestas").add(body);
+    await docRef.update({ id: docRef.id });
 
     return res.status(201).json({
       message: "Propuesta creada correctamente.",
