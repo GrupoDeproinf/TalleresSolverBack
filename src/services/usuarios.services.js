@@ -2485,17 +2485,23 @@ const savePropuesta = async (req, res) => {
 
 const getPropuestasByStatus = async (req, res) => {
   try {
-    const { status } = req.body || {};
+    const { status, uid_taller } = req.body || {};
 
     if (!status || typeof status !== "string" || status.trim() === "") {
       return res
         .status(400)
         .json({ error: "status es requerido." });
     }
+    if (!uid_taller || typeof uid_taller !== "string" || uid_taller.trim() === "") {
+      return res
+        .status(400)
+        .json({ error: "uid_taller es requerido." });
+    }
 
     const snapshot = await db
       .collection("Propuestas")
       .where("status", "==", status.trim())
+      .where("uid_taller", "==", uid_taller.trim())
       .get();
 
     if (snapshot.empty) {
