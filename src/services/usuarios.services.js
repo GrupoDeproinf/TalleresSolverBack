@@ -2483,6 +2483,39 @@ const savePropuesta = async (req, res) => {
   }
 };
 
+const getPropuestasByStatus = async (req, res) => {
+  try {
+    const { status } = req.body || {};
+
+    if (!status || typeof status !== "string" || status.trim() === "") {
+      return res
+        .status(400)
+        .json({ error: "status es requerido." });
+    }
+
+    const snapshot = await db
+      .collection("Propuestas")
+      .where("status", "==", status.trim())
+      .get();
+
+    if (snapshot.empty) {
+      return res.status(200).json([]);
+    }
+
+    const propuestas = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    return res.status(200).json(propuestas);
+  } catch (error) {
+    console.error("Error al obtener propuestas por status:", error);
+    return res
+      .status(500)
+      .json({ error: `Error al obtener propuestas: ${error.message}` });
+  }
+};
+
 const ReportarPagoData = async (req, res) => {
   const {
     uid,
@@ -3019,6 +3052,7 @@ module.exports = {
   getSolicitudByServicioUid,
   getPropuestasBySolicitud,
   savePropuesta,
+  getPropuestasByStatus,
   getPlanesActivos,
   sendNotification,
   UpdateUsuariosAll,
