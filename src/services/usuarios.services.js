@@ -2483,6 +2483,71 @@ const savePropuesta = async (req, res) => {
   }
 };
 
+const updatePropuesta = async (req, res) => {
+  try {
+    const body = req.body || {};
+    const { uid_propuesta, status } = body;
+
+    if (!uid_propuesta || typeof uid_propuesta !== "string" || uid_propuesta.trim() === "") {
+      return res.status(400).json({ error: "uid_propuesta es requerido." });
+    }
+    if (!status || typeof status !== "string" || status.trim() === "") {
+      return res.status(400).json({ error: "status es requerido." });
+    }
+
+    const propuestaRef = db.collection("Propuestas").doc(uid_propuesta.trim());
+    const propuestaSnap = await propuestaRef.get();
+
+    if (!propuestaSnap.exists) {
+      return res.status(404).json({ error: "Propuesta no encontrada." });
+    }
+
+    const propuestaData = propuestaSnap.data();
+    const updatePropuestaData = { ...body };
+    delete updatePropuestaData.uid_propuesta;
+    await propuestaRef.update(updatePropuestaData);
+
+    const statusLower = status.trim().toLowerCase();
+    if (statusLower === "aceptada") {
+      const uid_solicitud = propuestaData.uid_solicitud;
+      const uid_taller = propuestaData.uid_taller;
+
+      if (!uid_solicitud || typeof uid_solicitud !== "string" || !uid_solicitud.trim()) {
+        return res.status(400).json({
+          error: "La propuesta no tiene uid_solicitud; no se puede actualizar la solicitud.",
+        });
+      }
+
+      const solicitudRef = db.collection("Solicitudes").doc(uid_solicitud.trim());
+      const solicitudSnap = await solicitudRef.get();
+      if (!solicitudSnap.exists) {
+        return res.status(404).json({ error: "Solicitud no encontrada." });
+      }
+
+      const solicitudUpdate = {
+        status: "aceptada",
+        uid_taller: uid_taller != null ? uid_taller : "",
+      };
+      for (const key of Object.keys(body)) {
+        if (key !== "uid_propuesta" && key !== "status") {
+          solicitudUpdate[key] = body[key];
+        }
+      }
+      await solicitudRef.update(solicitudUpdate);
+    }
+
+    return res.status(200).json({
+      message: "Propuesta actualizada correctamente.",
+      id: uid_propuesta.trim(),
+    });
+  } catch (error) {
+    console.error("Error al actualizar propuesta:", error);
+    return res
+      .status(500)
+      .json({ error: `Error al actualizar propuesta: ${error.message}` });
+  }
+};
+
 const getPropuestasByStatus = async (req, res) => {
   try {
     const { status, uid_taller } = req.body || {};
@@ -3058,6 +3123,7 @@ module.exports = {
   getSolicitudByServicioUid,
   getPropuestasBySolicitud,
   savePropuesta,
+  updatePropuesta,
   getPropuestasByStatus,
   getPlanesActivos,
   sendNotification,
