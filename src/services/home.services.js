@@ -225,11 +225,8 @@ const getServiciosPaginados = async (req, res) => {
     const from = (page - 1) * size;
     const paginated = listado.slice(from, from + size);
 
-    // Quitar campo interno de distancia de la respuesta
-    const data = paginated.map(({ _distanceKm, ...rest }) => rest);
-
     res.status(200).json({
-      data,
+      data: paginated,
       totalCount,
       pageIndex: page,
       pageSize: size,
