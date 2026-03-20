@@ -2239,6 +2239,8 @@ const saveSolicitud = async (req, res) => {
       nombre_usuario,
       uid_usuario,
       phone_usuario,
+      latitude,
+      longitude,
     } = req.body || {};
 
     if (!nombreSolicitud || !vehiculo || !vehiculo.id || !categoriaId) {
@@ -2258,6 +2260,8 @@ const saveSolicitud = async (req, res) => {
       nombre_usuario: nombre_usuario || "",
       uid_usuario: uid_usuario || "",
       phone_usuario: phone_usuario || "",
+      latitude: latitude ?? "",
+      longitude: longitude ?? "",
       solicitud_images: [],
       fecha_solicitud: admin.firestore.Timestamp.now(),
     };
