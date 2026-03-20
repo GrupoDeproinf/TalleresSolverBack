@@ -2592,6 +2592,103 @@ const getPropuestasBySolicitud = async (req, res) => {
   }
 };
 
+const getUsuarioTokenBySolicitudUid = async (uid_solicitud) => {
+  if (!uid_solicitud || typeof uid_solicitud !== "string" || !uid_solicitud.trim()) {
+    return null;
+  }
+
+  const solicitudSnap = await db.collection("Solicitudes").doc(uid_solicitud.trim()).get();
+  if (!solicitudSnap.exists) return null;
+
+  const solicitudData = solicitudSnap.data() || {};
+  const uidUsuario = solicitudData.uid_usuario;
+  if (!uidUsuario || typeof uidUsuario !== "string" || !uidUsuario.trim()) return null;
+
+  const usuarioSnap = await db.collection("Usuarios").doc(uidUsuario.trim()).get();
+  if (!usuarioSnap.exists) return null;
+
+  const usuarioData = usuarioSnap.data() || {};
+  const token = usuarioData.token;
+  if (!token || typeof token !== "string" || !token.trim()) return null;
+
+  return token.trim();
+};
+
+const getUsuarioTokenByUid = async (uid) => {
+  if (!uid || typeof uid !== "string" || !uid.trim()) return null;
+
+  const usuarioSnap = await db.collection("Usuarios").doc(uid.trim()).get();
+  if (!usuarioSnap.exists) return null;
+
+  const usuarioData = usuarioSnap.data() || {};
+  const token = usuarioData.token;
+  if (!token || typeof token !== "string" || !token.trim()) return null;
+
+  return token.trim();
+};
+
+const getNotificationPayloadForPropuestaStatus = (statusValue) => {
+  const normalized = String(statusValue || "").trim().toLowerCase();
+  if (normalized === "cotizado") {
+    return {
+      title: "Tienes una nueva cotizacion",
+      body: "Un taller ya respondio tu solicitud. Entra para revisar la cotizacion y elegir la opcion que mas te convenga.",
+    };
+  }
+  if (normalized === "inspeccion") {
+    return {
+      title: "Te solicitaron una inspeccion",
+      body: "El taller quiere inspeccionar tu vehiculo antes de cotizar. Revisa la solicitud y aceptala si estas de acuerdo.",
+    };
+  }
+  return null;
+};
+
+const notifyUsuarioByPropuestaStatus = async (uid_solicitud, statusValue, propuestaId) => {
+  const notification = getNotificationPayloadForPropuestaStatus(statusValue);
+  if (!notification) return;
+
+  const token = await getUsuarioTokenBySolicitudUid(uid_solicitud);
+  if (!token) return;
+
+  const reqNotif = {
+    body: {
+      token,
+      title: notification.title,
+      body: notification.body,
+      secretCode: "NuevaPropuesta",
+    },
+  };
+  const resNotif = {
+    status: () => ({
+      send: () => { },
+    }),
+  };
+
+  await sendNotification(reqNotif, resNotif);
+};
+
+const notifyTallerPropuestaAceptada = async (uid_taller) => {
+  const token = await getUsuarioTokenByUid(uid_taller);
+  if (!token) return;
+
+  const reqNotif = {
+    body: {
+      token,
+      title: "Tu propuesta fue aceptada",
+      body: "Excelente noticia. El usuario acepto tu propuesta y pronto se pondra en contacto contigo.",
+      secretCode: "PropuestaAceptada",
+    },
+  };
+  const resNotif = {
+    status: () => ({
+      send: () => { },
+    }),
+  };
+
+  await sendNotification(reqNotif, resNotif);
+};
+
 const savePropuesta = async (req, res) => {
   try {
     const body = req.body || {};
@@ -2600,6 +2697,9 @@ const savePropuesta = async (req, res) => {
 
     const docRef = await db.collection("Propuestas").add(body);
     await docRef.update({ id: docRef.id });
+
+    // Notificar usuario de la solicitud solo para status Cotizado o Inspeccion
+    await notifyUsuarioByPropuestaStatus(body.uid_solicitud, body.status, docRef.id);
 
     return res.status(201).json({
       message: "Propuesta creada correctamente.",
@@ -2682,6 +2782,9 @@ const updatePropuesta = async (req, res) => {
         }
       }
       await solicitudRef.update(solicitudUpdate);
+
+      // Notificar al taller que su propuesta fue aceptada
+      await notifyTallerPropuestaAceptada(uid_taller);
     }
 
     return res.status(200).json({
