@@ -1600,38 +1600,46 @@ const getServiceByUid = async (req, res) => {
   }
 };
 
-const getServicesByTallerUid = async (req, res) => {
+const getServicesByTallerUidTrue = async (req, res) => {
   try {
-    // Obtener el UID del servicio desde el cuerpo de la solicitud
-    const { uid } = req.body;
+    // Obtener el UID del taller desde el cuerpo de la solicitud
+    const { uid } = req.body || {};
 
-    console.log("UID del servicio:", uid);
+    console.log("UID del taller:", uid);
 
-    // Buscar el documento en la colección "Servicios" donde el campo "uid" coincide
-    const serviceSnapshot = await db
-      .collection("Servicios")
-      .where("uid_taller", "==", uid)
-      .where("estatus", "==", true)
-      .get();
-
-    // Verificar si el documento existe
-    if (!serviceSnapshot.exists) {
-      console.log("No se encontró el servicio con el UID proporcionado");
-      return res.status(404).send({
-        message: "No se encontró el servicio con el UID proporcionado",
+    if (!uid || typeof uid !== "string" || uid.trim() === "") {
+      return res.status(400).send({
+        message: "El campo uid es requerido.",
       });
     }
 
-    // Obtener los datos del documento encontrado
-    const serviceData = {
-      id: serviceSnapshot.id,
-      ...serviceSnapshot.data(),
-    };
+    console.log("UID del servicio:", uid);
 
-    // Enviar el servicio encontrado
+    // Buscar los servicios del taller
+    const serviceSnapshot = await db
+      .collection("Servicios")
+      .where("uid_taller", "==", uid.trim())
+      .where("estatus", "==", true)
+      .get();
+
+    // Verificar si hay servicios
+    if (serviceSnapshot.empty) {
+      console.log("No se encontraron servicios para el UID proporcionado");
+      return res.status(404).send({
+        message: "No se encontraron servicios para el UID proporcionado",
+      });
+    }
+
+    // Obtener los datos de los documentos encontrados
+    const services = serviceSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    // Enviar los servicios encontrados
     return res.status(200).send({
-      message: "Servicio encontrado",
-      service: serviceData,
+      message: "Servicios encontrados",
+      services,
     });
   } catch (error) {
     console.error("Error al obtener el servicio por UID:", error);
@@ -3424,5 +3432,5 @@ module.exports = {
   updateScheduleDate,
   getPlanesVencidos,
   deleteVehiculo,
-  getServicesByTallerUid
+  getServicesByTallerUidTrue
 };
