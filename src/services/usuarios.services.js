@@ -1600,6 +1600,44 @@ const getServiceByUid = async (req, res) => {
   }
 };
 
+const getServicesByTallerUid = async (req, res) => {
+  try {
+    // Obtener el UID del servicio desde el cuerpo de la solicitud
+    const { uid } = req.body;
+
+    console.log("UID del servicio:", uid);
+
+    // Buscar el documento en la colección "Servicios" donde el campo "uid" coincide
+    const serviceSnapshot = await db
+      .collection("Servicios")
+      .where("uid_taller", "==", uid)
+      .get();
+
+    // Verificar si el documento existe
+    if (!serviceSnapshot.exists) {
+      console.log("No se encontró el servicio con el UID proporcionado");
+      return res.status(404).send({
+        message: "No se encontró el servicio con el UID proporcionado",
+      });
+    }
+
+    // Obtener los datos del documento encontrado
+    const serviceData = {
+      id: serviceSnapshot.id,
+      ...serviceSnapshot.data(),
+    };
+
+    // Enviar el servicio encontrado
+    return res.status(200).send({
+      message: "Servicio encontrado",
+      service: serviceData,
+    });
+  } catch (error) {
+    console.error("Error al obtener el servicio por UID:", error);
+    res.status(500).send("Error al obtener el servicio");
+  }
+};
+
 const getActiveCategories = async (req, res) => {
   try {
     // Consultar la colección "Categorias" donde el campo "estatus" es true
@@ -3384,5 +3422,6 @@ module.exports = {
   AsociarPlan,
   updateScheduleDate,
   getPlanesVencidos,
-  deleteVehiculo
+  deleteVehiculo,
+  getServicesByTallerUid
 };

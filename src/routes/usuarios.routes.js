@@ -77,6 +77,7 @@ router.post('/sendNotification', Usuarios.sendNotification);
 
 router.post('/UpdateUsuariosAll', Usuarios.UpdateUsuariosAll); 
 
+router.post('/getServicesByTallerUid', Usuarios.getServicesByTallerUid);
 
 
 module.exports = router;
