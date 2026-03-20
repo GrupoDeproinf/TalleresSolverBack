@@ -2227,6 +2227,96 @@ const uploadImage = (file, buffer) => {
   });
 };
 
+const getDistanceKm = (lat1, lon1, lat2, lon2) => {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
+const getLatLngFromUbicacion = (ubicacion) => {
+  if (!ubicacion || typeof ubicacion !== "object") return { lat: NaN, lng: NaN };
+  // En tu caso vienen como ubicacion: { lat, lng }
+  const lat = ubicacion.lat ?? ubicacion.latitude;
+  const lng = ubicacion.lng ?? ubicacion.longitude;
+  return {
+    lat: lat != null ? Number(lat) : NaN,
+    lng: lng != null ? Number(lng) : NaN,
+  };
+};
+
+const fetchServiciosByCategoriaId = async (categoriaId) => {
+  return db
+    .collection("Servicios")
+    .where("uid_categoria", "==", categoriaId)
+    .get();
+};
+
+const getUniqueUidTalleres = (serviciosSnapshot) => {
+  const uidTalleres = new Set();
+  serviciosSnapshot.docs.forEach((doc) => {
+    const data = doc.data() || {};
+    const uidTaller = data.uid_taller;
+    if (uidTaller && typeof uidTaller === "string" && uidTaller.trim() !== "") {
+      uidTalleres.add(uidTaller.trim());
+    }
+  });
+  return Array.from(uidTalleres);
+};
+
+const fetchUsuariosByUids = async (uids) => {
+  const IN_LIMIT = 10; // Firestore 'in' limit
+  const talleres = [];
+
+  const uidsList = Array.isArray(uids) ? uids : [];
+  for (let i = 0; i < uidsList.length; i += IN_LIMIT) {
+    const chunk = uidsList.slice(i, i + IN_LIMIT);
+    const snapshot = await db
+      .collection("Usuarios")
+      .where(admin.firestore.FieldPath.documentId(), "in", chunk)
+      .get();
+
+    snapshot.docs.forEach((d) => {
+      talleres.push({
+        uid_taller: d.id,
+        ...d.data(),
+      });
+    });
+  }
+
+  return talleres;
+};
+
+const filterTalleresCercanos = (talleres, userLat, userLng, radiusKm = 10, limit = 10) => {
+  if (!Array.isArray(talleres) || Number.isNaN(userLat) || Number.isNaN(userLng)) {
+    return [];
+  }
+
+  const withDistance = talleres
+    .map((t) => {
+      const { lat, lng } = getLatLngFromUbicacion(t.ubicacion);
+      if (Number.isNaN(lat) || Number.isNaN(lng)) {
+        return null;
+      }
+      const distKm = getDistanceKm(userLat, userLng, lat, lng);
+      return { ...t, distancia_km: distKm };
+    })
+    .filter(Boolean);
+
+  withDistance.sort((a, b) => a.distancia_km - b.distancia_km);
+
+  return withDistance
+    .filter((t) => t.distancia_km <= radiusKm)
+    .slice(0, limit);
+};
+
 const saveSolicitud = async (req, res) => {
   try {
     const {
@@ -2268,6 +2358,39 @@ const saveSolicitud = async (req, res) => {
 
     const solicitudRef = await db.collection("Solicitudes").add(solicitudData);
     const solicitudId = solicitudRef.id;
+
+    // Obtener talleres cercanos basados en categoriaId y ubicación (10 km, top 10)
+    const userLat = latitude != null ? Number(latitude) : NaN;
+    const userLng = longitude != null ? Number(longitude) : NaN;
+
+    const serviciosSnapshot = await fetchServiciosByCategoriaId(categoriaId);
+    const uidTalleresUnicos = getUniqueUidTalleres(serviciosSnapshot);
+    const talleres = await fetchUsuariosByUids(uidTalleresUnicos);
+    const talleresCercanos = filterTalleresCercanos(talleres, userLat, userLng, 10, 10);
+
+    // Enviar notificación a talleres cercanos (sin modificar la función sendNotification)
+    const talleresConToken = talleresCercanos.filter(
+      (t) => t.token && typeof t.token === "string" && t.token.trim() !== ""
+    );
+    await Promise.allSettled(
+      talleresConToken.map((taller) => {
+        const reqNotif = {
+          body: {
+            // token: taller.token,
+            token: "f0GmJ-CXJkSesiASTVmXc1:APA91bEDW8vmDyxCYHVG_4SaolEJAyNbq5dIEdDOz0gZF3hXlax8etwMk81WoCOqtI4OcKLeFwMdXawqltcV3ScyHk7CWl1K2M_UpSlmxK2dxy152CB-Oqk",
+            title: "Nueva solicitud cerca de tu ubicacion",
+            body: "¡Hay una nueva solicitud cerca de tu ubicación! Revísala y envía tu cotización para atenderla.",
+            secretCode: "NuevaSolicitud",
+          },
+        };
+        const resNotif = {
+          status: () => ({
+            send: () => { },
+          }),
+        };
+        return sendNotification(reqNotif, resNotif);
+      })
+    );
 
     const imageUrls = [];
     if (Array.isArray(fotos) && fotos.length > 0) {
