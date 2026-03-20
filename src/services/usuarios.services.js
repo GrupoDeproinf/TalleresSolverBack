@@ -1611,6 +1611,7 @@ const getServicesByTallerUid = async (req, res) => {
     const serviceSnapshot = await db
       .collection("Servicios")
       .where("uid_taller", "==", uid)
+      .where("estatus", "==", true)
       .get();
 
     // Verificar si el documento existe
