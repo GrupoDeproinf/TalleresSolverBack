@@ -2797,6 +2797,7 @@ const updateSolicitudStatus = async (req, res) => {
       });
       await batch.commit();
     }
+    
 
     return res.status(200).json({
       message: "Status de la solicitud actualizado correctamente.",
