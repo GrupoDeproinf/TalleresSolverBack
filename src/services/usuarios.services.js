@@ -2781,6 +2781,23 @@ const updateSolicitudStatus = async (req, res) => {
 
     await solicitudRef.update({ status: status.trim() });
 
+    // Luego de actualizar la solicitud, rechazar todas las propuestas asociadas
+    const propuestasSnapshot = await db
+      .collection("Propuestas")
+      .where("uid_solicitud", "==", uid_solicitud.trim())
+      .get();
+
+    if (!propuestasSnapshot.empty) {
+      const batch = db.batch();
+      propuestasSnapshot.docs.forEach((doc) => {
+        batch.update(doc.ref, {
+          status: "Rechazada",
+          fecha_rechazada: admin.firestore.Timestamp.now(),
+        });
+      });
+      await batch.commit();
+    }
+
     return res.status(200).json({
       message: "Status de la solicitud actualizado correctamente.",
       id: uid_solicitud.trim(),
