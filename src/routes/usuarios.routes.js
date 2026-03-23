@@ -65,6 +65,8 @@ router.post('/getPropuestasBySolicitud', Usuarios.getPropuestasBySolicitud);
 
 router.post('/savePropuesta', Usuarios.savePropuesta);
 
+router.post('/updateSolicitudStatus', Usuarios.updateSolicitudStatus);
+
 router.post('/updatePropuesta', Usuarios.updatePropuesta);
 
 router.post('/getPropuestasByStatus', Usuarios.getPropuestasByStatus);

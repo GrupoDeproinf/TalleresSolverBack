@@ -2760,6 +2760,40 @@ const savePropuesta = async (req, res) => {
   }
 };
 
+const updateSolicitudStatus = async (req, res) => {
+  try {
+    const body = req.body || {};
+    const { uid_solicitud, status } = body;
+
+    if (!uid_solicitud || typeof uid_solicitud !== "string" || uid_solicitud.trim() === "") {
+      return res.status(400).json({ error: "uid_solicitud es requerido." });
+    }
+    if (!status || typeof status !== "string" || status.trim() === "") {
+      return res.status(400).json({ error: "status es requerido." });
+    }
+
+    const solicitudRef = db.collection("Solicitudes").doc(uid_solicitud.trim());
+    const solicitudSnap = await solicitudRef.get();
+
+    if (!solicitudSnap.exists) {
+      return res.status(404).json({ error: "Solicitud no encontrada." });
+    }
+
+    await solicitudRef.update({ status: status.trim() });
+
+    return res.status(200).json({
+      message: "Status de la solicitud actualizado correctamente.",
+      id: uid_solicitud.trim(),
+      status: status.trim(),
+    });
+  } catch (error) {
+    console.error("Error al actualizar status de la solicitud:", error);
+    return res
+      .status(500)
+      .json({ error: `Error al actualizar solicitud: ${error.message}` });
+  }
+};
+
 const updatePropuesta = async (req, res) => {
   try {
     const body = req.body || {};
@@ -3421,6 +3455,7 @@ module.exports = {
   getSolicitudByServicioUid,
   getPropuestasBySolicitud,
   savePropuesta,
+  updateSolicitudStatus,
   updatePropuesta,
   getPropuestasByStatus,
   getPlanesActivos,
