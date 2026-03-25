@@ -179,6 +179,28 @@ const saveOrUpdateVehiculo = async (req, res) => {
       grua: empty(body.grua),
       activo: empty(body.activo),
       por_defecto: empty(body.por_defecto),
+
+      // Ficha tecnica
+      capacidad_tanque_combustible: empty(body.capacidad_tanque_combustible),
+      cilindrada: empty(body.cilindrada),
+      numero_cilindros: empty(body.numero_cilindros),
+      tipo_aceite_motor: empty(body.tipo_aceite_motor),
+      viscosidad_aceite_motor: empty(body.viscosidad_aceite_motor),
+      marca_aceite_motor: empty(body.marca_aceite_motor),
+      litros_aceite: empty(body.litros_aceite),
+      tipo_aceite_diferencial: empty(body.tipo_aceite_diferencial),
+      viscosidad_aceite_diferencial: empty(body.viscosidad_aceite_diferencial),
+      tipo_aceite_transmision: empty(body.tipo_aceite_transmision),
+      tipo_refrigerante: empty(body.tipo_refrigerante),
+      tecnologia_refrigerante: empty(body.tecnologia_refrigerante),
+      tipo_liga_frenos: empty(body.tipo_liga_frenos),
+      amperaje_bateria: empty(body.amperaje_bateria),
+      tamano_neumatico: empty(body.tamano_neumatico),
+      tamano_rin: empty(body.tamano_rin),
+      presion_neumatico: empty(body.presion_neumatico),
+      marca_bujia: empty(body.marca_bujia),
+      codigo_bujia: empty(body.codigo_bujia),
+      nivel_blindaje: empty(body.nivel_blindaje),
     };
 
     const vehiculosRef = usuarioRef.collection("Vehiculos");
