@@ -83,6 +83,26 @@ const getUsuarios = async (req, res) => {
   }
 };
 
+const getNotificaciones = async (req, res) => {
+  try {
+    const result = await db.collection("Notificaciones").get();
+
+    if (result.empty) {
+      return res.status(200).json([]);
+    }
+
+    const notificaciones = result.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    return res.status(200).json(notificaciones);
+  } catch (error) {
+    console.error("Error al obtener notificaciones:", error);
+    return res.status(500).send(`Error al obtener notificaciones: ${error.message}`);
+  }
+};
+
 const getVehiculosByUsuarioUid = async (req, res) => {
   try {
     const { uid } = req.body || {};
@@ -3467,6 +3487,7 @@ const deleteVehiculo = async (req, res) => {
 
 module.exports = {
   getUsuarios,
+  getNotificaciones,
   getVehiculosByUsuarioUid,
   getTiposVehiculo,
   saveOrUpdateVehiculo,

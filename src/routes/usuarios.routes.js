@@ -4,6 +4,7 @@ const Usuarios = require('../services/usuarios.services');
 const router = Router();
 
 router.get('/GetUsers', Usuarios.getUsuarios);
+router.get('/getNotificaciones', Usuarios.getNotificaciones);
 
 router.post('/SaveClient', Usuarios.SaveClient);
 
