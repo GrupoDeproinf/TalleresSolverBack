@@ -5,6 +5,7 @@ const router = Router();
 
 router.get('/GetUsers', Usuarios.getUsuarios);
 router.get('/getNotificaciones', Usuarios.getNotificaciones);
+router.post('/saveUpdateNotificationUser', Usuarios.saveUpdateNotificationUser);
 
 router.post('/SaveClient', Usuarios.SaveClient);
 

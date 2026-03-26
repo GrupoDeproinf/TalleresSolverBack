@@ -103,6 +103,67 @@ const getNotificaciones = async (req, res) => {
   }
 };
 
+const saveUpdateNotificationUser = async (req, res) => {
+  try {
+    const { uiduser, uidvehicle, notificaciones } = req.body || {};
+
+    if (!uiduser || typeof uiduser !== "string" || uiduser.trim() === "") {
+      return res.status(400).json({ error: "uiduser es requerido." });
+    }
+    if (!uidvehicle || typeof uidvehicle !== "string" || uidvehicle.trim() === "") {
+      return res.status(400).json({ error: "uidvehicle es requerido." });
+    }
+    if (!Array.isArray(notificaciones)) {
+      return res.status(400).json({ error: "notificaciones debe ser un arreglo." });
+    }
+
+    const userRef = db.collection("Usuarios").doc(uiduser.trim());
+    const userSnap = await userRef.get();
+
+    if (!userSnap.exists) {
+      return res.status(404).json({ error: "Usuario no encontrado." });
+    }
+
+    const userData = userSnap.data() || {};
+    const current = Array.isArray(userData.notificacionesVehiculos)
+      ? userData.notificacionesVehiculos
+      : [];
+
+    const vehicleId = uidvehicle.trim();
+    const idx = current.findIndex(
+      (item) => item && typeof item === "object" && item.uidvehicle === vehicleId
+    );
+
+    const vehicleNotifications = {
+      uidvehicle: vehicleId,
+      notificaciones,
+    };
+
+    let updated;
+    if (idx >= 0) {
+      updated = [...current];
+      updated[idx] = vehicleNotifications;
+    } else {
+      updated = [...current, vehicleNotifications];
+    }
+
+    await userRef.update({
+      notificacionesVehiculos: updated,
+    });
+
+    return res.status(200).json({
+      message: "Notificaciones del vehículo guardadas correctamente.",
+      uiduser: uiduser.trim(),
+      uidvehicle: vehicleId,
+    });
+  } catch (error) {
+    console.error("Error al guardar/actualizar notificaciones de usuario:", error);
+    return res
+      .status(500)
+      .json({ error: `Error al guardar notificaciones: ${error.message}` });
+  }
+};
+
 const getVehiculosByUsuarioUid = async (req, res) => {
   try {
     const { uid } = req.body || {};
@@ -3488,6 +3549,7 @@ const deleteVehiculo = async (req, res) => {
 module.exports = {
   getUsuarios,
   getNotificaciones,
+  saveUpdateNotificationUser,
   getVehiculosByUsuarioUid,
   getTiposVehiculo,
   saveOrUpdateVehiculo,
