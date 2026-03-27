@@ -172,8 +172,10 @@ const updateNotificationUser = async (req, res) => {
       secretCode,
       ultimaRevision,
       proximaRevision,
-      intervaloTiempo,
-      intervaloKM,
+      intervalodias,
+      intervalokm,
+      intervaloDias,
+      intervaloKm,
     } = req.body || {};
 
     if (!uiduser || typeof uiduser !== "string" || uiduser.trim() === "") {
@@ -225,14 +227,30 @@ const updateNotificationUser = async (req, res) => {
     }
 
     const updatedNotificaciones = [...currentNotificaciones];
+    const dias =
+      intervalodias !== undefined && intervalodias !== null
+        ? intervalodias
+        : intervaloDias !== undefined && intervaloDias !== null
+          ? intervaloDias
+          : updatedNotificaciones[notifIndex].intervalodias ??
+            updatedNotificaciones[notifIndex].intervaloDias ??
+            "";
+    const km =
+      intervalokm !== undefined && intervalokm !== null
+        ? intervalokm
+        : intervaloKm !== undefined && intervaloKm !== null
+          ? intervaloKm
+          : updatedNotificaciones[notifIndex].intervalokm ??
+            updatedNotificaciones[notifIndex].intervaloKM ??
+            "";
+
     updatedNotificaciones[notifIndex] = {
       ...updatedNotificaciones[notifIndex],
       ultimaRevision: ultimaRevision ?? updatedNotificaciones[notifIndex].ultimaRevision ?? "",
       proximaRevision:
         proximaRevision ?? updatedNotificaciones[notifIndex].proximaRevision ?? "",
-      intervaloTiempo:
-        intervaloTiempo ?? updatedNotificaciones[notifIndex].intervaloTiempo ?? "",
-      intervaloKM: intervaloKM ?? updatedNotificaciones[notifIndex].intervaloKM ?? "",
+      intervalodias: dias,
+      intervalokm: km,
     };
 
     const updatedVehicles = [...current];
