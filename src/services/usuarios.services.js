@@ -3625,16 +3625,22 @@ const deleteVehiculo = async (req, res) => {
       return res.status(400).json({ error: "uiduser y uidvehicle no pueden estar vacíos." });
     }
 
-    const vehiculoRef = db
-      .collection("Usuarios")
-      .doc(userId)
-      .collection("Vehiculos")
-      .doc(vehicleId);
+    const userRef = db.collection("Usuarios").doc(userId);
+    const vehiculoRef = userRef.collection("Vehiculos").doc(vehicleId);
 
     const vehiculoDoc = await vehiculoRef.get();
     if (!vehiculoDoc.exists) {
       return res.status(404).json({ error: "Vehículo no encontrado para este usuario." });
     }
+
+    const userSnap = await userRef.get();
+    const userData = userSnap.data() || {};
+    const currentNotif = Array.isArray(userData.notificacionesVehiculos)
+      ? userData.notificacionesVehiculos
+      : [];
+    const notificacionesVehiculos = currentNotif.filter(
+      (item) => !(item && typeof item === "object" && item.uidvehicle === vehicleId)
+    );
 
     const storagePath = `vehicles/${userId}/${vehicleId}/${vehicleId}.jpg`;
     const file = bucket.file(storagePath);
@@ -3644,10 +3650,16 @@ const deleteVehiculo = async (req, res) => {
       console.warn("No se pudo eliminar la imagen del vehículo:", err.message || err);
     }
 
-    await vehiculoRef.delete();
+    const batch = db.batch();
+    batch.delete(vehiculoRef);
+    if (userSnap.exists) {
+      batch.update(userRef, { notificacionesVehiculos });
+    }
+    await batch.commit();
 
     return res.status(200).json({
-      message: "Vehículo y su imagen (si existía) fueron eliminados correctamente.",
+      message:
+        "Vehículo, su imagen (si existía) y sus notificaciones asociadas fueron eliminados correctamente.",
       uiduser: userId,
       uidvehicle: vehicleId,
     });
