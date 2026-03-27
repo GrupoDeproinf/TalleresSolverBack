@@ -164,6 +164,102 @@ const saveUpdateNotificationUser = async (req, res) => {
   }
 };
 
+const updateNotificationUser = async (req, res) => {
+  try {
+    const {
+      uiduser,
+      uidvehicle,
+      secretCode,
+      ultimaRevision,
+      proximaRevision,
+      intervaloTiempo,
+      intervaloKM,
+    } = req.body || {};
+
+    if (!uiduser || typeof uiduser !== "string" || uiduser.trim() === "") {
+      return res.status(400).json({ error: "uiduser es requerido." });
+    }
+    if (!uidvehicle || typeof uidvehicle !== "string" || uidvehicle.trim() === "") {
+      return res.status(400).json({ error: "uidvehicle es requerido." });
+    }
+    if (!secretCode || typeof secretCode !== "string" || secretCode.trim() === "") {
+      return res.status(400).json({ error: "secretCode es requerido." });
+    }
+
+    const userRef = db.collection("Usuarios").doc(uiduser.trim());
+    const userSnap = await userRef.get();
+
+    if (!userSnap.exists) {
+      return res.status(404).json({ error: "Usuario no encontrado." });
+    }
+
+    const userData = userSnap.data() || {};
+    const current = Array.isArray(userData.notificacionesVehiculos)
+      ? userData.notificacionesVehiculos
+      : [];
+
+    const vehicleId = uidvehicle.trim();
+    const vehicleIndex = current.findIndex(
+      (item) => item && typeof item === "object" && item.uidvehicle === vehicleId
+    );
+
+    if (vehicleIndex < 0) {
+      return res.status(404).json({
+        error: "No se encontró configuración de notificaciones para ese vehículo.",
+      });
+    }
+
+    const vehicleConfig = current[vehicleIndex] || {};
+    const currentNotificaciones = Array.isArray(vehicleConfig.notificaciones)
+      ? vehicleConfig.notificaciones
+      : [];
+
+    const notifIndex = currentNotificaciones.findIndex(
+      (n) => n && typeof n === "object" && n.secretCode === secretCode.trim()
+    );
+
+    if (notifIndex < 0) {
+      return res.status(404).json({
+        error: "No se encontró notificación para el secretCode indicado.",
+      });
+    }
+
+    const updatedNotificaciones = [...currentNotificaciones];
+    updatedNotificaciones[notifIndex] = {
+      ...updatedNotificaciones[notifIndex],
+      ultimaRevision: ultimaRevision ?? updatedNotificaciones[notifIndex].ultimaRevision ?? "",
+      proximaRevision:
+        proximaRevision ?? updatedNotificaciones[notifIndex].proximaRevision ?? "",
+      intervaloTiempo:
+        intervaloTiempo ?? updatedNotificaciones[notifIndex].intervaloTiempo ?? "",
+      intervaloKM: intervaloKM ?? updatedNotificaciones[notifIndex].intervaloKM ?? "",
+    };
+
+    const updatedVehicles = [...current];
+    updatedVehicles[vehicleIndex] = {
+      ...vehicleConfig,
+      uidvehicle: vehicleId,
+      notificaciones: updatedNotificaciones,
+    };
+
+    await userRef.update({
+      notificacionesVehiculos: updatedVehicles,
+    });
+
+    return res.status(200).json({
+      message: "Notificación del vehículo actualizada correctamente.",
+      uiduser: uiduser.trim(),
+      uidvehicle: vehicleId,
+      secretCode: secretCode.trim(),
+    });
+  } catch (error) {
+    console.error("Error al actualizar notificación de usuario:", error);
+    return res
+      .status(500)
+      .json({ error: `Error al actualizar notificación: ${error.message}` });
+  }
+};
+
 const getVehiculosByUsuarioUid = async (req, res) => {
   try {
     const { uid } = req.body || {};
@@ -3550,6 +3646,7 @@ module.exports = {
   getUsuarios,
   getNotificaciones,
   saveUpdateNotificationUser,
+  updateNotificationUser,
   getVehiculosByUsuarioUid,
   getTiposVehiculo,
   saveOrUpdateVehiculo,
