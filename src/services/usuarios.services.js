@@ -3157,46 +3157,20 @@ const getPropuestasByStatus = async (req, res) => {
         .json({ error: "uid_taller es requerido." });
     }
 
-    const tallerId = uid_taller.trim();
-    const tallerSnap = await db.collection("Usuarios").doc(tallerId).get();
-    if (!tallerSnap.exists) {
-      return res.status(404).json({ error: "Taller no encontrado." });
-    }
-    const { lat: tallerLat, lng: tallerLng } = getLatLngFromUbicacion(
-      (tallerSnap.data() || {}).ubicacion
-    );
-    if (Number.isNaN(tallerLat) || Number.isNaN(tallerLng)) {
-      return res.status(400).json({
-        error: "El taller no tiene una ubicación válida (ubicacion.lat / ubicacion.lng).",
-      });
-    }
-
-    const RADIO_KM = 10;
-
     const snapshot = await db
       .collection("Propuestas")
       .where("status", "==", status.trim())
-      .where("uid_taller", "==", tallerId)
+      .where("uid_taller", "==", uid_taller.trim())
       .get();
 
     if (snapshot.empty) {
       return res.status(200).json([]);
     }
 
-    const propuestas = snapshot.docs
-      .map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }))
-      .filter((p) => {
-        const slat = p.latitude != null ? Number(p.latitude) : NaN;
-        const slng = p.longitude != null ? Number(p.longitude) : NaN;
-        if (Number.isNaN(slat) || Number.isNaN(slng)) {
-          return false;
-        }
-        const distKm = getDistanceKm(tallerLat, tallerLng, slat, slng);
-        return distKm <= RADIO_KM;
-      });
+    const propuestas = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
 
     return res.status(200).json(propuestas);
   } catch (error) {
