@@ -2804,24 +2804,27 @@ const getSolicitudesByUsuarioAndStatus = async (req, res) => {
       return res.status(200).json([]);
     }
 
-    // 2) Propuestas donde uid_taller es este taller: cada doc tiene uid_solicitud = id del doc en Solicitudes.
-    //    Si ya existe una propuesta (uid_taller + uid_solicitud), esa solicitud no se ofrece otra vez a este taller.
-    const propuestasSnapshot = await db
-      .collection("Propuestas")
-      .where("uid_taller", "==", tallerId)
-      .get();
+    // ids de Solicitudes (string) — deben alinearse con uid_solicitud (string) en Propuestas
+    const solicitudIds = snapshot.docs.map((d) => String(d.id).trim());
 
+    // 2) Propuestas: uid_solicitud y uid_taller son string; por lote con "in" (límite Firestore: 10 valores) + uid_taller.
+    const IN_LIMIT = 10; // https://firebase.google.com/docs/firestore/query-data/queries#in_and_array-contains-any
     const solicitudesConPropuestaDeEsteTaller = new Set();
-    propuestasSnapshot.docs.forEach((doc) => {
-      const data = doc.data() || {};
-      const uidSolicitud =
-        data.uid_solicitud != null && data.uid_solicitud !== ""
-          ? String(data.uid_solicitud).trim()
-          : "";
-      if (uidSolicitud !== "") {
-        solicitudesConPropuestaDeEsteTaller.add(uidSolicitud);
-      }
-    });
+    for (let i = 0; i < solicitudIds.length; i += IN_LIMIT) {
+      const chunk = solicitudIds.slice(i, i + IN_LIMIT).map((id) => String(id).trim());
+      const propSnap = await db
+        .collection("Propuestas")
+        .where("uid_solicitud", "in", chunk)
+        .where("uid_taller", "==", String(tallerId).trim())
+        .get();
+      propSnap.docs.forEach((doc) => {
+        const raw = (doc.data() || {}).uid_solicitud;
+        const uidSol = raw == null ? "" : String(raw).trim();
+        if (uidSol !== "") {
+          solicitudesConPropuestaDeEsteTaller.add(uidSol);
+        }
+      });
+    }
 
     /** Punto {lat,lng} desde un campo que puede ser GeoPoint, objeto plano o escalar (sin depender solo de instanceof). */
     const latLngDesdeCampoPunto = (o) => {
