@@ -2779,7 +2779,9 @@ const getSolicitudesByUsuarioAndStatus = async (req, res) => {
     const solicitudesIdsConPropuesta = new Set();
     propuestasSnapshot.docs.forEach((doc) => {
       const uid_solicitud = doc.data().uid_solicitud;
-      if (uid_solicitud) solicitudesIdsConPropuesta.add(uid_solicitud);
+      if (uid_solicitud != null && String(uid_solicitud).trim() !== "") {
+        solicitudesIdsConPropuesta.add(String(uid_solicitud).trim());
+      }
     });
 
     const snapshot = await db
@@ -2791,18 +2793,36 @@ const getSolicitudesByUsuarioAndStatus = async (req, res) => {
       return res.status(200).json([]);
     }
 
+    const coordsSolicitud = (s) => {
+      const latRaw = s.latitude;
+      const lngRaw = s.longitude;
+      if (
+        latRaw &&
+        typeof latRaw === "object" &&
+        typeof latRaw.latitude === "number" &&
+        typeof latRaw.longitude === "number"
+      ) {
+        return { lat: latRaw.latitude, lng: latRaw.longitude };
+      }
+      if (latRaw != null && latRaw !== "" && lngRaw != null && lngRaw !== "") {
+        const la = Number(latRaw);
+        const ln = Number(lngRaw);
+        if (Number.isFinite(la) && Number.isFinite(ln)) {
+          return { lat: la, lng: ln };
+        }
+      }
+      return getLatLngFromUbicacion(s.ubicacion);
+    };
+
     const solicitudes = snapshot.docs
       .map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }))
-      .filter((s) => !solicitudesIdsConPropuesta.has(s.id))
+      .filter((s) => !solicitudesIdsConPropuesta.has(String(s.id).trim()))
       .filter((s) => {
-        const slat =
-          s.latitude != null ? Number(s.latitude) : NaN;
-        const slng =
-          s.longitude != null ? Number(s.longitude) : NaN;
-        if (Number.isNaN(slat) || Number.isNaN(slng)) {
+        const { lat: slat, lng: slng } = coordsSolicitud(s);
+        if (!Number.isFinite(slat) || !Number.isFinite(slng)) {
           return false;
         }
         const distKm = getDistanceKm(tallerLat, tallerLng, slat, slng);
