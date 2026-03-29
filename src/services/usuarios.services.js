@@ -2755,9 +2755,25 @@ const getSolicitudesByUsuarioAndStatus = async (req, res) => {
         .json({ error: "uid_taller es requerido." });
     }
 
+    const tallerId = uid_taller.trim();
+    const tallerSnap = await db.collection("Usuarios").doc(tallerId).get();
+    if (!tallerSnap.exists) {
+      return res.status(404).json({ error: "Taller no encontrado." });
+    }
+    const { lat: tallerLat, lng: tallerLng } = getLatLngFromUbicacion(
+      (tallerSnap.data() || {}).ubicacion
+    );
+    if (Number.isNaN(tallerLat) || Number.isNaN(tallerLng)) {
+      return res.status(400).json({
+        error: "El taller no tiene una ubicación válida (ubicacion.lat / ubicacion.lng).",
+      });
+    }
+
+    const RADIO_KM = 10;
+
     const propuestasSnapshot = await db
       .collection("Propuestas")
-      .where("uid_taller", "==", uid_taller.trim())
+      .where("uid_taller", "==", tallerId)
       .get();
 
     const solicitudesIdsConPropuesta = new Set();
@@ -2780,7 +2796,18 @@ const getSolicitudesByUsuarioAndStatus = async (req, res) => {
         id: doc.id,
         ...doc.data(),
       }))
-      .filter((s) => !solicitudesIdsConPropuesta.has(s.id));
+      .filter((s) => !solicitudesIdsConPropuesta.has(s.id))
+      .filter((s) => {
+        const slat =
+          s.latitude != null ? Number(s.latitude) : NaN;
+        const slng =
+          s.longitude != null ? Number(s.longitude) : NaN;
+        if (Number.isNaN(slat) || Number.isNaN(slng)) {
+          return false;
+        }
+        const distKm = getDistanceKm(tallerLat, tallerLng, slat, slng);
+        return distKm <= RADIO_KM;
+      });
 
     return res.status(200).json(solicitudes);
   } catch (error) {
