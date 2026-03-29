@@ -3,7 +3,7 @@ const { db, bucket } = require("../firebase");
 const { Buffer } = require('buffer');
 
 const { getAuth, signInWithEmailAndPassword } = require("firebase/auth");
-const { getFirestore } = require("firebase-admin/firestore");
+const { getFirestore, GeoPoint } = require("firebase-admin/firestore");
 const { app } = require("../../firebaseConfig"); // Asegúrate de la ruta correcta
 
 
@@ -2505,14 +2505,28 @@ const getDistanceKm = (lat1, lon1, lat2, lon2) => {
   return R * c;
 };
 
+/** Convierte un escalar de coordenada (número, string "10,5", etc.) a número finito o NaN. */
+const parseCoordScalar = (v) => {
+  if (v == null || v === "") return NaN;
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string") {
+    const t = v.trim().replace(/\s/g, "").replace(",", ".");
+    const n = Number(t);
+    return Number.isFinite(n) ? n : NaN;
+  }
+  return NaN;
+};
+
 const getLatLngFromUbicacion = (ubicacion) => {
   if (!ubicacion || typeof ubicacion !== "object") return { lat: NaN, lng: NaN };
-  // En tu caso vienen como ubicacion: { lat, lng }
+  if (ubicacion instanceof GeoPoint) {
+    return { lat: ubicacion.latitude, lng: ubicacion.longitude };
+  }
   const lat = ubicacion.lat ?? ubicacion.latitude;
   const lng = ubicacion.lng ?? ubicacion.longitude;
   return {
-    lat: lat != null ? Number(lat) : NaN,
-    lng: lng != null ? Number(lng) : NaN,
+    lat: parseCoordScalar(lat),
+    lng: parseCoordScalar(lng),
   };
 };
 
@@ -2769,7 +2783,8 @@ const getSolicitudesByUsuarioAndStatus = async (req, res) => {
       });
     }
 
-    const RADIO_KM = 10;
+    /** Solo solicitudes con distancia en línea recta **estrictamente menor** a 10 km respecto al taller. */
+    const RADIO_MAX_KM = 10;
 
     const propuestasSnapshot = await db
       .collection("Propuestas")
@@ -2796,6 +2811,12 @@ const getSolicitudesByUsuarioAndStatus = async (req, res) => {
     const coordsSolicitud = (s) => {
       const latRaw = s.latitude;
       const lngRaw = s.longitude;
+      if (latRaw instanceof GeoPoint) {
+        return { lat: latRaw.latitude, lng: latRaw.longitude };
+      }
+      if (lngRaw instanceof GeoPoint) {
+        return { lat: lngRaw.latitude, lng: lngRaw.longitude };
+      }
       if (
         latRaw &&
         typeof latRaw === "object" &&
@@ -2804,27 +2825,21 @@ const getSolicitudesByUsuarioAndStatus = async (req, res) => {
       ) {
         return { lat: latRaw.latitude, lng: latRaw.longitude };
       }
-      if (latRaw != null && latRaw !== "" && lngRaw != null && lngRaw !== "") {
-        const la = Number(latRaw);
-        const ln = Number(lngRaw);
-        if (Number.isFinite(la) && Number.isFinite(ln)) {
-          return { lat: la, lng: ln };
-        }
+      const nla = parseCoordScalar(latRaw);
+      const nln = parseCoordScalar(lngRaw);
+      if (Number.isFinite(nla) && Number.isFinite(nln)) {
+        return { lat: nla, lng: nln };
       }
       return getLatLngFromUbicacion(s.ubicacion);
     };
 
-    /** Solo solicitudes cuya ubicación está a como mucho RADIO_KM km del taller (no se incluye nada más lejano). */
-    const estaACorteDistanciaDelTaller = (s) => {
+    const estaDentroDelRadioKm = (s) => {
       const { lat: slat, lng: slng } = coordsSolicitud(s);
       if (!Number.isFinite(slat) || !Number.isFinite(slng)) {
         return false;
       }
       const distKm = getDistanceKm(tallerLat, tallerLng, slat, slng);
-      if (distKm > RADIO_KM) {
-        return false;
-      }
-      return true;
+      return distKm < RADIO_MAX_KM;
     };
 
     const solicitudes = snapshot.docs
@@ -2832,7 +2847,7 @@ const getSolicitudesByUsuarioAndStatus = async (req, res) => {
         id: doc.id,
         ...doc.data(),
       }))
-      .filter(estaACorteDistanciaDelTaller)
+      .filter(estaDentroDelRadioKm)
       .filter((s) => !solicitudesIdsConPropuesta.has(String(s.id).trim()));
 
     return res.status(200).json(solicitudes);
