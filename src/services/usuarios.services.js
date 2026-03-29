@@ -2762,6 +2762,11 @@ const getSolicitudesByUsuario = async (req, res) => {
   }
 };
 
+/**
+ * Body: `status`, `uid_taller`.
+ * - Solicitudes con ese `status` que no tengan ninguna propuesta (`Propuestas.uid_solicitud` = id de la solicitud).
+ * - `propuestas`: todas las de ese `uid_taller`.
+ */
 const getSolicitudesByUsuarioAndStatus = async (req, res) => {
   try {
     const { status, uid_taller } = req.body || {};
@@ -2778,113 +2783,51 @@ const getSolicitudesByUsuarioAndStatus = async (req, res) => {
     }
 
     const tallerId = uid_taller.trim();
-    const tallerSnap = await db.collection("Usuarios").doc(tallerId).get();
-    if (!tallerSnap.exists) {
-      return res.status(404).json({ error: "Taller no encontrado." });
-    }
-    const { lat: tallerLat, lng: tallerLng } = getLatLngFromUbicacion(
-      (tallerSnap.data() || {}).ubicacion
-    );
-    if (Number.isNaN(tallerLat) || Number.isNaN(tallerLng)) {
-      return res.status(400).json({
-        error: "El taller no tiene una ubicación válida (ubicacion.lat / ubicacion.lng).",
-      });
-    }
 
-    /** Distancia en línea recta (Haversine) máxima: 10 km desde la ubicación del taller. */
-    const RADIO_MAX_KM = 10;
+    const [snapshotSolicitudes, snapshotPropuestas] = await Promise.all([
+      db.collection("Solicitudes").where("status", "==", status.trim()).get(),
+      db.collection("Propuestas").where("uid_taller", "==", tallerId).get(),
+    ]);
 
-    // 1) Solicitudes por status
-    const snapshot = await db
-      .collection("Solicitudes")
-      .where("status", "==", status.trim())
-      .get();
+    const solicitudIds = snapshotSolicitudes.empty
+      ? []
+      : snapshotSolicitudes.docs.map((d) => String(d.id).trim());
 
-    if (snapshot.empty) {
-      return res.status(200).json([]);
-    }
-
-    // ids de Solicitudes (string) — deben alinearse con uid_solicitud (string) en Propuestas
-    const solicitudIds = snapshot.docs.map((d) => String(d.id).trim());
-
-    // 2) Propuestas: uid_solicitud y uid_taller son string; por lote con "in" (límite Firestore: 10 valores) + uid_taller.
-    const IN_LIMIT = 10; // https://firebase.google.com/docs/firestore/query-data/queries#in_and_array-contains-any
-    const solicitudesConPropuestaDeEsteTaller = new Set();
+    const solicitudesConAlgunaPropuesta = new Set();
+    const IN_LIMIT = 10;
     for (let i = 0; i < solicitudIds.length; i += IN_LIMIT) {
       const chunk = solicitudIds.slice(i, i + IN_LIMIT).map((id) => String(id).trim());
       const propSnap = await db
         .collection("Propuestas")
         .where("uid_solicitud", "in", chunk)
-        .where("uid_taller", "==", String(tallerId).trim())
+        .where("uid_taller", "==", tallerId)
         .get();
       propSnap.docs.forEach((doc) => {
         const raw = (doc.data() || {}).uid_solicitud;
         const uidSol = raw == null ? "" : String(raw).trim();
         if (uidSol !== "") {
-          solicitudesConPropuestaDeEsteTaller.add(uidSol);
+          solicitudesConAlgunaPropuesta.add(uidSol);
         }
       });
     }
 
-    /** Punto {lat,lng} desde un campo que puede ser GeoPoint, objeto plano o escalar (sin depender solo de instanceof). */
-    const latLngDesdeCampoPunto = (o) => {
-      if (!o || typeof o !== "object") return null;
-      if (typeof o.latitude === "number" && typeof o.longitude === "number") {
-        if (Number.isFinite(o.latitude) && Number.isFinite(o.longitude)) {
-          return { lat: o.latitude, lng: o.longitude };
-        }
-      }
-      return null;
-    };
+    const solicitudes = snapshotSolicitudes.empty
+      ? []
+      : snapshotSolicitudes.docs
+          .map((doc) => ({
+            ...doc.data(),
+            id: doc.id,
+          }))
+          .filter((s) => !solicitudesConAlgunaPropuesta.has(String(s.id).trim()));
 
-    const coordsSolicitud = (s) => {
-      const latRaw = s.latitude;
-      const lngRaw = s.longitude;
-      const desdeLat = latLngDesdeCampoPunto(latRaw);
-      if (desdeLat) return desdeLat;
-      const desdeLng = latLngDesdeCampoPunto(lngRaw);
-      if (desdeLng) return desdeLng;
-      if (latRaw instanceof GeoPoint) {
-        return { lat: latRaw.latitude, lng: latRaw.longitude };
-      }
-      if (lngRaw instanceof GeoPoint) {
-        return { lat: lngRaw.latitude, lng: lngRaw.longitude };
-      }
-      const nla = parseCoordScalar(latRaw);
-      const nln = parseCoordScalar(lngRaw);
-      if (Number.isFinite(nla) && Number.isFinite(nln)) {
-        return { lat: nla, lng: nln };
-      }
-      let u = getLatLngFromUbicacion(s.ubicacion);
-      if (Number.isFinite(u.lat) && Number.isFinite(u.lng)) return u;
-      u = getLatLngFromUbicacion(s.location);
-      if (Number.isFinite(u.lat) && Number.isFinite(u.lng)) return u;
-      return { lat: NaN, lng: NaN };
-    };
+    const propuestas = snapshotPropuestas.empty
+      ? []
+      : snapshotPropuestas.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
 
-    const estaDentroDelRadioKm = (s) => {
-      const { lat: slat, lng: slng } = coordsSolicitud(s);
-      if (!Number.isFinite(slat) || !Number.isFinite(slng)) {
-        return false;
-      }
-      const distKm = getDistanceKm(tallerLat, tallerLng, slat, slng);
-      return distKm <= RADIO_MAX_KM;
-    };
-
-    const esteTallerYaPropusoParaSolicitud = (solicitudDocId) =>
-      solicitudesConPropuestaDeEsteTaller.has(String(solicitudDocId).trim());
-
-    // 3) Quitar solicitudes que ya tienen una Propuesta con este uid_taller (mismo id que Solicitudes.id / uid_solicitud en Propuestas)
-    // 4) Radio 10 km respecto al taller
-    const solicitudes = snapshot.docs
-      .map((doc) => ({
-        ...doc.data(),
-        id: doc.id,
-      }))
-      .filter((s) => !esteTallerYaPropusoParaSolicitud(s.id))
-      .filter(estaDentroDelRadioKm);
-
-    return res.status(200).json(solicitudes);
+    return res.status(200).json({ solicitudes, propuestas });
   } catch (error) {
     console.error("Error al obtener solicitudes por status:", error);
     return res
