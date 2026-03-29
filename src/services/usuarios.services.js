@@ -2814,20 +2814,26 @@ const getSolicitudesByUsuarioAndStatus = async (req, res) => {
       return getLatLngFromUbicacion(s.ubicacion);
     };
 
+    /** Solo solicitudes cuya ubicación está a como mucho RADIO_KM km del taller (no se incluye nada más lejano). */
+    const estaACorteDistanciaDelTaller = (s) => {
+      const { lat: slat, lng: slng } = coordsSolicitud(s);
+      if (!Number.isFinite(slat) || !Number.isFinite(slng)) {
+        return false;
+      }
+      const distKm = getDistanceKm(tallerLat, tallerLng, slat, slng);
+      if (distKm > RADIO_KM) {
+        return false;
+      }
+      return true;
+    };
+
     const solicitudes = snapshot.docs
       .map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }))
-      .filter((s) => !solicitudesIdsConPropuesta.has(String(s.id).trim()))
-      .filter((s) => {
-        const { lat: slat, lng: slng } = coordsSolicitud(s);
-        if (!Number.isFinite(slat) || !Number.isFinite(slng)) {
-          return false;
-        }
-        const distKm = getDistanceKm(tallerLat, tallerLng, slat, slng);
-        return distKm <= RADIO_KM;
-      });
+      .filter(estaACorteDistanciaDelTaller)
+      .filter((s) => !solicitudesIdsConPropuesta.has(String(s.id).trim()));
 
     return res.status(200).json(solicitudes);
   } catch (error) {
