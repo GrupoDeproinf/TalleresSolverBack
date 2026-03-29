@@ -2763,71 +2763,55 @@ const getSolicitudesByUsuario = async (req, res) => {
 };
 
 /**
- * Body: `status`, `uid_taller`.
- * - Solicitudes con ese `status` que no tengan ninguna propuesta (`Propuestas.uid_solicitud` = id de la solicitud).
- * - `propuestas`: todas las de ese `uid_taller`.
+ * Solo solicitudes con el `status` pedido que no tengan ninguna fila en `Propuestas`
+ * (coincidencia por `uid_solicitud` = id del documento en Solicitudes). Respuesta: array únicamente.
  */
 const getSolicitudesByUsuarioAndStatus = async (req, res) => {
   try {
-    const { status, uid_taller } = req.body || {};
+    const { status } = req.body || {};
 
     if (!status || typeof status !== "string" || status.trim() === "") {
       return res
         .status(400)
         .json({ error: "status es requerido." });
     }
-    if (!uid_taller || typeof uid_taller !== "string" || uid_taller.trim() === "") {
-      return res
-        .status(400)
-        .json({ error: "uid_taller es requerido." });
+
+    const snapshot = await db
+      .collection("Solicitudes")
+      .where("status", "==", status.trim())
+      .get();
+
+    if (snapshot.empty) {
+      return res.status(200).json([]);
     }
 
-    const tallerId = uid_taller.trim();
+    const solicitudIds = snapshot.docs.map((d) => String(d.id).trim());
 
-    const [snapshotSolicitudes, snapshotPropuestas] = await Promise.all([
-      db.collection("Solicitudes").where("status", "==", status.trim()).get(),
-      db.collection("Propuestas").where("uid_taller", "==", tallerId).get(),
-    ]);
-
-    const solicitudIds = snapshotSolicitudes.empty
-      ? []
-      : snapshotSolicitudes.docs.map((d) => String(d.id).trim());
-
-    const solicitudesConAlgunaPropuesta = new Set();
+    const idsConPropuesta = new Set();
     const IN_LIMIT = 10;
     for (let i = 0; i < solicitudIds.length; i += IN_LIMIT) {
       const chunk = solicitudIds.slice(i, i + IN_LIMIT).map((id) => String(id).trim());
       const propSnap = await db
         .collection("Propuestas")
         .where("uid_solicitud", "in", chunk)
-        .where("uid_taller", "==", tallerId)
         .get();
       propSnap.docs.forEach((doc) => {
         const raw = (doc.data() || {}).uid_solicitud;
         const uidSol = raw == null ? "" : String(raw).trim();
         if (uidSol !== "") {
-          solicitudesConAlgunaPropuesta.add(uidSol);
+          idsConPropuesta.add(uidSol);
         }
       });
     }
 
-    const solicitudes = snapshotSolicitudes.empty
-      ? []
-      : snapshotSolicitudes.docs
-          .map((doc) => ({
-            ...doc.data(),
-            id: doc.id,
-          }))
-          .filter((s) => !solicitudesConAlgunaPropuesta.has(String(s.id).trim()));
+    const solicitudes = snapshot.docs
+      .map((doc) => ({
+        ...doc.data(),
+        id: doc.id,
+      }))
+      .filter((s) => !idsConPropuesta.has(String(s.id).trim()));
 
-    const propuestas = snapshotPropuestas.empty
-      ? []
-      : snapshotPropuestas.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-
-    return res.status(200).json({ solicitudes, propuestas });
+    return res.status(200).json(solicitudes);
   } catch (error) {
     console.error("Error al obtener solicitudes por status:", error);
     return res
