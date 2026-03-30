@@ -103,6 +103,37 @@ const getLatLngFromUbicacion = (ubicacion) => {
   };
 };
 
+const calculateAverageScore = (comments) => {
+  if (!Array.isArray(comments) || comments.length === 0) return 0;
+  const totalScore = comments.reduce(
+    (sum, comment) => sum + (comment?.puntuacion || 0),
+    0,
+  );
+  const averageScore = totalScore / comments.length;
+  return Math.min(Math.max(Math.ceil(averageScore), 0), 5);
+};
+
+const fetchCalificacionesServicio = async (uidService) => {
+  const snap = await db
+    .collection("Servicios")
+    .doc(uidService)
+    .collection("calificaciones")
+    .get();
+  if (snap.empty) return [];
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+};
+
+const enriquecerServiciosConPuntuacion = async (items) => {
+  if (!Array.isArray(items) || items.length === 0) return [];
+  return Promise.all(
+    items.map(async (item) => {
+      const comments = await fetchCalificacionesServicio(item.id);
+      const puntuacion = calculateAverageScore(comments);
+      return { ...item, puntuacion };
+    })
+  );
+};
+
 const getServiciosPaginados = async (req, res) => {
   try {
     const {
@@ -223,9 +254,10 @@ const getServiciosPaginados = async (req, res) => {
     const totalCount = listado.length;
     const from = (page - 1) * size;
     const paginated = listado.slice(from, from + size);
+    const data = await enriquecerServiciosConPuntuacion(paginated);
 
     res.status(200).json({
-      data: paginated,
+      data,
       totalCount,
       pageIndex: page,
       pageSize: size,
