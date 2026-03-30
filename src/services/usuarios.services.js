@@ -2538,6 +2538,22 @@ const getLatLngFromUbicacion = (ubicacion) => {
   };
 };
 
+/** Coordenadas del taller: `ubicacion` / `location` GeoPoint o { lat, lng }; respaldo `lat`/`lng` en raíz. */
+const getLatLngTallerSimple = (t) => {
+  if (!t || typeof t !== "object") return { lat: NaN, lng: NaN };
+  let u = getLatLngFromUbicacion(t.ubicacion);
+  if (!Number.isFinite(u.lat) || !Number.isFinite(u.lng)) {
+    u = getLatLngFromUbicacion(t.location);
+  }
+  if (Number.isFinite(u.lat) && Number.isFinite(u.lng)) {
+    return u;
+  }
+  return {
+    lat: parseCoordScalar(t.lat),
+    lng: parseCoordScalar(t.lng),
+  };
+};
+
 const fetchServiciosByCategoriaId = async (categoriaId) => {
   return db
     .collection("Servicios")
@@ -2582,26 +2598,36 @@ const fetchUsuariosByUids = async (uids) => {
   return talleres;
 };
 
+/** Distancia Haversine (km) entre la solicitud y cada taller; añade `kmDistance`; deja ≤ radiusKm y top `limit`. */
 const filterTalleresCercanos = (talleres, userLat, userLng, radiusKm = 10, limit = 10) => {
-  if (!Array.isArray(talleres) || Number.isNaN(userLat) || Number.isNaN(userLng)) {
+  if (!Array.isArray(talleres)) {
     return [];
   }
 
-  const withDistance = talleres
+  const uLat = parseCoordScalar(userLat);
+  const uLng = parseCoordScalar(userLng);
+  if (!Number.isFinite(uLat) || !Number.isFinite(uLng)) {
+    return [];
+  }
+
+  const withKm = talleres
     .map((t) => {
-      const { lat, lng } = getLatLngFromUbicacion(t.ubicacion);
-      if (Number.isNaN(lat) || Number.isNaN(lng)) {
+      const { lat, lng } = getLatLngTallerSimple(t);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
         return null;
       }
-      const distKm = getDistanceKm(userLat, userLng, lat, lng);
-      return { ...t, distancia_km: distKm };
+      const kmDistance = getDistanceKm(uLat, uLng, lat, lng);
+      if (!Number.isFinite(kmDistance)) {
+        return null;
+      }
+      return { ...t, kmDistance };
     })
     .filter(Boolean);
 
-  withDistance.sort((a, b) => a.distancia_km - b.distancia_km);
+  withKm.sort((a, b) => a.kmDistance - b.kmDistance);
 
-  return withDistance
-    .filter((t) => t.distancia_km <= radiusKm)
+  return withKm
+    .filter((t) => t.kmDistance <= radiusKm && t.kmDistance >= 0)
     .slice(0, limit);
 };
 
@@ -2648,16 +2674,29 @@ const saveSolicitud = async (req, res) => {
     const solicitudId = solicitudRef.id;
 
     // Obtener talleres cercanos basados en categoriaId y ubicación (10 km, top 10)
-    const userLat = latitude != null ? Number(latitude) : NaN;
-    const userLng = longitude != null ? Number(longitude) : NaN;
+    const userLat = parseCoordScalar(latitude);
+    const userLng = parseCoordScalar(longitude);
 
     const serviciosSnapshot = await fetchServiciosByCategoriaId(categoriaId);
     const uidTalleresUnicos = getUniqueUidTalleres(serviciosSnapshot);
     const talleres = await fetchUsuariosByUids(uidTalleresUnicos);
-    const talleresCercanos = filterTalleresCercanos(talleres, userLat, userLng, 10, 10);
 
-    // Enviar notificación a talleres cercanos (sin modificar la función sendNotification)
-    const talleresConToken = talleresCercanos.filter(
+    /** Solo talleres con kmDistance ≤ este valor reciben notificación. */
+    const RADIO_KM_NOTIFICACION = 10;
+    const talleresCercanos = filterTalleresCercanos(
+      talleres,
+      userLat,
+      userLng,
+      RADIO_KM_NOTIFICACION,
+      10
+    );
+
+    const talleresParaNotificar = talleresCercanos.filter(
+      (t) => Number.isFinite(t.kmDistance) && t.kmDistance <= RADIO_KM_NOTIFICACION
+    );
+
+    // Notificación solo a esos talleres (mismo criterio kmDistance ≤ 10 km)
+    const talleresConToken = talleresParaNotificar.filter(
       (t) => t.token && typeof t.token === "string" && t.token.trim() !== ""
     );
     await Promise.allSettled(
@@ -2706,6 +2745,7 @@ const saveSolicitud = async (req, res) => {
       message: "Solicitud creada correctamente.",
       id: solicitudId,
       solicitud_images: imageUrls,
+      talleres: talleresCercanos,
     });
   } catch (error) {
     console.error("Error al guardar solicitud:", error);
