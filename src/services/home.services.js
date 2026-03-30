@@ -564,14 +564,10 @@ const getCommentsByService = async (req, res) => {
       .collection("calificaciones") // Nombre de la subcolección
       .get();
 
-    // Verificar si se encontraron comentarios
     if (commentsSnapshot.empty) {
-      return res
-        .status(404)
-        .json({ error: "No se encontraron comentarios para este servicio." });
+      return res.status(200).json([]);
     }
 
-    // Recorrer y extraer los comentarios
     const comments = commentsSnapshot.docs.map((commentDoc) => ({
       id: commentDoc.id,
       ...commentDoc.data(),
