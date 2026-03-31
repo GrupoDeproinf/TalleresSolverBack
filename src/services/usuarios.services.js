@@ -876,7 +876,8 @@ const SaveTallerExtended = async (req, res) => {
       fotoInternaTaller,
       lat,
       lng,
-      token
+      token,
+      horarios_atencion
     } = req.body;
 
     let userRecord;
@@ -1037,7 +1038,7 @@ const SaveTallerExtended = async (req, res) => {
       },
       token: token,
       createdAt: new Date(),
-
+      horarios_atencion: horarios_atencion == undefined ? [] : horarios_atencion
     };
 
     await db
@@ -2258,7 +2259,7 @@ const saveOrUpdateService = async (req, res) => {
 
     const uploadImages = async (id, images) => {
       const imageUrls = [];
-      for (let i = 0; i < images.length; i++) {
+      for (let i = 0; i < images?.length; i++) {
         const base64 = images[i];
         const index = await getLastImageIndex(id);
         const newFileName = `service_images/${id}_${index + 1}.jpg`;
