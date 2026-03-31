@@ -2678,55 +2678,33 @@ const saveSolicitud = async (req, res) => {
     const solicitudRef = await db.collection("Solicitudes").add(solicitudData);
     const solicitudId = solicitudRef.id;
 
-    // Obtener talleres cercanos basados en categoriaId y ubicación (10 km, top 10)
     const userLat = parseCoordScalar(latitude);
     const userLng = parseCoordScalar(longitude);
 
-    const serviciosSnapshot = await fetchServiciosByCategoriaId(categoriaId);
-    const uidTalleresUnicos = getUniqueUidTalleres(serviciosSnapshot);
-    const talleres = await fetchUsuariosByUids(uidTalleresUnicos);
-
-    const RADIO_KM_NOTIFICACION = 10;
     const idTallerDirigido =
       uid_taller != null && String(uid_taller).trim() !== ""
         ? String(uid_taller).trim()
         : null;
 
+    const RADIO_KM_NOTIFICACION = 10;
     let talleresCercanos;
     let talleresParaNotificar;
 
     if (idTallerDirigido) {
-      let tallerUnico = talleres.find(
-        (t) => String(t.uid_taller || "").trim() === idTallerDirigido
-      );
-      if (!tallerUnico) {
-        const tallerSnap = await db.collection("Usuarios").doc(idTallerDirigido).get();
-        if (tallerSnap.exists) {
-          const d = tallerSnap.data() || {};
-          if (d.typeUser === "Taller" && d.status === "Aprobado") {
-            tallerUnico = { uid_taller: tallerSnap.id, ...d };
-          }
+      const tallerSnap = await db.collection("Usuarios").doc(idTallerDirigido).get();
+      let tallerUnico = null;
+      if (tallerSnap.exists) {
+        const d = tallerSnap.data() || {};
+        if (d.typeUser === "Taller" && d.status === "Aprobado") {
+          tallerUnico = { uid_taller: tallerSnap.id, ...d };
         }
-      }
-      if (tallerUnico) {
-        const { lat, lng } = getLatLngTallerSimple(tallerUnico);
-        let kmDistance = NaN;
-        if (
-          Number.isFinite(userLat) &&
-          Number.isFinite(userLng) &&
-          Number.isFinite(lat) &&
-          Number.isFinite(lng)
-        ) {
-          kmDistance = getDistanceKm(userLat, userLng, lat, lng);
-        }
-        tallerUnico = {
-          ...tallerUnico,
-          ...(Number.isFinite(kmDistance) ? { kmDistance } : {}),
-        };
       }
       talleresCercanos = tallerUnico ? [tallerUnico] : [];
       talleresParaNotificar = talleresCercanos;
     } else {
+      const serviciosSnapshot = await fetchServiciosByCategoriaId(categoriaId);
+      const uidTalleresUnicos = getUniqueUidTalleres(serviciosSnapshot);
+      const talleres = await fetchUsuariosByUids(uidTalleresUnicos);
       talleresCercanos = filterTalleresCercanos(
         talleres,
         userLat,
@@ -2740,7 +2718,6 @@ const saveSolicitud = async (req, res) => {
       );
     }
 
-    // Notificación: un solo taller si uid_taller; si no, talleres ≤ 10 km
     const talleresConToken = talleresParaNotificar.filter(
       (t) => t.token && typeof t.token === "string" && t.token.trim() !== ""
     );
@@ -2748,8 +2725,7 @@ const saveSolicitud = async (req, res) => {
       talleresConToken.map((taller) => {
         const reqNotif = {
           body: {
-            // token: taller.token,
-            token: "f0GmJ-CXJkSesiASTVmXc1:APA91bEDW8vmDyxCYHVG_4SaolEJAyNbq5dIEdDOz0gZF3hXlax8etwMk81WoCOqtI4OcKLeFwMdXawqltcV3ScyHk7CWl1K2M_UpSlmxK2dxy152CB-Oqk",
+            token: taller.token,
             title: "Nueva solicitud cerca de tu ubicacion",
             body: "¡Hay una nueva solicitud cerca de tu ubicación! Revísala y envía tu cotización para atenderla.",
             secretCode: "NuevaSolicitud",
