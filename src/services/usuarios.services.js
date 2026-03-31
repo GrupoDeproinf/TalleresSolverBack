@@ -2831,7 +2831,7 @@ const getSolicitudesByUsuario = async (req, res) => {
  */
 const getSolicitudesByUsuarioAndStatus = async (req, res) => {
   try {
-    const { status } = req.body || {};
+    const { status, uid_taller } = req.body || {};
 
     if (!status || typeof status !== "string" || status.trim() === "") {
       return res
@@ -2867,12 +2867,23 @@ const getSolicitudesByUsuarioAndStatus = async (req, res) => {
       });
     }
 
-    const solicitudes = snapshot.docs
+    let solicitudes = snapshot.docs
       .map((doc) => ({
         ...doc.data(),
         id: doc.id,
       }))
       .filter((s) => !idsConPropuesta.has(String(s.id).trim()));
+
+
+    if (uid_taller !== undefined && uid_taller !== null && uid_taller !== "") {
+      const uidTallerTrim = String(uid_taller).trim();
+      solicitudes = solicitudes.filter((s) => {
+        const st = s.uid_taller;
+        const vacio = st == null || String(st).trim() === "";
+        if (vacio) return true;
+        return String(st).trim() === uidTallerTrim;
+      });
+    }
 
     return res.status(200).json(solicitudes);
   } catch (error) {
