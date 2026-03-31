@@ -2646,6 +2646,8 @@ const saveSolicitud = async (req, res) => {
       phone_usuario,
       latitude,
       longitude,
+      uid_taller,
+
     } = req.body || {};
 
     if (!nombreSolicitud || !vehiculo || !vehiculo.id || !categoriaId) {
@@ -2654,6 +2656,7 @@ const saveSolicitud = async (req, res) => {
           "nombreSolicitud, vehiculo (con id) y categoriaId son requeridos.",
       });
     }
+
 
     const solicitudData = {
       nombre_solicitud: nombreSolicitud,
@@ -2669,6 +2672,7 @@ const saveSolicitud = async (req, res) => {
       longitude: longitude ?? "",
       solicitud_images: [],
       fecha_solicitud: admin.firestore.Timestamp.now(),
+      uid_taller: uid_taller || "",
     };
 
     const solicitudRef = await db.collection("Solicitudes").add(solicitudData);
@@ -2682,21 +2686,61 @@ const saveSolicitud = async (req, res) => {
     const uidTalleresUnicos = getUniqueUidTalleres(serviciosSnapshot);
     const talleres = await fetchUsuariosByUids(uidTalleresUnicos);
 
-    /** Solo talleres con kmDistance ≤ este valor reciben notificación. */
     const RADIO_KM_NOTIFICACION = 10;
-    const talleresCercanos = filterTalleresCercanos(
-      talleres,
-      userLat,
-      userLng,
-      RADIO_KM_NOTIFICACION,
-      10
-    );
+    const idTallerDirigido =
+      uid_taller != null && String(uid_taller).trim() !== ""
+        ? String(uid_taller).trim()
+        : null;
 
-    const talleresParaNotificar = talleresCercanos.filter(
-      (t) => Number.isFinite(t.kmDistance) && t.kmDistance <= RADIO_KM_NOTIFICACION
-    );
+    let talleresCercanos;
+    let talleresParaNotificar;
 
-    // Notificación solo a esos talleres (mismo criterio kmDistance ≤ 10 km)
+    if (idTallerDirigido) {
+      let tallerUnico = talleres.find(
+        (t) => String(t.uid_taller || "").trim() === idTallerDirigido
+      );
+      if (!tallerUnico) {
+        const tallerSnap = await db.collection("Usuarios").doc(idTallerDirigido).get();
+        if (tallerSnap.exists) {
+          const d = tallerSnap.data() || {};
+          if (d.typeUser === "Taller" && d.status === "Aprobado") {
+            tallerUnico = { uid_taller: tallerSnap.id, ...d };
+          }
+        }
+      }
+      if (tallerUnico) {
+        const { lat, lng } = getLatLngTallerSimple(tallerUnico);
+        let kmDistance = NaN;
+        if (
+          Number.isFinite(userLat) &&
+          Number.isFinite(userLng) &&
+          Number.isFinite(lat) &&
+          Number.isFinite(lng)
+        ) {
+          kmDistance = getDistanceKm(userLat, userLng, lat, lng);
+        }
+        tallerUnico = {
+          ...tallerUnico,
+          ...(Number.isFinite(kmDistance) ? { kmDistance } : {}),
+        };
+      }
+      talleresCercanos = tallerUnico ? [tallerUnico] : [];
+      talleresParaNotificar = talleresCercanos;
+    } else {
+      talleresCercanos = filterTalleresCercanos(
+        talleres,
+        userLat,
+        userLng,
+        RADIO_KM_NOTIFICACION,
+        10
+      );
+      talleresParaNotificar = talleresCercanos.filter(
+        (t) =>
+          Number.isFinite(t.kmDistance) && t.kmDistance <= RADIO_KM_NOTIFICACION
+      );
+    }
+
+    // Notificación: un solo taller si uid_taller; si no, talleres ≤ 10 km
     const talleresConToken = talleresParaNotificar.filter(
       (t) => t.token && typeof t.token === "string" && t.token.trim() !== ""
     );
