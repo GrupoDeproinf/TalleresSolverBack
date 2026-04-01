@@ -88,13 +88,19 @@ const getNearbyWithCategories = async (req, res) => {
       .where("typeUser", "==", "Taller")
       .get();
 
-    if (result.empty) {
-      console.log('❌ No se encontraron talleres aprobados.');
+    const docsConSubscripcionAprobada = result.docs.filter((doc) => {
+      const sub = doc.data()?.subscripcion_actual;
+      return sub != null && typeof sub === "object" && sub.status === "Aprobado";
+    });
+
+    if (docsConSubscripcionAprobada.length === 0) {
+      console.log('❌ No se encontraron talleres con subscripción aprobada.');
       return res.status(404).json({ error: 'No se encontraron talleres.' });
     }
 
     const talleres = await Promise.all(
-      result.docs.map(async (doc) => {
+
+      docsConSubscripcionAprobada.map(async (doc) => {
         const data = doc.data();
         const tallerId = doc.id;
         const ubicacion = data?.ubicacion;
@@ -144,6 +150,8 @@ const getNearbyWithCategories = async (req, res) => {
           categorias: categoriasUnicas,
         };
       })
+
+      
     );
 
     const cercanos = talleres
