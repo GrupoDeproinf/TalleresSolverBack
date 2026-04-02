@@ -1504,11 +1504,106 @@ const resolveTallerDocumentacionField = async (uid, fieldName, value) => {
 const UpdateTallerUsuarioDocs = async (req, res) => {
   try {
     const payload = { ...(req.body || {}) };
-    const { uid } = payload;
+    const { uid, base64, imageTodelete } = payload;
 
     if (!uid) {
       return res.status(400).send({ message: "El UID es obligatorio." });
     }
+
+    // Misma lógica que SaveTallerAll para foto de perfil (base64 / imageTodelete), sobre `payload`.
+    const getLastImageIndex = () =>
+      new Promise((resolve, reject) => {
+        const prefix = `profileImages/${uid}`;
+        bucket
+          .getFiles({ prefix })
+          .then(([files]) => {
+            let maxIndex = 0;
+            files.forEach((file) => {
+              const match = file.name.match(/(\d+)\.jpg$/);
+              if (match) {
+                const index = parseInt(match[1], 10);
+                if (index > maxIndex) maxIndex = index;
+              }
+            });
+            resolve(maxIndex);
+          })
+          .catch(reject);
+      });
+
+    const processImage = (index) =>
+      new Promise((resolve, reject) => {
+        if (base64 && base64.trim() !== "") {
+          const newFileName = `profileImages/${uid}_${index + 1}.jpg`;
+          const buffer = Buffer.from(base64, "base64");
+          const file = bucket.file(newFileName);
+          file
+            .save(buffer, {
+              metadata: { contentType: "image/jpeg" },
+              public: true,
+              validation: "md5",
+            })
+            .then(() => {
+              payload.image_perfil = `https://storage.googleapis.com/${bucket.name}/${newFileName}`;
+              resolve();
+            })
+            .catch((error) => {
+              console.error("Error al guardar la nueva imagen:", error);
+              reject(error);
+            });
+        } else {
+          resolve();
+        }
+      });
+
+    const clearOldImageField = () =>
+      new Promise((resolve, reject) => {
+        if (
+          base64 &&
+          base64.trim() !== "" &&
+          imageTodelete &&
+          imageTodelete.trim() !== ""
+        ) {
+          db.collection("Usuarios")
+            .doc(uid)
+            .update({ image_perfil: admin.firestore.FieldValue.delete() })
+            .then(() => resolve())
+            .catch(reject);
+        } else {
+          resolve();
+        }
+      });
+
+    const deleteOldImage = () =>
+      new Promise((resolve, reject) => {
+        if (
+          base64 &&
+          base64.trim() !== "" &&
+          imageTodelete &&
+          imageTodelete.trim() !== ""
+        ) {
+          const file = bucket.file(`profileImages/${imageTodelete}`);
+          file
+            .delete()
+            .then(() => resolve())
+            .catch((error) => {
+              if (error.code === 404) {
+                resolve();
+              } else {
+                console.error("Error al eliminar la imagen anterior:", error);
+                reject(error);
+              }
+            });
+        } else {
+          resolve();
+        }
+      });
+
+    const index = await getLastImageIndex();
+    if (base64 && base64.trim() !== "") {
+      await clearOldImageField();
+      await deleteOldImage();
+    }
+    await processImage(index);
 
     const keys = [
       "rifIdFiscal",
@@ -1530,6 +1625,9 @@ const UpdateTallerUsuarioDocs = async (req, res) => {
     resolved.forEach(([k, v]) => {
       payload[k] = v;
     });
+
+    delete payload.base64;
+    delete payload.imageTodelete;
 
     Object.keys(payload).forEach((k) => {
       if (payload[k] === undefined) delete payload[k];
