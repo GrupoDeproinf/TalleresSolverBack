@@ -30,6 +30,8 @@ router.post('/deleteVehiculo', Usuarios.deleteVehiculo);
 
 router.post('/SaveTallerAll', Usuarios.SaveTallerAll); 
 
+router.post('/UpdateTallerUsuarioDocs', Usuarios.UpdateTallerUsuarioDocs);
+
 router.post('/restorePass', Usuarios.restorePass);  
 
 router.post('/getTalleres', Usuarios.getTalleres); 

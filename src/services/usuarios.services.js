@@ -1423,6 +1423,142 @@ const SaveTallerAll = (req, res) => {
   }
 };
 
+const TALLER_DOC_FIELD_PATHS = {
+  rifIdFiscal: (uid, ext) => `documents/${uid}/rifIdFiscal.${ext}`,
+  permisoOperacion: (uid, ext) => `documents/${uid}/permisoOperacion.${ext}`,
+  logotipoNegocio: (uid, ext) => `businessImages/${uid}/logotipoNegocio.${ext}`,
+  fotoFrenteTaller: (uid, ext) => `businessImages/${uid}/fotoFrenteTaller.${ext}`,
+  fotoInternaTaller: (uid, ext) => `businessImages/${uid}/fotoInternaTaller.${ext}`,
+};
+
+const isWebOrGsUrl = (s) => {
+  const t = String(s).trim();
+  return /^https?:\/\//i.test(t) || /^gs:\/\//i.test(t);
+};
+
+const parseDataUrlBase64 = (s) => {
+  const t = String(s).trim();
+  const m = t.match(/^data:([^;]+);base64,(.+)$/is);
+  if (!m) return null;
+  return { contentType: m[1].trim(), base64: m[2].replace(/\s/g, "") };
+};
+
+const looksLikeRawBase64 = (s) => {
+  const t = String(s).trim();
+  if (!t || isWebOrGsUrl(t) || /^data:/i.test(t)) return false;
+  if (t.length < 80) return false;
+  const clean = t.replace(/\s/g, "");
+  return /^[A-Za-z0-9+/]+=*$/.test(clean);
+};
+
+const extAndContentType = (mime) => {
+  const m = String(mime || "").toLowerCase();
+  if (m.includes("png")) return { ext: "png", contentType: "image/png" };
+  if (m.includes("webp")) return { ext: "webp", contentType: "image/webp" };
+  if (m.includes("gif")) return { ext: "gif", contentType: "image/gif" };
+  return { ext: "jpg", contentType: "image/jpeg" };
+};
+
+const uploadBufferToPath = (path, buffer, contentType) => {
+  const file = bucket.file(path);
+  return file.save(buffer, {
+    metadata: { contentType },
+    public: true,
+    validation: "md5",
+  });
+};
+
+/**
+ * URL o gs:// se dejan igual; data:...;base64,... o base64 largo → Storage → URL;
+ * texto corto (p. ej. RIF) se guarda tal cual.
+ */
+const resolveTallerDocumentacionField = async (uid, fieldName, value) => {
+  const raw = value ?? "";
+  const trimmed =
+    typeof raw === "string" ? raw.trim() : String(raw).trim();
+  if (trimmed === "") return "";
+
+  if (isWebOrGsUrl(trimmed)) return trimmed;
+
+  const dataUrl = parseDataUrlBase64(trimmed);
+  let buffer;
+  let mimeHint = "image/jpeg";
+  if (dataUrl) {
+    buffer = Buffer.from(dataUrl.base64, "base64");
+    mimeHint = dataUrl.contentType || "image/jpeg";
+  } else if (looksLikeRawBase64(trimmed)) {
+    buffer = Buffer.from(trimmed.replace(/\s/g, ""), "base64");
+  } else {
+    return trimmed;
+  }
+
+  const pathFn = TALLER_DOC_FIELD_PATHS[fieldName];
+  if (!pathFn) return trimmed;
+
+  const { ext, contentType } = extAndContentType(mimeHint);
+  const storagePath = pathFn(uid, ext);
+  await uploadBufferToPath(storagePath, buffer, contentType);
+  return `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
+};
+
+const UpdateTallerUsuarioDocs = async (req, res) => {
+  try {
+    const payload = { ...(req.body || {}) };
+    const { uid } = payload;
+
+    if (!uid) {
+      return res.status(400).send({ message: "El UID es obligatorio." });
+    }
+
+    const keys = [
+      "rifIdFiscal",
+      "permisoOperacion",
+      "logotipoNegocio",
+      "fotoFrenteTaller",
+      "fotoInternaTaller",
+    ];
+
+    const resolved = await Promise.all(
+      keys.map((k) =>
+        resolveTallerDocumentacionField(uid, k, payload[k] ?? "").then((v) => [
+          k,
+          v,
+        ])
+      )
+    );
+
+    resolved.forEach(([k, v]) => {
+      payload[k] = v;
+    });
+
+    Object.keys(payload).forEach((k) => {
+      if (payload[k] === undefined) delete payload[k];
+    });
+
+    await db.collection("Usuarios").doc(uid).set(payload, { merge: true });
+
+    return res
+      .status(201)
+      .send({ message: "Usuario actualizado con éxito", uid });
+  } catch (error) {
+    console.error("Error al actualizar documentación del taller:", error);
+
+    if (error.code === "permission-denied") {
+      return res
+        .status(403)
+        .send({ message: "Permisos insuficientes para guardar el usuario." });
+    }
+    if (error.code === "not-found") {
+      return res.status(404).send({ message: "Usuario no encontrado." });
+    }
+
+    return res.status(500).send({
+      message: "Error al guardar el usuario",
+      error: error.message,
+    });
+  }
+};
+
 const restorePass = async (req, res) => {
   const { email } = req.body;
 
@@ -3788,6 +3924,7 @@ module.exports = {
   authenticateUser,
   getUserByUid,
   SaveTallerAll,
+  UpdateTallerUsuarioDocs,
   SaveTallerExtended,
   restorePass,
   getTalleres,
