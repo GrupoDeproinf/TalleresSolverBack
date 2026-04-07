@@ -440,6 +440,30 @@ const vehiculoResolveUpdateDocUrl = async (uidTrim, vehicleId, raw, urlKey, file
   return url || existing[urlKey] || "";
 };
 
+const usuarioConductorUploadDoc = async (uidTrim, fileBaseName, base64Input) => {
+  const parsed = vehiculoParseBase64File(base64Input);
+  if (!parsed) return "";
+  const storagePath = `usuarios/${uidTrim}/documentos_conductor/${fileBaseName}.${parsed.ext}`;
+  const file = bucket.file(storagePath);
+  await new Promise((resolve, reject) => {
+    file.save(parsed.buffer, {
+      metadata: { contentType: parsed.contentType },
+      public: true,
+      validation: "md5",
+    }, (err) => (err ? reject(err) : resolve()));
+  });
+  const baseUrl = `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
+  return `${baseUrl}?t=${Date.now()}`;
+};
+
+/** Misma regla que vehículos: vacío → limpiar; URL http(s) → mantener; base64 → subir. El nombre en Firestore = bodyKey (ej. licencia_frente_base64 guarda la URL). */
+const usuarioConductorResolveDocField = async (uidTrim, raw, firestoreKey, fileBase, existing) => {
+  if (vehiculoPayloadIsEmpty(raw)) return "";
+  if (vehiculoPayloadIsHttpUrl(raw)) return existing[firestoreKey] || "";
+  const url = await usuarioConductorUploadDoc(uidTrim, fileBase, raw);
+  return url || existing[firestoreKey] || "";
+};
+
 const saveOrUpdateVehiculo = async (req, res) => {
   try {
     const body = req.body || {};
@@ -4064,6 +4088,80 @@ const sendNotification = async (req, res) => {
   }
 };
 
+const updateUsuarioDocumentacionConductor = async (req, res) => {
+  try {
+    const body = req.body || {};
+    const uid = body.uid;
+
+    if (!uid || typeof uid !== "string" || String(uid).trim() === "") {
+      return res.status(400).json({ error: "Se debe proporcionar uid." });
+    }
+
+    const uidTrim = String(uid).trim();
+    const userRef = db.collection("Usuarios").doc(uidTrim);
+    const userSnap = await userRef.get();
+    if (!userSnap.exists) {
+      return res.status(404).json({ error: "Usuario no encontrado." });
+    }
+
+    const existing = userSnap.data() || {};
+    const patch = {};
+
+    const docFields = [
+      { bodyKey: "licencia_frente_base64", fileBase: "licencia_frente" },
+      { bodyKey: "licencia_reverso_base64", fileBase: "licencia_reverso" },
+      { bodyKey: "certificado_medico_frente_base64", fileBase: "certificado_medico_frente" },
+      { bodyKey: "certificado_medico_reverso_base64", fileBase: "certificado_medico_reverso" },
+    ];
+
+    for (const { bodyKey, fileBase } of docFields) {
+      if (!Object.prototype.hasOwnProperty.call(body, bodyKey)) continue;
+      patch[bodyKey] = await usuarioConductorResolveDocField(
+        uidTrim,
+        body[bodyKey],
+        bodyKey,
+        fileBase,
+        existing,
+      );
+    }
+
+    if (Object.prototype.hasOwnProperty.call(body, "licencia_fecha_vencimiento")) {
+      patch.licencia_fecha_vencimiento = vehiculoValueToTimestamp(body.licencia_fecha_vencimiento);
+    }
+    if (Object.prototype.hasOwnProperty.call(body, "certificado_medico_fecha_vencimiento")) {
+      patch.certificado_medico_fecha_vencimiento = vehiculoValueToTimestamp(
+        body.certificado_medico_fecha_vencimiento,
+      );
+    }
+
+    if (Object.keys(patch).length === 0) {
+      return res.status(400).json({ error: "No se enviaron campos para actualizar." });
+    }
+
+    await userRef.update(patch);
+
+    const patchResponse = { ...patch };
+    for (const k of Object.keys(patchResponse)) {
+      const v = patchResponse[k];
+      if (v && typeof v.toDate === "function") {
+        patchResponse[k] = v.toDate().toISOString();
+      }
+    }
+
+    return res.status(200).json({
+      message: "Documentación de conductor actualizada.",
+      uid: uidTrim,
+      ...patchResponse,
+    });
+  } catch (error) {
+    console.error("Error al actualizar documentación de conductor:", error);
+    return res.status(500).json({
+      message: "Error al actualizar documentación de conductor",
+      error: error.message,
+    });
+  }
+};
+
 const UpdateUsuariosAll = async (req, res) => {
   try {
     // Recibir los datos del cliente desde el cuerpo de la solicitud
@@ -4228,6 +4326,7 @@ module.exports = {
   getPlanesActivos,
   sendNotification,
   UpdateUsuariosAll,
+  updateUsuarioDocumentacionConductor,
   deleteUserFromAuth,
   getPlanesActivos3Days,
   AsociarPlan,

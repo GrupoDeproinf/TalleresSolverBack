@@ -84,6 +84,8 @@ router.post('/sendNotification', Usuarios.sendNotification);
 
 router.post('/UpdateUsuariosAll', Usuarios.UpdateUsuariosAll); 
 
+router.post('/updateUsuarioDocumentacionConductor', Usuarios.updateUsuarioDocumentacionConductor);
+
 router.post('/getServicesByTallerUidTrue', Usuarios.getServicesByTallerUidTrue);
 
 
