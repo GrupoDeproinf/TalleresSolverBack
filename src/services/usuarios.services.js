@@ -103,6 +103,18 @@ const getNotificaciones = async (req, res) => {
   }
 };
 
+/** Solo sobrescribe claves presentes en incoming con valor !== undefined; el resto se conserva de existing. */
+const mergeUsuarioNotificacionItem = (existing, incoming) => {
+  const out = { ...(existing && typeof existing === "object" ? existing : {}) };
+  if (!incoming || typeof incoming !== "object") return out;
+  for (const key of Object.keys(incoming)) {
+    if (incoming[key] !== undefined) {
+      out[key] = incoming[key];
+    }
+  }
+  return out;
+};
+
 const saveUpdateNotificationUser = async (req, res) => {
   try {
     const { uiduser, uidvehicle, notificaciones } = req.body || {};
@@ -134,9 +146,43 @@ const saveUpdateNotificationUser = async (req, res) => {
       (item) => item && typeof item === "object" && item.uidvehicle === vehicleId
     );
 
+    const vehicleConfig =
+      idx >= 0 && current[idx] && typeof current[idx] === "object"
+        ? current[idx]
+        : null;
+
+    const currentNotificaciones = Array.isArray(vehicleConfig?.notificaciones)
+      ? [...vehicleConfig.notificaciones]
+      : [];
+
+    const mergedNotificaciones = [...currentNotificaciones];
+    for (const inc of notificaciones) {
+      if (!inc || typeof inc !== "object") {
+        return res.status(400).json({ error: "Cada elemento de notificaciones debe ser un objeto." });
+      }
+      const scRaw = inc.secretCode;
+      if (scRaw === undefined || scRaw === null || String(scRaw).trim() === "") {
+        return res.status(400).json({ error: "Cada notificación debe incluir secretCode." });
+      }
+      const sc = String(scRaw).trim();
+      const j = mergedNotificaciones.findIndex(
+        (n) => n && typeof n === "object" && String(n.secretCode).trim() === sc
+      );
+      if (j >= 0) {
+        const merged = mergeUsuarioNotificacionItem(mergedNotificaciones[j], inc);
+        merged.secretCode = sc;
+        mergedNotificaciones[j] = merged;
+      } else {
+        const merged = mergeUsuarioNotificacionItem({ secretCode: sc }, inc);
+        merged.secretCode = sc;
+        mergedNotificaciones.push(merged);
+      }
+    }
+
     const vehicleNotifications = {
+      ...(vehicleConfig && typeof vehicleConfig === "object" ? vehicleConfig : {}),
       uidvehicle: vehicleId,
-      notificaciones,
+      notificaciones: mergedNotificaciones,
     };
 
     let updated;
