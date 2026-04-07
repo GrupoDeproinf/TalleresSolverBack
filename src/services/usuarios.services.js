@@ -329,105 +329,226 @@ const getTiposVehiculo = async (req, res) => {
   }
 };
 
+const vehiculoCoalesceEmpty = (v) => (v == null ? "" : v);
+
+const vehiculoPayloadIsEmpty = (v) => v == null || (typeof v === "string" && v.trim() === "");
+
+const vehiculoPayloadIsHttpUrl = (v) =>
+  typeof v === "string" && /^https?:\/\//i.test(v.trim());
+
+const vehiculoValueToTimestamp = (v) => {
+  if (!v) return "";
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return "";
+  return admin.firestore.Timestamp.fromDate(d);
+};
+
+const vehiculoParseBase64File = (input) => {
+  if (!input || typeof input !== "string" || !input.trim()) return null;
+  let s = input.trim();
+  let contentType = "image/jpeg";
+  let ext = "jpg";
+  const dataUrl = /^data:([^;]+);base64,([\s\S]+)$/i.exec(s);
+  if (dataUrl) {
+    contentType = dataUrl[1].split(";")[0].trim().toLowerCase();
+    s = dataUrl[2].replace(/\s/g, "");
+  } else {
+    s = s.replace(/\s/g, "");
+  }
+  let buffer;
+  try {
+    buffer = Buffer.from(s, "base64");
+  } catch {
+    return null;
+  }
+  if (!buffer || !buffer.length) return null;
+  if (dataUrl) {
+    if (contentType.includes("pdf")) {
+      ext = "pdf";
+      contentType = "application/pdf";
+    } else if (contentType.includes("png")) {
+      ext = "png";
+      contentType = "image/png";
+    } else {
+      ext = "jpg";
+      contentType = "image/jpeg";
+    }
+  } else {
+    if (buffer[0] === 0xff && buffer[1] === 0xd8) {
+      contentType = "image/jpeg";
+      ext = "jpg";
+    } else if (buffer[0] === 0x89 && buffer[1] === 0x50) {
+      contentType = "image/png";
+      ext = "png";
+    } else if (buffer.slice(0, 4).toString("ascii") === "%PDF") {
+      contentType = "application/pdf";
+      ext = "pdf";
+    }
+  }
+  return { buffer, contentType, ext };
+};
+
+const vehiculoUploadDocumentFile = async (uidTrim, vehicleId, fileBaseName, base64Input) => {
+  const parsed = vehiculoParseBase64File(base64Input);
+  if (!parsed) return "";
+  const storagePath = `vehicles/${uidTrim}/${vehicleId}/documents/${fileBaseName}.${parsed.ext}`;
+  const file = bucket.file(storagePath);
+  await new Promise((resolve, reject) => {
+    file.save(parsed.buffer, {
+      metadata: { contentType: parsed.contentType },
+      public: true,
+      validation: "md5",
+    }, (err) => (err ? reject(err) : resolve()));
+  });
+  const baseUrl = `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
+  return `${baseUrl}?t=${Date.now()}`;
+};
+
+const vehiculoUploadMainImage = async (uidTrim, vehicleId, imagenBase64) => {
+  if (!imagenBase64 || typeof imagenBase64 !== "string" || !imagenBase64.trim()) return "";
+  let raw = imagenBase64.trim();
+  const du = /^data:[^;]+;base64,([\s\S]+)$/i.exec(raw);
+  if (du) raw = du[1].replace(/\s/g, "");
+  else raw = raw.replace(/\s/g, "");
+  const buffer = Buffer.from(raw, "base64");
+  const storagePath = `vehicles/${uidTrim}/${vehicleId}/${vehicleId}.jpg`;
+  const file = bucket.file(storagePath);
+  await new Promise((resolve, reject) => {
+    file.save(buffer, {
+      metadata: { contentType: "image/jpeg" },
+      public: true,
+      validation: "md5",
+    }, (err) => (err ? reject(err) : resolve()));
+  });
+  const baseUrl = `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
+  return `${baseUrl}?t=${Date.now()}`;
+};
+
+/** Crear: solo sube si hay base64; URL http(s) o vacío se ignoran para la subida. */
+const vehiculoAppendCreateDocUrl = async (docUrlUpdates, uidTrim, vehicleId, raw, urlKey, fileBase) => {
+  if (vehiculoPayloadIsEmpty(raw)) return;
+  if (vehiculoPayloadIsHttpUrl(raw)) return;
+  const url = await vehiculoUploadDocumentFile(uidTrim, vehicleId, fileBase, raw);
+  if (url) docUrlUpdates[urlKey] = url;
+};
+
+/** Actualizar: vacío → limpiar; URL http(s) → mantener; base64 → subir. */
+const vehiculoResolveUpdateDocUrl = async (uidTrim, vehicleId, raw, urlKey, fileBase, existing) => {
+  if (vehiculoPayloadIsEmpty(raw)) return "";
+  if (vehiculoPayloadIsHttpUrl(raw)) return existing[urlKey] || "";
+  const url = await vehiculoUploadDocumentFile(uidTrim, vehicleId, fileBase, raw);
+  return url || existing[urlKey] || "";
+};
+
 const saveOrUpdateVehiculo = async (req, res) => {
   try {
     const body = req.body || {};
-    const { uiduser, uidvehicle, imagen_base64 } = body;
+    const {
+      uiduser,
+      uidvehicle,
+      imagen_base64,
+      certificado_circulacion_frente_base64,
+      certificado_circulacion_reverso_base64,
+      rcv_documento_frente_base64,
+      rcv_documento_reverso_base64,
+      rcv_fecha_vencimiento,
+      trimestres_frente_base64,
+      trimestres_reverso_base64,
+      trimestres_fecha_vencimiento,
+    } = body;
 
     if (!uiduser || typeof uiduser !== "string" || uiduser.trim() === "") {
       return res.status(400).json({ error: "Se debe proporcionar uiduser." });
     }
 
-    const usuarioRef = db.collection("Usuarios").doc(uiduser.trim());
+    const uidTrim = uiduser.trim();
+    const usuarioRef = db.collection("Usuarios").doc(uidTrim);
     const usuarioDoc = await usuarioRef.get();
     if (!usuarioDoc.exists) {
       return res.status(404).json({ error: "Usuario no encontrado." });
     }
 
-    const empty = (v) => (v == null ? "" : v);
-    const toTimestamp = (v) => {
-      if (!v) return "";
-      const d = new Date(v);
-      if (Number.isNaN(d.getTime())) return "";
-      return admin.firestore.Timestamp.fromDate(d);
-    };
-
-    const docData = {
-      vehiculo_placa: empty(body.vehiculo_placa),
-      vehiculo_marca: empty(body.vehiculo_marca),
-      vehiculo_modelo: empty(body.vehiculo_modelo),
-      vehiculo_anio: empty(body.vehiculo_anio),
-      vehiculo_color: empty(body.vehiculo_color),
-      tipo_vehiculo: empty(body.tipo_vehiculo),
-      uid_tipo_vehiculo: empty(body.uid_tipo_vehiculo),
-
-      KM: empty(body.KM),
-      KM_correa_tiempo: empty(body.KM_correa_tiempo),
-      KM_ultima_rotacion_cauchos: empty(body.KM_ultima_rotacion_cauchos),
-      proximo_cambio_aceite: toTimestamp(body.proximo_cambio_aceite),
-      ultimo_cambio_bujias_filtro: toTimestamp(body.ultimo_cambio_bujias_filtro),
-      ultimo_cambio_pila_gasolina: toTimestamp(body.ultimo_cambio_pila_gasolina),
-      ultimo_lavado: toTimestamp(body.ultimo_lavado),
-      ultima_vez_gasolina: toTimestamp(body.ultima_vez_gasolina),
-      ultima_vez_alineacion: toTimestamp(body.ultima_vez_alineacion),
-      contratacion_RCV: empty(body.contratacion_RCV),
-      grua: empty(body.grua),
-      activo: empty(body.activo),
-      por_defecto: empty(body.por_defecto),
-
-      // Ficha tecnica
-      capacidad_tanque_combustible: empty(body.capacidad_tanque_combustible),
-      cilindrada: empty(body.cilindrada),
-      numero_cilindros: empty(body.numero_cilindros),
-      tipo_aceite_motor: empty(body.tipo_aceite_motor),
-      viscosidad_aceite_motor: empty(body.viscosidad_aceite_motor),
-      marca_aceite_motor: empty(body.marca_aceite_motor),
-      litros_aceite: empty(body.litros_aceite),
-      tipo_aceite_diferencial: empty(body.tipo_aceite_diferencial),
-      viscosidad_aceite_diferencial: empty(body.viscosidad_aceite_diferencial),
-      tipo_aceite_transmision: empty(body.tipo_aceite_transmision),
-      tipo_refrigerante: empty(body.tipo_refrigerante),
-      tecnologia_refrigerante: empty(body.tecnologia_refrigerante),
-      tipo_liga_frenos: empty(body.tipo_liga_frenos),
-      amperaje_bateria: empty(body.amperaje_bateria),
-      tamano_neumatico: empty(body.tamano_neumatico),
-      tamano_rin: empty(body.tamano_rin),
-      presion_neumatico: empty(body.presion_neumatico),
-      marca_bujia: empty(body.marca_bujia),
-      codigo_bujia: empty(body.codigo_bujia),
-      nivel_blindaje: empty(body.nivel_blindaje),
-    };
-
     const vehiculosRef = usuarioRef.collection("Vehiculos");
     const isCreate = !uidvehicle || (typeof uidvehicle === "string" && uidvehicle.trim() === "");
 
-    const uploadVehicleImage = async (vehicleId) => {
-      if (!imagen_base64 || typeof imagen_base64 !== "string" || !imagen_base64.trim()) return "";
-      // Carpeta vehicles / uiduser / uidvehicle y nombre de archivo = uidvehicle
-      const storagePath = `vehicles/${uiduser.trim()}/${vehicleId}/${vehicleId}.jpg`;
-      const file = bucket.file(storagePath);
-      const buffer = Buffer.from(imagen_base64, "base64");
-      await new Promise((resolve, reject) => {
-        file.save(buffer, {
-          metadata: { contentType: "image/jpeg" },
-          public: true,
-          validation: "md5",
-        }, (err) => (err ? reject(err) : resolve()));
-      });
-      // agregamos query param para forzar recarga en el front
-      const baseUrl = `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
-      return `${baseUrl}?t=${Date.now()}`;
+    const docData = {
+      vehiculo_placa: vehiculoCoalesceEmpty(body.vehiculo_placa),
+      vehiculo_marca: vehiculoCoalesceEmpty(body.vehiculo_marca),
+      vehiculo_modelo: vehiculoCoalesceEmpty(body.vehiculo_modelo),
+      vehiculo_anio: vehiculoCoalesceEmpty(body.vehiculo_anio),
+      vehiculo_color: vehiculoCoalesceEmpty(body.vehiculo_color),
+      tipo_vehiculo: vehiculoCoalesceEmpty(body.tipo_vehiculo),
+      uid_tipo_vehiculo: vehiculoCoalesceEmpty(body.uid_tipo_vehiculo),
+
+      KM: vehiculoCoalesceEmpty(body.KM),
+      KM_correa_tiempo: vehiculoCoalesceEmpty(body.KM_correa_tiempo),
+      KM_ultima_rotacion_cauchos: vehiculoCoalesceEmpty(body.KM_ultima_rotacion_cauchos),
+      proximo_cambio_aceite: vehiculoValueToTimestamp(body.proximo_cambio_aceite),
+      ultimo_cambio_bujias_filtro: vehiculoValueToTimestamp(body.ultimo_cambio_bujias_filtro),
+      ultimo_cambio_pila_gasolina: vehiculoValueToTimestamp(body.ultimo_cambio_pila_gasolina),
+      ultimo_lavado: vehiculoValueToTimestamp(body.ultimo_lavado),
+      ultima_vez_gasolina: vehiculoValueToTimestamp(body.ultima_vez_gasolina),
+      ultima_vez_alineacion: vehiculoValueToTimestamp(body.ultima_vez_alineacion),
+      contratacion_RCV: vehiculoCoalesceEmpty(body.contratacion_RCV),
+      grua: vehiculoCoalesceEmpty(body.grua),
+      activo: vehiculoCoalesceEmpty(body.activo),
+      por_defecto: vehiculoCoalesceEmpty(body.por_defecto),
+
+      // Ficha técnica
+      capacidad_tanque_combustible: vehiculoCoalesceEmpty(body.capacidad_tanque_combustible),
+      cilindrada: vehiculoCoalesceEmpty(body.cilindrada),
+      numero_cilindros: vehiculoCoalesceEmpty(body.numero_cilindros),
+      tipo_aceite_motor: vehiculoCoalesceEmpty(body.tipo_aceite_motor),
+      viscosidad_aceite_motor: vehiculoCoalesceEmpty(body.viscosidad_aceite_motor),
+      marca_aceite_motor: vehiculoCoalesceEmpty(body.marca_aceite_motor),
+      litros_aceite: vehiculoCoalesceEmpty(body.litros_aceite),
+      tipo_aceite_diferencial: vehiculoCoalesceEmpty(body.tipo_aceite_diferencial),
+      viscosidad_aceite_diferencial: vehiculoCoalesceEmpty(body.viscosidad_aceite_diferencial),
+      tipo_aceite_transmision: vehiculoCoalesceEmpty(body.tipo_aceite_transmision),
+      tipo_refrigerante: vehiculoCoalesceEmpty(body.tipo_refrigerante),
+      tecnologia_refrigerante: vehiculoCoalesceEmpty(body.tecnologia_refrigerante),
+      tipo_liga_frenos: vehiculoCoalesceEmpty(body.tipo_liga_frenos),
+      amperaje_bateria: vehiculoCoalesceEmpty(body.amperaje_bateria),
+      tamano_neumatico: vehiculoCoalesceEmpty(body.tamano_neumatico),
+      tamano_rin: vehiculoCoalesceEmpty(body.tamano_rin),
+      presion_neumatico: vehiculoCoalesceEmpty(body.presion_neumatico),
+      marca_bujia: vehiculoCoalesceEmpty(body.marca_bujia),
+      codigo_bujia: vehiculoCoalesceEmpty(body.codigo_bujia),
+      nivel_blindaje: vehiculoCoalesceEmpty(body.nivel_blindaje),
+
+      // Documentación (URLs en Storage; fechas como Timestamp)
+      certificado_circulacion_frente_url: "",
+      certificado_circulacion_reverso_url: "",
+      rcv_documento_frente_url: "",
+      rcv_documento_reverso_url: "",
+      rcv_fecha_vencimiento: vehiculoValueToTimestamp(rcv_fecha_vencimiento),
+      trimestres_frente_url: "",
+      trimestres_reverso_url: "",
+      trimestres_fecha_vencimiento: vehiculoValueToTimestamp(trimestres_fecha_vencimiento),
     };
 
     if (isCreate) {
       const newRef = await vehiculosRef.add(docData);
       const vehicleId = newRef.id;
-      const pathUrl = await uploadVehicleImage(vehicleId);
-      if (pathUrl) await newRef.update({ path: pathUrl });
+
+      const docUrlUpdates = {};
+      await vehiculoAppendCreateDocUrl(docUrlUpdates, uidTrim, vehicleId, certificado_circulacion_frente_base64, "certificado_circulacion_frente_url", "certificado_circulacion_frente");
+      await vehiculoAppendCreateDocUrl(docUrlUpdates, uidTrim, vehicleId, certificado_circulacion_reverso_base64, "certificado_circulacion_reverso_url", "certificado_circulacion_reverso");
+      await vehiculoAppendCreateDocUrl(docUrlUpdates, uidTrim, vehicleId, rcv_documento_frente_base64, "rcv_documento_frente_url", "rcv_documento_frente");
+      await vehiculoAppendCreateDocUrl(docUrlUpdates, uidTrim, vehicleId, rcv_documento_reverso_base64, "rcv_documento_reverso_url", "rcv_documento_reverso");
+      await vehiculoAppendCreateDocUrl(docUrlUpdates, uidTrim, vehicleId, trimestres_frente_base64, "trimestres_frente_url", "trimestres_frente");
+      await vehiculoAppendCreateDocUrl(docUrlUpdates, uidTrim, vehicleId, trimestres_reverso_base64, "trimestres_reverso_url", "trimestres_reverso");
+
+      const pathUrl = await vehiculoUploadMainImage(uidTrim, vehicleId, imagen_base64);
+      const patch = { ...docUrlUpdates };
+      if (pathUrl) patch.path = pathUrl;
+      if (Object.keys(patch).length) await newRef.update(patch);
+
       return res.status(201).json({
         message: "Vehículo creado.",
         uidvehicle: vehicleId,
         path: pathUrl || undefined,
+        documentos: docUrlUpdates,
       });
     }
 
@@ -438,11 +559,61 @@ const saveOrUpdateVehiculo = async (req, res) => {
       return res.status(404).json({ error: "Vehículo no encontrado en este usuario." });
     }
 
+    const existing = vehicleDoc.data() || {};
+
+    docData.certificado_circulacion_frente_url = await vehiculoResolveUpdateDocUrl(
+      uidTrim,
+      vehicleId,
+      certificado_circulacion_frente_base64,
+      "certificado_circulacion_frente_url",
+      "certificado_circulacion_frente",
+      existing,
+    );
+    docData.certificado_circulacion_reverso_url = await vehiculoResolveUpdateDocUrl(
+      uidTrim,
+      vehicleId,
+      certificado_circulacion_reverso_base64,
+      "certificado_circulacion_reverso_url",
+      "certificado_circulacion_reverso",
+      existing,
+    );
+    docData.rcv_documento_frente_url = await vehiculoResolveUpdateDocUrl(
+      uidTrim,
+      vehicleId,
+      rcv_documento_frente_base64,
+      "rcv_documento_frente_url",
+      "rcv_documento_frente",
+      existing,
+    );
+    docData.rcv_documento_reverso_url = await vehiculoResolveUpdateDocUrl(
+      uidTrim,
+      vehicleId,
+      rcv_documento_reverso_base64,
+      "rcv_documento_reverso_url",
+      "rcv_documento_reverso",
+      existing,
+    );
+    docData.trimestres_frente_url = await vehiculoResolveUpdateDocUrl(
+      uidTrim,
+      vehicleId,
+      trimestres_frente_base64,
+      "trimestres_frente_url",
+      "trimestres_frente",
+      existing,
+    );
+    docData.trimestres_reverso_url = await vehiculoResolveUpdateDocUrl(
+      uidTrim,
+      vehicleId,
+      trimestres_reverso_base64,
+      "trimestres_reverso_url",
+      "trimestres_reverso",
+      existing,
+    );
+
     let pathUrl = "";
     if (imagen_base64 && typeof imagen_base64 === "string" && imagen_base64.trim()) {
-      // eliminar campo path anterior antes de guardar el nuevo
       await vehicleRef.update({ path: admin.firestore.FieldValue.delete() });
-      pathUrl = await uploadVehicleImage(vehicleId);
+      pathUrl = await vehiculoUploadMainImage(uidTrim, vehicleId, imagen_base64);
       if (pathUrl) {
         docData.path = pathUrl;
       }
@@ -453,6 +624,14 @@ const saveOrUpdateVehiculo = async (req, res) => {
       message: "Vehículo actualizado.",
       uidvehicle: vehicleId,
       path: pathUrl || undefined,
+      documentos: {
+        certificado_circulacion_frente_url: docData.certificado_circulacion_frente_url || undefined,
+        certificado_circulacion_reverso_url: docData.certificado_circulacion_reverso_url || undefined,
+        rcv_documento_frente_url: docData.rcv_documento_frente_url || undefined,
+        rcv_documento_reverso_url: docData.rcv_documento_reverso_url || undefined,
+        trimestres_frente_url: docData.trimestres_frente_url || undefined,
+        trimestres_reverso_url: docData.trimestres_reverso_url || undefined,
+      },
     });
   } catch (error) {
     console.error("Error al guardar/actualizar vehículo:", error);
