@@ -4722,6 +4722,179 @@ const getUsuariosConNotificacionesVehiculos = async () => {
   }
 };
 
+/** secretCode en data FCM para km ≥ proximoKM (mantenimiento por odómetro vencido). */
+const SECRET_CODE_PROXIMO_KM_SUPERADO = "ProximoKmSuperado";
+/** secretCode en data FCM: faltan más de 0 y hasta 3000 km para llegar a proximoKM (3002 ya no entra). */
+const SECRET_CODE_PROXIMO_KM_ADVERTENCIA = "ProximoKmAdvertenciaHasta3000";
+
+const cronKmParseEnteroNoNegativo = (raw) => {
+  if (raw === undefined || raw === null || raw === "") return null;
+  const n = typeof raw === "number" ? raw : parseInt(String(raw).trim(), 10);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return n;
+};
+
+const cronKmEnviarPushUsuario = async (token, title, body, secretCode) => {
+  if (!token || typeof token !== "string" || !token.trim()) return false;
+  const reqNotif = {
+    body: {
+      token: token.trim(),
+      title: String(title).slice(0, 200),
+      body: String(body).slice(0, 1024),
+      secretCode: String(secretCode),
+    },
+  };
+  const resNotif = {
+    status: () => ({
+      send: () => {},
+    }),
+  };
+  try {
+    await sendNotification(reqNotif, resNotif);
+    return true;
+  } catch (e) {
+    console.error("cronKm push:", e.message, secretCode);
+    return false;
+  }
+};
+
+const cronKmMensajeSuperadoProximo = (ctx) => {
+  const { nombre, vehDesc, nombreTipo, kmVehiculo, proximoKM } = ctx;
+  return {
+    title: `${nombre}, tocó el mantenimiento por km`,
+    body: `Hola ${nombre}. Tu ${vehDesc} va en ${kmVehiculo} km y ya pasaste los ${proximoKM} km que tenías para «${nombreTipo}». Pasá por el taller o agendá cuando puedas.`,
+  };
+};
+
+const cronKmMensajeAdvertenciaRango = (ctx) => {
+  const { nombre, vehDesc, nombreTipo, kmVehiculo, proximoKM, kmRestantes } = ctx;
+  const distancia =
+    kmRestantes === 1
+      ? "te falta solo 1 km"
+      : `aún te quedan unos ${kmRestantes} km`;
+  return {
+    title: `${nombre}, un recordatorio de tus kilómetros`,
+    body: `Hola ${nombre}. Tu ${vehDesc} va por ${kmVehiculo} km. Para «${nombreTipo}» tenías como referencia los ${proximoKM} km, y ${distancia} para acercarte a esa cifra. No va con prisa: solo tenlo en cuenta.`,
+  };
+};
+
+/**
+ * KM del doc Vehiculos vs proximoKM en la notificación (active === true).
+ * - Si KM >= proximoKM: push amistoso (superaste el km objetivo).
+ * - Si faltan de 1 a 3000 km para proximoKM: push advertencia (1200 sí; 3002 no).
+ */
+const cronKmEvaluarNotificacionActiva = async ({
+  token,
+  nombreUsuario,
+  uidvehicle,
+  notif,
+  vehData,
+}) => {
+  const proximoKM = cronKmParseEnteroNoNegativo(notif.proximoKM);
+  if (proximoKM === null) return { enviados: 0 };
+
+  const kmVehiculo = cronKmParseEnteroNoNegativo(vehData?.KM);
+  if (kmVehiculo === null) return { enviados: 0 };
+
+  const nombreTipo = vehiculoCoalesceEmpty(notif.nombre) || "este mantenimiento";
+  const vehDesc = describeVehiculoParaNotificacion(vehData || {});
+  let enviados = 0;
+
+  if (kmVehiculo >= proximoKM) {
+    const { title, body } = cronKmMensajeSuperadoProximo({
+      nombre: nombreUsuario,
+      vehDesc,
+      nombreTipo,
+      kmVehiculo,
+      proximoKM,
+    });
+    const ok = await cronKmEnviarPushUsuario(token, title, body, SECRET_CODE_PROXIMO_KM_SUPERADO);
+    if (ok) enviados += 1;
+    return { enviados };
+  }
+
+  const kmRestantes = proximoKM - kmVehiculo;
+  if (kmRestantes >= 1 && kmRestantes <= 3000) {
+    const { title, body } = cronKmMensajeAdvertenciaRango({
+      nombre: nombreUsuario,
+      vehDesc,
+      nombreTipo,
+      kmVehiculo,
+      proximoKM,
+      kmRestantes,
+    });
+    const ok = await cronKmEnviarPushUsuario(
+      token,
+      title,
+      body,
+      SECRET_CODE_PROXIMO_KM_ADVERTENCIA,
+    );
+    if (ok) enviados += 1;
+  }
+
+  return { enviados };
+};
+
+const jobNotificacionesVehiculosProximoKm = async () => {
+  try {
+    const snapshot = await db
+      .collection("Usuarios")
+      .where("notificacionesVehiculos", "!=", null)
+      .get();
+
+    if (snapshot.empty) {
+      return;
+    }
+
+    let totalEnviados = 0;
+
+    for (const doc of snapshot.docs) {
+      const data = doc.data();
+      const bloques = filterNotificacionesVehiculosSoloActivas(data.notificacionesVehiculos);
+      if (!bloques.length) continue;
+
+      const token = vehiculoCoalesceEmpty(data.token);
+      if (!token) continue;
+
+      const nombreUsuario = nombreUsuarioDesdeDocUsuario(data) || "amigo";
+      const uiduser = doc.id;
+      const userRef = db.collection("Usuarios").doc(uiduser);
+
+      for (const veh of bloques) {
+        if (!veh || typeof veh !== "object") continue;
+        const uidvehicle =
+          veh.uidvehicle != null && String(veh.uidvehicle).trim() !== ""
+            ? String(veh.uidvehicle).trim()
+            : "";
+        if (!uidvehicle) continue;
+
+        const vehSnap = await userRef.collection("Vehiculos").doc(uidvehicle).get();
+        if (!vehSnap.exists) continue;
+        const vehData = vehSnap.data() || {};
+
+        const notifs = Array.isArray(veh.notificaciones) ? veh.notificaciones : [];
+        for (const notif of notifs) {
+          if (!notif || typeof notif !== "object" || notif.active !== true) continue;
+          const { enviados } = await cronKmEvaluarNotificacionActiva({
+            token,
+            nombreUsuario,
+            uidvehicle,
+            notif,
+            vehData,
+          });
+          totalEnviados += enviados;
+        }
+      }
+    }
+
+    if (totalEnviados > 0) {
+      console.log(`Job proximoKM (Vehiculos): ${totalEnviados} notificación(es) enviada(s).`);
+    }
+  } catch (error) {
+    console.error("Error en job notificaciones proximoKM:", error);
+  }
+};
+
 const SECRET_CODE_LICENCIA_VENC = "licencia_fecha_vencimiento";
 const SECRET_CODE_CERT_MEDICO_VENC = "certificado_medico_fecha_vencimiento";
 
@@ -4975,6 +5148,57 @@ const jobNotificacionesRcvYTrimestresVehiculos = async () => {
   }
 };
 
+const SECRET_CODE_ACTUALIZAR_KM_VEHICULOS = "ActualizarKmVehiculos";
+
+/**
+ * Pone showModalKm = true en todos los documentos de Usuarios y envía push a quienes tengan token.
+ * Pensado para ejecutarse ~cada 7 días vía cron (p. ej. semanal).
+ */
+const cargarKmVehiculos = async () => {
+  try {
+    const snapshot = await db.collection("Usuarios").get();
+    if (snapshot.empty) {
+      console.log("cargarKmVehiculos: no hay usuarios.");
+      return;
+    }
+
+    const docs = snapshot.docs;
+    const BATCH = 500;
+
+    for (let i = 0; i < docs.length; i += BATCH) {
+      const chunk = docs.slice(i, i + BATCH);
+      const batch = db.batch();
+      for (const doc of chunk) {
+        batch.update(doc.ref, { showModalKm: true });
+      }
+      await batch.commit();
+    }
+
+    let pushes = 0;
+    for (const doc of docs) {
+      const data = doc.data();
+      const token = vehiculoCoalesceEmpty(data.token);
+      if (!token) continue;
+      const nombre = nombreUsuarioDesdeDocUsuario(data) || "amigo";
+      const title = `${nombre}, tu kilometraje`;
+      const body = `Hola ${nombre}. Te pedimos un minuto: actualizá el km de tu vehículo en la app. Así mantenemos tus datos al día y los recordatorios te van a servir mucho mejor.`;
+      const ok = await cronKmEnviarPushUsuario(
+        token,
+        title,
+        body,
+        SECRET_CODE_ACTUALIZAR_KM_VEHICULOS,
+      );
+      if (ok) pushes += 1;
+    }
+
+    console.log(
+      `cargarKmVehiculos: ${docs.length} usuario(s) con showModalKm=true; ${pushes} push(es) con token.`,
+    );
+  } catch (error) {
+    console.error("Error en cargarKmVehiculos:", error);
+  }
+};
+
 
 module.exports = {
   getUsuarios,
@@ -5022,10 +5246,12 @@ module.exports = {
   getUsuariosConNotificacionesVehiculos,
   jobNotificacionesLicenciaYCertificadoMedico,
   jobNotificacionesRcvYTrimestresVehiculos,
+  jobNotificacionesVehiculosProximoKm,
   AsociarPlan,
   updateScheduleDate,
   getPlanesVencidos,
   deleteVehiculo,
   updateVehiculoKm,
+  cargarKmVehiculos,
   getServicesByTallerUidTrue
 };

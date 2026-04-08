@@ -84,23 +84,46 @@ cron.schedule('0 */5 * * *', () => {
 });
 
 
-// Job cada 10 segundos: usuarios con notificacionesVehiculos (6 campos = incluye segundos)
-cron.schedule('*/10 * * * * *', () => {
-  console.log('Ejecutando job cada 10 segundos (usuarios con notificacionesVehiculos)');
-  // Usuarios.getUsuariosConNotificacionesVehiculos();
+// Job cada 24 horas (10:00, hora del servidor): usuarios con notificacionesVehiculos
+cron.schedule('0 10 * * *', () => {
+  // console.log('Ejecutando job diario (usuarios con notificacionesVehiculos)');
+  Usuarios.getUsuariosConNotificacionesVehiculos();
 });
 
-// Job cada 10 segundos: licencia / certificado médico por vencer o vencidos (1–30 días o ya vencido)
-cron.schedule('*/10 * * * * *', () => {
-  console.log('Ejecutando job cada 10 segundos (licencia y certificado médico)');
-  // Usuarios.jobNotificacionesLicenciaYCertificadoMedico();
+// Job cada 24 horas (10:00, hora del servidor): proximoKM vs KM (superado o aviso 1–3000 km)
+cron.schedule('0 10 * * *', () => {
+  // console.log('Ejecutando job diario (proximoKM / odómetro)');
+  Usuarios.jobNotificacionesVehiculosProximoKm();
 });
 
-// Job cada 10 segundos: RCV y trimestres en subcolección Vehiculos (vencido o falta ~1 mes)
-cron.schedule('*/10 * * * * *', () => {
-  console.log('Ejecutando job cada 10 segundos (RCV y trimestres por vehículo)');
-  // Usuarios.jobNotificacionesRcvYTrimestresVehiculos();
+
+
+
+
+// Los proximos dos jobs no se pueden desactivar porque son muy importantes
+
+// Job cada 24 horas (10:00, hora del servidor): licencia / certificado médico (1–30 días o vencido)
+cron.schedule('0 10 * * *', () => {
+  // console.log('Ejecutando job diario (licencia y certificado médico)');
+  Usuarios.jobNotificacionesLicenciaYCertificadoMedico();
 });
+
+// Job cada 24 horas (10:00, hora del servidor): RCV y trimestres en Vehiculos (vencido o ~1 mes)
+cron.schedule('0 10 * * *', () => {
+  // console.log('Ejecutando job diario (RCV y trimestres por vehículo)');
+  Usuarios.jobNotificacionesRcvYTrimestresVehiculos();
+});
+
+
+// Este es el job que hace que se vea el modal en el home 
+
+// Cada 7 días (lunes 10:00, hora del servidor): showModalKm + push para actualizar km
+cron.schedule('0 10 * * 1', () => {
+  // console.log('Job semanal: showModalKm y recordatorio de kilometraje');
+  Usuarios.cargarKmVehiculos();
+});
+
+
 
 
 
