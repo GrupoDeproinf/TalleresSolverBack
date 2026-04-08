@@ -84,5 +84,31 @@ cron.schedule('0 */5 * * *', () => {
 });
 
 
+// Job cada 10 segundos: usuarios con notificacionesVehiculos (6 campos = incluye segundos)
+cron.schedule('*/10 * * * * *', () => {
+  console.log('Ejecutando job cada 10 segundos (usuarios con notificacionesVehiculos)');
+  // Usuarios.getUsuariosConNotificacionesVehiculos();
+});
+
+// Job cada 10 segundos: licencia / certificado médico por vencer o vencidos (1–30 días o ya vencido)
+cron.schedule('*/10 * * * * *', () => {
+  console.log('Ejecutando job cada 10 segundos (licencia y certificado médico)');
+  // Usuarios.jobNotificacionesLicenciaYCertificadoMedico();
+});
+
+// Job cada 10 segundos: RCV y trimestres en subcolección Vehiculos (vencido o falta ~1 mes)
+cron.schedule('*/10 * * * * *', () => {
+  console.log('Ejecutando job cada 10 segundos (RCV y trimestres por vehículo)');
+  // Usuarios.jobNotificacionesRcvYTrimestresVehiculos();
+});
+
+
+
+
+
+
+
+
+
 
 module.exports = app;

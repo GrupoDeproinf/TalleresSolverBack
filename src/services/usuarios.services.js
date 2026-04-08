@@ -218,6 +218,8 @@ const updateNotificationUser = async (req, res) => {
       secretCode,
       ultimaRevision,
       proximaRevision,
+      ultimoKM,
+      proximoKM,
       intervalodias,
       intervalokm,
       intervaloDias,
@@ -295,6 +297,8 @@ const updateNotificationUser = async (req, res) => {
       ultimaRevision: ultimaRevision ?? updatedNotificaciones[notifIndex].ultimaRevision ?? "",
       proximaRevision:
         proximaRevision ?? updatedNotificaciones[notifIndex].proximaRevision ?? "",
+      ultimoKM: ultimoKM ?? updatedNotificaciones[notifIndex].ultimoKM ?? "",
+      proximoKM: proximoKM ?? updatedNotificaciones[notifIndex].proximoKM ?? "",
       intervalodias: dias,
       intervalokm: km,
     };
@@ -3981,7 +3985,9 @@ const getPlanesActivos3Days = async () => {
     console.error("Error al actualizar usuarios y servicios:", error); // Muestra el error en la consola del servidor
     console.log(`Error al actualizar usuarios y servicios: ${error.message}`); // Muestra el mensaje del error
   }
-}
+};
+
+
 
 
 const getPlanesActivos = async () => {
@@ -4332,6 +4338,594 @@ const deleteVehiculo = async (req, res) => {
 };
 
 
+/** Deja solo ítems de notificaciones con active === true; elimina vehículos sin ninguna activa. */
+const filterNotificacionesVehiculosSoloActivas = (notificacionesVehiculos) => {
+  if (!Array.isArray(notificacionesVehiculos)) return [];
+  return notificacionesVehiculos
+    .map((veh) => {
+      if (!veh || typeof veh !== "object") return null;
+      const list = Array.isArray(veh.notificaciones) ? veh.notificaciones : [];
+      const notificaciones = list.filter(
+        (n) => n && typeof n === "object" && n.active === true,
+      );
+      return { ...veh, notificaciones };
+    })
+    .filter((veh) => veh && veh.notificaciones.length > 0);
+};
+
+const vehiculoCamposNotificacionDesdeDoc = (data) => {
+  const d = data && typeof data === "object" ? data : {};
+  return {
+    vehiculo_marca: vehiculoCoalesceEmpty(d.vehiculo_marca),
+    vehiculo_modelo: vehiculoCoalesceEmpty(d.vehiculo_modelo),
+    vehiculo_placa: vehiculoCoalesceEmpty(d.vehiculo_placa),
+    vehiculo_anio: vehiculoCoalesceEmpty(d.vehiculo_anio),
+  };
+};
+
+const nombreUsuarioDesdeDocUsuario = (u) => {
+  if (!u || typeof u !== "object") return "";
+  const raw = u.nombre ?? u.Nombre ?? u.nombre_usuario;
+  return vehiculoCoalesceEmpty(raw);
+};
+
+const startOfDayLocal = (d) => {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+};
+
+/** proximaRevision en DD/MM/YYYY → inicio de ese día local, o null si no es válido. */
+const parseProximaRevisionDDMMYYYY = (raw) => {
+  if (raw == null) return null;
+  const str = String(raw).trim();
+  const m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) return null;
+  const day = parseInt(m[1], 10);
+  const month = parseInt(m[2], 10) - 1;
+  const year = parseInt(m[3], 10);
+  const dt = new Date(year, month, day);
+  if (dt.getFullYear() !== year || dt.getMonth() !== month || dt.getDate() !== day) return null;
+  return startOfDayLocal(dt);
+};
+
+const describeVehiculoParaNotificacion = (item) => {
+  const marca = vehiculoCoalesceEmpty(item.vehiculo_marca);
+  const modelo = vehiculoCoalesceEmpty(item.vehiculo_modelo);
+  const placa = vehiculoCoalesceEmpty(item.vehiculo_placa);
+  const anio = vehiculoCoalesceEmpty(item.vehiculo_anio);
+  let nucleo = "tu vehículo";
+  if (marca || modelo) nucleo = [marca, modelo].filter(Boolean).join(" ").trim() || nucleo;
+  const partes = [];
+  if (placa) partes.push(`placa ${placa}`);
+  if (anio !== "" && anio != null) partes.push(`año ${anio}`);
+  if (partes.length) return `${nucleo} (${partes.join(", ")})`;
+  return nucleo;
+};
+
+const lineaFechaProximaRevision = (proximaRevision) => {
+  const prox = vehiculoCoalesceEmpty(proximaRevision);
+  return prox ? `Tenías anotada la fecha ${prox}.` : "";
+};
+
+const lineaFechaProgramadaProxima = (proximaRevision) => {
+  const prox = vehiculoCoalesceEmpty(proximaRevision);
+  return prox ? `La fecha que tienes programada es el ${prox}.` : "";
+};
+
+const textoDiasRestantes = (dias) =>
+  dias === 1 ? "Falta 1 día" : `Faltan ${dias} días`;
+
+/** meta: { kind: 'vencida' } | { kind: 'proxima', diasRestantes: number } (1–7) */
+const mensajeMantenimientoPushPorSecretCode = (item, meta) => {
+  const nombreUser = vehiculoCoalesceEmpty(item.nombre_usuario) || "amigo";
+  const nombreTipo = vehiculoCoalesceEmpty(item.nombre) || "este mantenimiento";
+  const veh = describeVehiculoParaNotificacion(item);
+  const fechaTxtVenc = lineaFechaProximaRevision(item.proximaRevision);
+  const fechaTxtProx = lineaFechaProgramadaProxima(item.proximaRevision);
+  const cierreVenc =
+    "Cuando puedas, agenda o revisa el servicio para seguir manejando con tranquilidad.";
+  const cierreProx =
+    "Te avisamos con tiempo para que puedas organizarlo sin apuros.";
+
+  if (meta.kind === "proxima") {
+    const diasTxt = textoDiasRestantes(meta.diasRestantes);
+    switch (item.secretCode) {
+      case "KMCorreTiempo":
+        return {
+          title: `${nombreUser}, se acerca la correa`,
+          body: `Hola ${nombreUser}, ${diasTxt} para el mantenimiento de «${nombreTipo}» (correa o kit de distribución) de tu ${veh}. ${fechaTxtProx} ${cierreProx}`,
+        };
+      case "UltimaAlineacionRuedas":
+        return {
+          title: `${nombreUser}, alineación próxima`,
+          body: `Hola ${nombreUser}, ${diasTxt} para la alineación de «${nombreTipo}» de tu ${veh}. ${fechaTxtProx} Ir a tiempo alinea bien los neumáticos. ${cierreProx}`,
+        };
+      case "UltimoAbastecimientoCombustible":
+        return {
+          title: `${nombreUser}, revisión de combustible cerca`,
+          body: `Hola ${nombreUser}, ${diasTxt} para el seguimiento de «${nombreTipo}» (combustible) de tu ${veh}. ${fechaTxtProx} ${cierreProx}`,
+        };
+      case "UltimoCambioBujiasFiltro":
+        return {
+          title: `${nombreUser}, bujías o filtros pronto`,
+          body: `Hola ${nombreUser}, ${diasTxt} para el mantenimiento de «${nombreTipo}» (bujías y filtro) de tu ${veh}. ${fechaTxtProx} ${cierreProx}`,
+        };
+      case "UltimoLavado":
+        return {
+          title: `${nombreUser}, lavado en la mira`,
+          body: `Hola ${nombreUser}, ${diasTxt} para el «${nombreTipo}» (lavado) de tu ${veh}. ${fechaTxtProx} Un buen lavado mantiene bonito el auto. ${cierreProx}`,
+        };
+      case "UltimoMantenimientoSistemaInyeccion":
+        return {
+          title: `${nombreUser}, inyección a la vista`,
+          body: `Hola ${nombreUser}, ${diasTxt} para el mantenimiento de «${nombreTipo}» (sistema de inyección) de tu ${veh}. ${fechaTxtProx} ${cierreProx}`,
+        };
+      case "UltimocambioAceite":
+        return {
+          title: `${nombreUser}, cambio de aceite cerca`,
+          body: `Hola ${nombreUser}, ${diasTxt} para el «${nombreTipo}» (cambio de aceite) de tu ${veh}. ${fechaTxtProx} Reservar cita con anticipación le viene bien al motor. ${cierreProx}`,
+        };
+      default:
+        return {
+          title: `${nombreUser}, mantenimiento próximo`,
+          body: `Hola ${nombreUser}, ${diasTxt} para «${nombreTipo}» de tu ${veh}. ${fechaTxtProx} ${cierreProx}`,
+        };
+    }
+  }
+
+  switch (item.secretCode) {
+    case "KMCorreTiempo":
+      return {
+        title: `${nombreUser}, tu correa o kit de distribución`,
+        body: `Hola ${nombreUser}, tu ${veh} ya superó la fecha del mantenimiento de «${nombreTipo}» (correa o kit de distribución). ${fechaTxtVenc} ${cierreVenc}`,
+      };
+    case "UltimaAlineacionRuedas":
+      return {
+        title: `${nombreUser}, alineación vencida`,
+        body: `Hola ${nombreUser}, para tu ${veh} la alineación de ruedas de «${nombreTipo}» quedó con fecha vencida. ${fechaTxtVenc} Alinear a tiempo cuida los neumáticos y la conducción. ${cierreVenc}`,
+      };
+    case "UltimoAbastecimientoCombustible":
+      return {
+        title: `${nombreUser}, revisión de combustible`,
+        body: `Hola ${nombreUser}, tu ${veh} tiene vencido el seguimiento de «${nombreTipo}» (abastecimiento de combustible). ${fechaTxtVenc} Un chequeo oportuno ayuda a detectar consumos raros. ${cierreVenc}`,
+      };
+    case "UltimoCambioBujiasFiltro":
+      return {
+        title: `${nombreUser}, bujías o filtros`,
+        body: `Hola ${nombreUser}, tu ${veh} lleva vencido el mantenimiento de «${nombreTipo}» (bujías y filtro). ${fechaTxtVenc} Cambiarlos a tiempo mejora el arranque y el consumo. ${cierreVenc}`,
+      };
+    case "UltimoLavado":
+      return {
+        title: `${nombreUser}, momento de un buen lavado`,
+        body: `Hola ${nombreUser}, para tu ${veh} la fecha de «${nombreTipo}» (lavado) ya pasó. ${fechaTxtVenc} Un lavado ayuda a cuidar la pintura y el valor del auto. ${cierreVenc}`,
+      };
+    case "UltimoMantenimientoSistemaInyeccion":
+      return {
+        title: `${nombreUser}, sistema de inyección`,
+        body: `Hola ${nombreUser}, tu ${veh} tiene vencido el mantenimiento de «${nombreTipo}» (sistema de inyección). ${fechaTxtVenc} Revisarlo evita fallas y consumo extra. ${cierreVenc}`,
+      };
+    case "UltimocambioAceite":
+      return {
+        title: `${nombreUser}, cambio de aceite`,
+        body: `Hola ${nombreUser}, tu ${veh} ya superó la fecha del «${nombreTipo}» (cambio de aceite). ${fechaTxtVenc} El aceite fresco es clave para el motor. ${cierreVenc}`,
+      };
+    default:
+      return {
+        title: `${nombreUser}, mantenimiento pendiente`,
+        body: `Hola ${nombreUser}, tu ${veh} tiene vencido el mantenimiento de «${nombreTipo}». ${fechaTxtVenc} ${cierreVenc}`,
+      };
+  }
+};
+
+const enviarPushMantenimientoVencido = async (item, title, body) => {
+  const token = item.token;
+  if (!token || typeof token !== "string" || !token.trim()) {
+    console.warn("Mantenimiento vencido: sin token FCM, uiduser=", item.uiduser);
+    return;
+  }
+  const reqNotif = {
+    body: {
+      token: token.trim(),
+      title: String(title).slice(0, 200),
+      body: String(body).slice(0, 1024),
+      secretCode: item.secretCode != null ? String(item.secretCode) : "",
+    },
+  };
+
+  const resNotif = {
+    status: () => ({
+      send: () => {},
+    }),
+  };
+  await sendNotification(reqNotif, resNotif);
+};
+
+/**
+ * Por cada notificación activa: token, uiduser, uidvehicle, campos de la notificación y datos del doc Vehiculos.
+ */
+const expandNotificacionesVehiculosActivasConVehiculoDocs = async (usuariosConActivas) => {
+  const items = [];
+  const cache = new Map();
+
+  const getCamposVehiculo = async (uiduser, uidvehicle) => {
+    const key = `${uiduser}::${uidvehicle}`;
+    if (cache.has(key)) return cache.get(key);
+    const snap = await db
+      .collection("Usuarios")
+      .doc(uiduser)
+      .collection("Vehiculos")
+      .doc(uidvehicle)
+      .get();
+    const campos = snap.exists
+      ? vehiculoCamposNotificacionDesdeDoc(snap.data())
+      : vehiculoCamposNotificacionDesdeDoc(null);
+    cache.set(key, campos);
+    return campos;
+  };
+
+  for (const u of usuariosConActivas) {
+    const uiduser = u.id;
+    const token = vehiculoCoalesceEmpty(u.token);
+    const bloques = Array.isArray(u.notificacionesVehiculos) ? u.notificacionesVehiculos : [];
+
+    for (const veh of bloques) {
+      if (!veh || typeof veh !== "object") continue;
+      const uidvehicle =
+        veh.uidvehicle != null && String(veh.uidvehicle).trim() !== ""
+          ? String(veh.uidvehicle).trim()
+          : "";
+      if (!uidvehicle) continue;
+
+      const camposVeh = await getCamposVehiculo(uiduser, uidvehicle);
+      const notifs = Array.isArray(veh.notificaciones) ? veh.notificaciones : [];
+
+      for (const notif of notifs) {
+        if (!notif || typeof notif !== "object" || notif.active !== true) continue;
+        items.push({
+          token,
+          uiduser,
+          uidvehicle,
+          ...notif,
+          nombre_usuario: nombreUsuarioDesdeDocUsuario(u),
+          ...camposVeh,
+        });
+      }
+    }
+  }
+
+  return items;
+};
+
+/** Usuarios de la colección Usuarios que tienen el campo notificacionesVehiculos definido y no nulo (Firestore: != null excluye ausencia del campo). */
+const getUsuariosConNotificacionesVehiculos = async () => {
+  try {
+    const snapshot = await db
+      .collection("Usuarios")
+      .where("notificacionesVehiculos", "!=", null)
+      .get();
+
+    if (snapshot.empty) {
+      console.log("Job notificacionesVehiculos: no hay usuarios con ese campo.");
+      return [];
+    }
+
+    const usuarios = snapshot.docs.map((doc) => {
+      const data = doc.data();
+      const notificacionesVehiculos = filterNotificacionesVehiculosSoloActivas(
+        data.notificacionesVehiculos,
+      );
+      return {
+        id: doc.id,
+        ...data,
+        notificacionesVehiculos,
+      };
+    });
+
+    const conActivas = usuarios.filter((u) => u.notificacionesVehiculos.length > 0);
+
+    const items = await expandNotificacionesVehiculosActivasConVehiculoDocs(conActivas);
+
+    console.log(
+      `Job notificacionesVehiculos: ${usuarios.length} usuario(s) con campo; ${conActivas.length} con active === true; ${items.length} ítem(s) expandido(s) con datos de Vehiculos/.`,
+    );
+
+    const hoy = startOfDayLocal(new Date());
+    let conItemsParaPushMantenimiento = 0;
+    const itemParaPushMantenimiento = [];
+    for (const item of items) {
+      const fechaProx = parseProximaRevisionDDMMYYYY(item.proximaRevision);
+      if (!fechaProx) continue;
+      if (fechaProx < hoy) {
+        conItemsParaPushMantenimiento += 1;
+        itemParaPushMantenimiento.push({
+          ...item,
+          _mantenimientoPushMeta: { kind: "vencida" },
+        });
+        continue;
+      }
+      const diasRestantes = Math.round(
+        (fechaProx.getTime() - hoy.getTime()) / 86400000,
+      );
+      if (diasRestantes >= 1 && diasRestantes <= 7) {
+        conItemsParaPushMantenimiento += 1;
+        itemParaPushMantenimiento.push({
+          ...item,
+          _mantenimientoPushMeta: { kind: "proxima", diasRestantes },
+        });
+      }
+    }
+    if (conItemsParaPushMantenimiento > 0) {
+      for (const item of itemParaPushMantenimiento) {
+        const { title, body } = mensajeMantenimientoPushPorSecretCode(
+          item,
+          item._mantenimientoPushMeta,
+        );
+        await enviarPushMantenimientoVencido(item, title, body);
+      }
+    }
+
+    return items;
+  } catch (error) {
+    console.error("Error al obtener usuarios con notificacionesVehiculos:", error);
+    return [];
+  }
+};
+
+const SECRET_CODE_LICENCIA_VENC = "licencia_fecha_vencimiento";
+const SECRET_CODE_CERT_MEDICO_VENC = "certificado_medico_fecha_vencimiento";
+
+const firestoreFechaToStartOfDayLocal = (v) => {
+  if (v == null) return null;
+  let d;
+  if (typeof v.toDate === "function") d = v.toDate();
+  else if (v instanceof Date) d = new Date(v);
+  else d = new Date(v);
+  if (Number.isNaN(d.getTime())) return null;
+  return startOfDayLocal(d);
+};
+
+const formatoFechaDDMMAAAA = (fechaInicioDia) => {
+  const dd = String(fechaInicioDia.getDate()).padStart(2, "0");
+  const mm = String(fechaInicioDia.getMonth() + 1).padStart(2, "0");
+  const yyyy = fechaInicioDia.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+};
+
+/** Vencida (antes de hoy) o faltan 1–30 días; si no aplica, null. */
+const clasificarVencimientoDocumento = (fechaVencInicioDia) => {
+  const hoy = startOfDayLocal(new Date());
+  if (fechaVencInicioDia < hoy) return { kind: "vencida" };
+  const diasRestantes = Math.round(
+    (fechaVencInicioDia.getTime() - hoy.getTime()) / 86400000,
+  );
+  if (diasRestantes >= 1 && diasRestantes <= 30) {
+    return { kind: "proxima", diasRestantes };
+  }
+  return null;
+};
+
+/** Vencida o faltan 1–31 días (~un mes); para RCV y trimestres del vehículo. */
+const clasificarVencimientoDocumentoProximoMes = (fechaVencInicioDia) => {
+  const hoy = startOfDayLocal(new Date());
+  if (fechaVencInicioDia < hoy) return { kind: "vencida" };
+  const diasRestantes = Math.round(
+    (fechaVencInicioDia.getTime() - hoy.getTime()) / 86400000,
+  );
+  if (diasRestantes >= 1 && diasRestantes <= 31) {
+    return { kind: "proxima", diasRestantes };
+  }
+  return null;
+};
+
+const enviarPushDocumentacionConductorJob = async (token, title, body, secretCode) => {
+  if (!token || typeof token !== "string" || !token.trim()) return false;
+  const reqNotif = {
+    body: {
+      token: token.trim(),
+      title: String(title).slice(0, 200),
+      body: String(body).slice(0, 1024),
+      secretCode: String(secretCode),
+    },
+  };
+  const resNotif = {
+    status: () => ({
+      send: () => {},
+    }),
+  };
+  try {
+    await sendNotification(reqNotif, resNotif);
+    return true;
+  } catch (e) {
+    console.error("Push documentación conductor:", e.message, secretCode);
+    return false;
+  }
+};
+
+/**
+ * Usuarios con licencia_fecha_vencimiento y/o certificado_medico_fecha_vencimiento.
+ * Notifica si venció o faltan 1–30 días. secretCode en data: licencia_fecha_vencimiento | certificado_medico_fecha_vencimiento
+ */
+const jobNotificacionesLicenciaYCertificadoMedico = async () => {
+  try {
+    const [licSnap, certSnap] = await Promise.all([
+      db.collection("Usuarios").where("licencia_fecha_vencimiento", "!=", null).get(),
+      db.collection("Usuarios").where("certificado_medico_fecha_vencimiento", "!=", null).get(),
+    ]);
+
+    let enviados = 0;
+
+    const procesarCampo = async (doc, campoFecha, secretCode, esLicencia) => {
+      const data = doc.data();
+      const fechaFin = firestoreFechaToStartOfDayLocal(data[campoFecha]);
+      if (!fechaFin) return;
+      const estado = clasificarVencimientoDocumento(fechaFin);
+      if (!estado) return;
+
+      const token = vehiculoCoalesceEmpty(data.token);
+      if (!token) return;
+
+      const nombre = nombreUsuarioDesdeDocUsuario({ ...data }) || "amigo";
+      const fechaTxt = formatoFechaDDMMAAAA(fechaFin);
+
+      let title;
+      let body;
+      if (esLicencia) {
+        if (estado.kind === "vencida") {
+          title = `${nombre}, tu licencia está vencida`;
+          body = `Hola ${nombre}, tu licencia de conducir ya venció (fecha límite ${fechaTxt}). Renovála cuanto antes para seguir manejando con respaldo legal y tranquilidad.`;
+        } else {
+          const diasTxt =
+            estado.diasRestantes === 1
+              ? "Falta 1 día"
+              : `Faltan ${estado.diasRestantes} días`;
+          title = `${nombre}, licencia por vencer`;
+          body = `Hola ${nombre}, ${diasTxt} para que venza tu licencia (${fechaTxt}). Te conviene iniciar la renovación con tiempo.`;
+        }
+      } else if (estado.kind === "vencida") {
+        title = `${nombre}, certificado médico vencido`;
+        body = `Hola ${nombre}, tu certificado médico para conducir ya venció (fecha límite ${fechaTxt}). Renuévalo para mantener tu documentación al día.`;
+      } else {
+        const diasTxt =
+          estado.diasRestantes === 1
+            ? "Falta 1 día"
+            : `Faltan ${estado.diasRestantes} días`;
+        title = `${nombre}, certificado médico por vencer`;
+        body = `Hola ${nombre}, ${diasTxt} para el vencimiento de tu certificado médico (${fechaTxt}). Agenda tu cita médica con anticipación.`;
+      }
+
+      const ok = await enviarPushDocumentacionConductorJob(token, title, body, secretCode);
+      if (ok) enviados += 1;
+    };
+
+    for (const doc of licSnap.docs) {
+      await procesarCampo(doc, "licencia_fecha_vencimiento", SECRET_CODE_LICENCIA_VENC, true);
+    }
+    for (const doc of certSnap.docs) {
+      await procesarCampo(
+        doc,
+        "certificado_medico_fecha_vencimiento",
+        SECRET_CODE_CERT_MEDICO_VENC,
+        false,
+      );
+    }
+
+    if (enviados > 0) {
+      console.log(`Job licencia/certificado médico: ${enviados} notificación(es) enviada(s).`);
+    }
+  } catch (error) {
+    console.error("Error en job licencia/certificado médico:", error);
+  }
+};
+
+const SECRET_CODE_RCV_VENC = "rcv_fecha_vencimiento";
+const SECRET_CODE_TRIMESTRES_VENC = "trimestres_fecha_vencimiento";
+
+/** Usuarios/{uid}/Vehiculos/{id} → uid */
+const uidUsuarioDesdeRutaVehiculo = (docRef) => {
+  const parts = docRef.path.split("/");
+  if (parts.length >= 4 && parts[0] === "Usuarios" && parts[2] === "Vehiculos") {
+    return parts[1];
+  }
+  return null;
+};
+
+const obtenerUsuarioLiteParaJobVehiculo = async (uid, cache) => {
+  if (cache.has(uid)) return cache.get(uid);
+  const snap = await db.collection("Usuarios").doc(uid).get();
+  if (!snap.exists) {
+    const vacio = { token: "", nombre: "amigo" };
+    cache.set(uid, vacio);
+    return vacio;
+  }
+  const d = snap.data();
+  const lite = {
+    token: vehiculoCoalesceEmpty(d.token),
+    nombre: nombreUsuarioDesdeDocUsuario(d) || "amigo",
+  };
+  cache.set(uid, lite);
+  return lite;
+};
+
+
+const jobNotificacionesRcvYTrimestresVehiculos = async () => {
+  try {
+    const [rcvSnap, trimSnap] = await Promise.all([
+      db.collectionGroup("Vehiculos").where("rcv_fecha_vencimiento", "!=", null).get(),
+      db.collectionGroup("Vehiculos").where("trimestres_fecha_vencimiento", "!=", null).get(),
+    ]);
+
+    const userCache = new Map();
+    let enviados = 0;
+
+    const procesarVehiculoCampo = async (doc, campoFecha, secretCode, esRcv) => {
+      const uid = uidUsuarioDesdeRutaVehiculo(doc.ref);
+      if (!uid) return;
+
+      const data = doc.data();
+      const fechaFin = firestoreFechaToStartOfDayLocal(data[campoFecha]);
+      if (!fechaFin) return;
+
+      const estado = clasificarVencimientoDocumentoProximoMes(fechaFin);
+      if (!estado) return;
+
+      const { token, nombre } = await obtenerUsuarioLiteParaJobVehiculo(uid, userCache);
+      if (!token) return;
+
+      const veh = describeVehiculoParaNotificacion(data);
+      const fechaTxt = formatoFechaDDMMAAAA(fechaFin);
+
+      let title;
+      let body;
+      if (esRcv) {
+        if (estado.kind === "vencida") {
+          title = `${nombre}, RCV vencido`;
+          body = `Hola ${nombre}, el RCV de tu ${veh} está vencido (fecha límite ${fechaTxt}). Renoválo para circular con la póliza al día.`;
+        } else {
+          const diasTxt =
+            estado.diasRestantes === 1
+              ? "Falta 1 día"
+              : `Faltan ${estado.diasRestantes} días`;
+          title = `${nombre}, RCV por vencer`;
+          body = `Hola ${nombre}, ${diasTxt} para el vencimiento del RCV de tu ${veh} (${fechaTxt}), dentro del próximo mes. Te conviene renovarlo con tiempo.`;
+        }
+      } else if (estado.kind === "vencida") {
+        title = `${nombre}, trimestres vencidos`;
+        body = `Hola ${nombre}, la fecha de trimestres o circulación de tu ${veh} ya pasó (${fechaTxt}). Regulariza cuando puedas para evitar inconvenientes.`;
+      } else {
+        const diasTxt =
+          estado.diasRestantes === 1
+            ? "Falta 1 día"
+            : `Faltan ${estado.diasRestantes} días`;
+        title = `${nombre}, trimestres por vencer`;
+        body = `Hola ${nombre}, ${diasTxt} para el vencimiento de trimestres de tu ${veh} (${fechaTxt}), dentro del próximo mes. Organiza el pago con calma.`;
+      }
+
+      const ok = await enviarPushDocumentacionConductorJob(token, title, body, secretCode);
+      if (ok) enviados += 1;
+    };
+
+    for (const doc of rcvSnap.docs) {
+      await procesarVehiculoCampo(doc, "rcv_fecha_vencimiento", SECRET_CODE_RCV_VENC, true);
+    }
+    for (const doc of trimSnap.docs) {
+      await procesarVehiculoCampo(
+        doc,
+        "trimestres_fecha_vencimiento",
+        SECRET_CODE_TRIMESTRES_VENC,
+        false,
+      );
+    }
+
+    if (enviados > 0) {
+      console.log(`Job RCV/trimestres (Vehiculos): ${enviados} notificación(es) enviada(s).`);
+    }
+  } catch (error) {
+    console.error("Error en job RCV/trimestres vehículos:", error);
+  }
+};
+
+
 module.exports = {
   getUsuarios,
   getNotificaciones,
@@ -4375,6 +4969,9 @@ module.exports = {
   updateUsuarioDocumentacionConductor,
   deleteUserFromAuth,
   getPlanesActivos3Days,
+  getUsuariosConNotificacionesVehiculos,
+  jobNotificacionesLicenciaYCertificadoMedico,
+  jobNotificacionesRcvYTrimestresVehiculos,
   AsociarPlan,
   updateScheduleDate,
   getPlanesVencidos,
