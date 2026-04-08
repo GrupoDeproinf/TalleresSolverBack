@@ -3959,11 +3959,28 @@ const getPlanesActivos3Days = async () => {
     usuariosEn3Dias.forEach(async usuario => {
       console.log(`Token: ${usuario.token}`);
 
+      const fechaFin = usuario.subscripcion_actual.fecha_fin.toDate();
+      const hoy = new Date();
+      hoy.setHours(0, 0, 0, 0);
+      const finDia = new Date(fechaFin);
+      finDia.setHours(0, 0, 0, 0);
+      const msPorDia = 24 * 60 * 60 * 1000;
+      const diasRestantes = Math.round((finDia.getTime() - hoy.getTime()) / msPorDia);
+
+      let bodyPlazo;
+      if (diasRestantes <= 0) {
+        bodyPlazo = "Tu plan vence hoy";
+      } else if (diasRestantes === 1) {
+        bodyPlazo = "Tu plan está por vencer en 1 día";
+      } else {
+        bodyPlazo = `Tu plan está por vencer en ${diasRestantes} días`;
+      }
+
       //Send Notifications
       const message = {
         notification: {
           title: 'Notificacion de plan por vencer',
-          body: 'Tu plan está por vencer en 3 días',
+          body: bodyPlazo,
         },
         data: {
           secretCode: 'plantoexpire',
