@@ -4337,6 +4337,56 @@ const deleteVehiculo = async (req, res) => {
   }
 };
 
+const updateVehiculoKm = async (req, res) => {
+  try {
+    const { uid_user, uid_vehicle, km } = req.body || {};
+
+    if (!uid_user || typeof uid_user !== "string" || uid_user.trim() === "") {
+      return res.status(400).json({ error: "uid_user es requerido." });
+    }
+    if (!uid_vehicle || typeof uid_vehicle !== "string" || uid_vehicle.trim() === "") {
+      return res.status(400).json({ error: "uid_vehicle es requerido." });
+    }
+    if (km === undefined || km === null || km === "") {
+      return res.status(400).json({ error: "km es requerido." });
+    }
+
+    const kmNum = typeof km === "number" ? km : parseInt(String(km).trim(), 10);
+    if (!Number.isFinite(kmNum) || kmNum < 0) {
+      return res.status(400).json({ error: "km debe ser un número entero mayor o igual a 0." });
+    }
+
+    const userId = uid_user.trim();
+    const vehicleId = uid_vehicle.trim();
+
+    const userRef = db.collection("Usuarios").doc(userId);
+    const userSnap = await userRef.get();
+    if (!userSnap.exists) {
+      return res.status(404).json({ error: "Usuario no encontrado." });
+    }
+
+    const vehiculoRef = userRef.collection("Vehiculos").doc(vehicleId);
+    const vehiculoSnap = await vehiculoRef.get();
+    if (!vehiculoSnap.exists) {
+      return res.status(404).json({ error: "Vehículo no encontrado en este usuario." });
+    }
+
+    await vehiculoRef.update({ KM: kmNum });
+
+    return res.status(200).json({
+      message: "Kilometraje del vehículo actualizado.",
+      uid_user: userId,
+      uid_vehicle: vehicleId,
+      KM: kmNum,
+    });
+  } catch (error) {
+    console.error("Error al actualizar KM del vehículo:", error);
+    return res.status(500).json({
+      error: `Error al actualizar KM: ${error.message}`,
+    });
+  }
+};
+
 
 /** Deja solo ítems de notificaciones con active === true; elimina vehículos sin ninguna activa. */
 const filterNotificacionesVehiculosSoloActivas = (notificacionesVehiculos) => {
@@ -4976,5 +5026,6 @@ module.exports = {
   updateScheduleDate,
   getPlanesVencidos,
   deleteVehiculo,
+  updateVehiculoKm,
   getServicesByTallerUidTrue
 };

@@ -28,6 +28,8 @@ router.post('/saveOrUpdateVehiculo', Usuarios.saveOrUpdateVehiculo);
 
 router.post('/deleteVehiculo', Usuarios.deleteVehiculo);
 
+router.post('/updateVehiculoKm', Usuarios.updateVehiculoKm);
+
 router.post('/SaveTallerAll', Usuarios.SaveTallerAll); 
 
 router.post('/UpdateTallerUsuarioDocs', Usuarios.UpdateTallerUsuarioDocs);
