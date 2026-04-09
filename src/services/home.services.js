@@ -189,6 +189,7 @@ const getServiciosPaginados = async (req, res) => {
       const talleresRef = db.collection("Usuarios");
       const snapshot = await talleresRef
         .where(admin.firestore.FieldPath.documentId(), "in", chunk)
+        .where("subscripcion_actual.status", "==", "Aprobado")
         .get();
       snapshot.docs.forEach((d) => talleresMap.set(d.id, d.data()));
     }
