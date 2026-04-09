@@ -3073,6 +3073,7 @@ const fetchUsuariosByUids = async (uids) => {
       .where(admin.firestore.FieldPath.documentId(), "in", chunk)
       .where("typeUser", "==", "Taller")
       .where("status", "==", "Aprobado")
+      .where("subscripcion_actual.status", "==", "Aprobado")
       .get();
 
     snapshot.docs.forEach((d) => {
