@@ -3371,6 +3371,33 @@ const getSolicitudesByUsuarioAndStatus = async (req, res) => {
         if (vacio) return true;
         return String(st).trim() === uidTallerTrim;
       });
+
+      const servSnap = await db
+        .collection("Servicios")
+        .where("uid_taller", "==", uidTallerTrim)
+        .where("estatus", "==", true)
+        .get();
+
+      const categoriasTaller = new Set();
+      servSnap.docs.forEach((doc) => {
+        const c = (doc.data() || {}).uid_categoria;
+        if (c != null && String(c).trim() !== "") {
+          categoriasTaller.add(String(c).trim());
+        }
+      });
+
+      if (categoriasTaller.size > 0) {
+        solicitudes = solicitudes.filter((s) => {
+          const cat =
+            s.categoriaId != null && String(s.categoriaId).trim() !== ""
+              ? s.categoriaId
+              : s.uid_categoria;
+          if (cat == null || String(cat).trim() === "") {
+            return false;
+          }
+          return categoriasTaller.has(String(cat).trim());
+        });
+      }
     }
 
     return res.status(200).json(solicitudes);
