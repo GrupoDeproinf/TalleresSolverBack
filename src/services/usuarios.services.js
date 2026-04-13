@@ -3509,8 +3509,16 @@ const getUsuarioTokenByUid = async (uid) => {
   return token.trim();
 };
 
+/** Normaliza tipo de propuesta (cotizado / inspección) sin depender de tildes ni mayúsculas. */
+const normalizarTipoPropuestaStatus = (statusValue) =>
+  String(statusValue || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
 const getNotificationPayloadForPropuestaStatus = (statusValue) => {
-  const normalized = String(statusValue || "").trim().toLowerCase();
+  const normalized = normalizarTipoPropuestaStatus(statusValue);
   if (normalized === "cotizado") {
     return {
       title: "Tienes una nueva cotizacion",
@@ -3550,16 +3558,21 @@ const notifyUsuarioByPropuestaStatus = async (uid_solicitud, statusValue, propue
   await sendNotification(reqNotif, resNotif);
 };
 
-const notifyTallerPropuestaAceptada = async (uid_taller) => {
+const notifyTallerPropuestaAceptada = async (uid_taller, { esInspeccion = false } = {}) => {
   const token = await getUsuarioTokenByUid(uid_taller);
   if (!token) return;
+
+  const title = esInspeccion ? "Inspección aceptada" : "Tu propuesta fue aceptada";
+  const body = esInspeccion
+    ? "El usuario aceptó la inspección de su vehículo. Coordiná la visita cuando puedas."
+    : "Excelente noticia. El usuario acepto tu propuesta y pronto se pondra en contacto contigo.";
 
   const reqNotif = {
     body: {
       token,
-      title: "Tu propuesta fue aceptada",
-      body: "Excelente noticia. El usuario acepto tu propuesta y pronto se pondra en contacto contigo.",
-      secretCode: "PropuestaAceptada",
+      title,
+      body,
+      secretCode: esInspeccion ? "InspeccionAceptada" : "PropuestaAceptada",
     },
   };
   const resNotif = {
@@ -3697,17 +3710,25 @@ const updatePropuesta = async (req, res) => {
 
       const solicitudUpdate = {};
 
-      const statusAnterior = propuestaData.status && String(propuestaData.status).trim().toLowerCase();
-      if (statusAnterior === "cotizado") {
+      const tipoPropuestaNorm = normalizarTipoPropuestaStatus(propuestaData.status);
+      const esCotizado = tipoPropuestaNorm === "cotizado";
+      const esInspeccion = tipoPropuestaNorm === "inspeccion";
+
+      if (esCotizado) {
         solicitudUpdate.nombre_taller = propuestaData.nombre_taller ?? "";
         solicitudUpdate.uid_taller = propuestaData.uid_taller ?? "";
         solicitudUpdate.comentario = propuestaData.comentario ?? "";
         solicitudUpdate.fecha_propuesta = propuestaData.fecha_propuesta ?? "";
         solicitudUpdate.precio_estimado = propuestaData.precio_estimado ?? "";
         solicitudUpdate.tiempo_estimado = propuestaData.tiempo_estimado ?? "";
+      } else if (esInspeccion) {
+        solicitudUpdate.nombre_taller = propuestaData.nombre_taller ?? "";
+        solicitudUpdate.uid_taller = propuestaData.uid_taller ?? "";
+        solicitudUpdate.comentario = propuestaData.comentario ?? "";
+        solicitudUpdate.fecha_propuesta = propuestaData.fecha_propuesta ?? "";
       }
 
-      solicitudUpdate.status = "Aceptada";
+      solicitudUpdate.status = esInspeccion ? "Inspección aceptada" : "Aceptada";
       solicitudUpdate.uid_taller = uid_taller != null ? uid_taller : "";
 
       for (const key of Object.keys(body)) {
@@ -3717,8 +3738,7 @@ const updatePropuesta = async (req, res) => {
       }
       await solicitudRef.update(solicitudUpdate);
 
-      // Notificar al taller que su propuesta fue aceptada
-      await notifyTallerPropuestaAceptada(uid_taller);
+      await notifyTallerPropuestaAceptada(uid_taller, { esInspeccion });
     }
 
     return res.status(200).json({
