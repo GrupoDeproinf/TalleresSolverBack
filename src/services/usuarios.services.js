@@ -3728,7 +3728,7 @@ const updatePropuesta = async (req, res) => {
         solicitudUpdate.fecha_propuesta = propuestaData.fecha_propuesta ?? "";
       }
 
-      solicitudUpdate.status = esInspeccion ? "Inspección aceptada" : "Aceptada";
+      solicitudUpdate.status = esInspeccion ? "Aceptada" : "Aceptada";
       solicitudUpdate.uid_taller = uid_taller != null ? uid_taller : "";
 
       for (const key of Object.keys(body)) {
