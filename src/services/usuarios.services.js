@@ -3380,22 +3380,23 @@ const getSolicitudesByUsuarioAndStatus = async (req, res) => {
 
       const categoriasTaller = new Set();
       servSnap.docs.forEach((doc) => {
-        const c = (doc.data() || {}).uid_categoria;
+        const d = doc.data() || {};
+        if (d.estatus !== true) return;
+        const c = d.uid_categoria;
         if (c != null && String(c).trim() !== "") {
           categoriasTaller.add(String(c).trim());
         }
       });
 
-      if (categoriasTaller.size > 0) {
+      if (servSnap.empty || categoriasTaller.size === 0) {
+        solicitudes = [];
+      } else {
         solicitudes = solicitudes.filter((s) => {
-          const cat =
-            s.categoriaId != null && String(s.categoriaId).trim() !== ""
-              ? s.categoriaId
-              : s.uid_categoria;
-          if (cat == null || String(cat).trim() === "") {
+          const catId = s.categoriaId;
+          if (catId == null || String(catId).trim() === "") {
             return false;
           }
-          return categoriasTaller.has(String(cat).trim());
+          return categoriasTaller.has(String(catId).trim());
         });
       }
     }
