@@ -3214,8 +3214,8 @@ const saveSolicitud = async (req, res) => {
         const reqNotif = {
           body: {
             token: taller.token,
-            title: "Nueva solicitud cerca de tu ubicacion",
-            body: "¡Hay una nueva solicitud cerca de tu ubicación! Revísala y envía tu cotización para atenderla.",
+            title: "¡Nueva oportunidad!",
+            body: "Un cliente cerca de ti necesita un servicio. Revisa los detalles y envía tu propuesta ahora.",
             secretCode: "NuevaSolicitud",
           },
         };
@@ -3522,14 +3522,14 @@ const getNotificationPayloadForPropuestaStatus = (statusValue) => {
   const normalized = normalizarTipoPropuestaStatus(statusValue);
   if (normalized === "cotizado") {
     return {
-      title: "Tienes una nueva cotizacion",
-      body: "Un taller ya respondio tu solicitud. Entra para revisar la cotizacion y elegir la opcion que mas te convenga.",
+      title: "¡Propuesta recibida! ✨",
+      body: "Un taller ha respondido a tu solicitud de servicio. Revisa los detalles en la app.",
     };
   }
   if (normalized === "inspeccion") {
     return {
-      title: "Te solicitaron una inspeccion",
-      body: "El taller quiere inspeccionar tu vehiculo antes de cotizar. Revisa la solicitud y aceptala si estas de acuerdo.",
+      title: "¡Cita de revisión sugerida!",
+      body: "Un taller desea realizar una inspección previa a tu vehículo para darte un diagnóstico exacto.",
     };
   }
   return null;
@@ -3729,7 +3729,7 @@ const updatePropuesta = async (req, res) => {
         solicitudUpdate.fecha_propuesta = propuestaData.fecha_propuesta ?? "";
       }
 
-      solicitudUpdate.status = esInspeccion ? "Aceptada" : "Aceptada";
+      solicitudUpdate.status = esInspeccion ? "Inspección aceptada" : "Aceptada";
       solicitudUpdate.uid_taller = uid_taller != null ? uid_taller : "";
 
       for (const key of Object.keys(body)) {
@@ -3751,6 +3751,126 @@ const updatePropuesta = async (req, res) => {
     return res
       .status(500)
       .json({ error: `Error al actualizar propuesta: ${error.message}` });
+  }
+};
+
+const MS_TRES_DIAS = 3 * 24 * 60 * 60 * 1000;
+
+/** Estados pendientes de respuesta del usuario (no Aceptada / Rechazada). */
+const STATUS_PROPUESTA_PENDIENTE_JOB = [
+  "Cotizado",
+  "cotizado",
+  "Inspeccion",
+  "inspeccion",
+  "Inspección",
+  "inspección",
+];
+
+const SOLICITUD_STATUS_EN_ESPERA = "En espera por aprobación";
+const SOLICITUD_STATUS_CANCELADA_JOB = "Cancelado";
+
+/**
+ * Job: (1) Propuestas Cotizado/Inspección con fecha_propuesta > 3 días → Rechazada.
+ * (2) Solicitudes "En espera por aprobación" con fecha_solicitud > 3 días y sin propuestas
+ *     activas en Cotizado/Inspección → Cancelada.
+ */
+const jobRechazarPropuestasFechaPropuestaMayor3Dias = async () => {
+  try {
+    const limite = admin.firestore.Timestamp.fromMillis(Date.now() - MS_TRES_DIAS);
+    const tsVencido = admin.firestore.Timestamp.now();
+    const BATCH = 500;
+
+    const snap = await db
+      .collection("Propuestas")
+      .where("fecha_propuesta", "<", limite)
+      .where("status", "in", STATUS_PROPUESTA_PENDIENTE_JOB)
+      .get();
+
+    let actualizadosPropuestas = 0;
+    if (!snap.empty) {
+      let batch = db.batch();
+      let ops = 0;
+
+      for (const doc of snap.docs) {
+        const data = doc.data() || {};
+
+        const fp = data.fecha_propuesta;
+        if (!fp || typeof fp.toMillis !== "function") continue;
+
+        batch.update(doc.ref, {
+          status: "Rechazada",
+          fecha_vencido: tsVencido,
+        });
+        ops += 1;
+        actualizadosPropuestas += 1;
+        if (ops >= BATCH) {
+          await batch.commit();
+          batch = db.batch();
+          ops = 0;
+        }
+      }
+      if (ops > 0) {
+        await batch.commit();
+      }
+    }
+
+    if (actualizadosPropuestas > 0) {
+      console.log(
+        `jobRechazarPropuestasFechaPropuestaMayor3Dias: ${actualizadosPropuestas} propuesta(s) → Rechazada (>3 días).`,
+      );
+    }
+
+    const propActivasSnap = await db
+      .collection("Propuestas")
+      .where("status", "in", STATUS_PROPUESTA_PENDIENTE_JOB)
+      .get();
+
+    const solicitudesConPropuestaActiva = new Set();
+    propActivasSnap.docs.forEach((doc) => {
+      const u = (doc.data() || {}).uid_solicitud;
+      if (u != null && String(u).trim() !== "") {
+        solicitudesConPropuestaActiva.add(String(u).trim());
+      }
+    });
+
+    const solicSnap = await db
+      .collection("Solicitudes")
+      .where("status", "==", SOLICITUD_STATUS_EN_ESPERA)
+      .where("fecha_solicitud", "<", limite)
+      .get();
+
+    let actualizadosSolicitudes = 0;
+    if (!solicSnap.empty) {
+      let batchSol = db.batch();
+      let opsSol = 0;
+
+      for (const doc of solicSnap.docs) {
+        if (solicitudesConPropuestaActiva.has(doc.id)) continue;
+
+        batchSol.update(doc.ref, {
+          status: SOLICITUD_STATUS_CANCELADA_JOB,
+          fecha_vencido: tsVencido,
+        });
+        opsSol += 1;
+        actualizadosSolicitudes += 1;
+        if (opsSol >= BATCH) {
+          await batchSol.commit();
+          batchSol = db.batch();
+          opsSol = 0;
+        }
+      }
+      if (opsSol > 0) {
+        await batchSol.commit();
+      }
+    }
+
+    if (actualizadosSolicitudes > 0) {
+      console.log(
+        `jobRechazarPropuestasFechaPropuestaMayor3Dias: ${actualizadosSolicitudes} solicitud(es) → ${SOLICITUD_STATUS_CANCELADA_JOB} (>3 días, sin propuesta Cotizado/Inspección).`,
+      );
+    }
+  } catch (error) {
+    console.error("Error en jobRechazarPropuestasFechaPropuestaMayor3Dias:", error);
   }
 };
 
@@ -4016,19 +4136,24 @@ const getPlanesActivos3Days = async () => {
       const msPorDia = 24 * 60 * 60 * 1000;
       const diasRestantes = Math.round((finDia.getTime() - hoy.getTime()) / msPorDia);
 
+      let titlePlazo;
       let bodyPlazo;
       if (diasRestantes <= 0) {
-        bodyPlazo = "Tu plan vence hoy";
-      } else if (diasRestantes === 1) {
-        bodyPlazo = "Tu plan está por vencer en 1 día";
+        titlePlazo = "Suscripción Expirada";
+        bodyPlazo =
+          "Tu plan ha vencido. Tus servicios ya no son visibles en el mapa. Activa un plan hoy mismo.";
       } else {
-        bodyPlazo = `Tu plan está por vencer en ${diasRestantes} días`;
+        titlePlazo = "¡Mantén tu visibilidad!";
+        bodyPlazo =
+          diasRestantes === 1
+            ? "Tu plan vence en 1 día. Renueva ahora para seguir recibiendo solicitudes de clientes."
+            : `Tu plan vence en ${diasRestantes} días. Renueva ahora para seguir recibiendo solicitudes de clientes.`;
       }
 
       //Send Notifications
       const message = {
         notification: {
-          title: 'Notificacion de plan por vencer',
+          title: titlePlazo,
           body: bodyPlazo,
         },
         data: {
@@ -4549,23 +4674,23 @@ const mensajeMantenimientoPushPorSecretCode = (item, meta) => {
     switch (item.secretCode) {
       case "KMCorreTiempo":
         return {
-          title: `${nombreUser}, se acerca la correa`,
-          body: `Hola ${nombreUser}, ${diasTxt} para el mantenimiento de «${nombreTipo}» (correa o kit de distribución) de tu ${veh}. ${fechaTxtProx} ${cierreProx}`,
+          title: "Mantenimiento preventivo",
+          body: `Estás cerca del vencimiento para revisar la correa de tiempo. Evita daños mayores al motor de tu ${veh}.`,
         };
       case "UltimaAlineacionRuedas":
         return {
-          title: `${nombreUser}, alineación próxima`,
-          body: `Hola ${nombreUser}, ${diasTxt} para la alineación de «${nombreTipo}» de tu ${veh}. ${fechaTxtProx} Ir a tiempo alinea bien los neumáticos. ${cierreProx}`,
+          title: "¡Conduce con precisión! 🛞",
+          body: `Es momento de revisar la alineación y el balanceo según tu cronograma. Cuida tus neumáticos y conduce seguro.`,
         };
       case "UltimoAbastecimientoCombustible":
         return {
-          title: `${nombreUser}, revisión de combustible cerca`,
-          body: `Hola ${nombreUser}, ${diasTxt} para el seguimiento de «${nombreTipo}» (combustible) de tu ${veh}. ${fechaTxtProx} ${cierreProx}`,
+          title: "¡Revisa tu tanque!",
+          body: `Según tu programación, estás cerca del límite para repostar combustible en tu ${veh}. ¡No esperes a que baje más!`,
         };
       case "UltimoCambioBujiasFiltro":
         return {
-          title: `${nombreUser}, bujías o filtros pronto`,
-          body: `Hola ${nombreUser}, ${diasTxt} para el mantenimiento de «${nombreTipo}» (bujías y filtro) de tu ${veh}. ${fechaTxtProx} ${cierreProx}`,
+          title: "¡Asegura el encendido!",
+          body: `Toca revisión de bujías y filtros pronto. Asegura que tu ${veh} siempre arranque a la primera.`,
         };
       case "UltimoLavado":
         return {
@@ -4574,13 +4699,13 @@ const mensajeMantenimientoPushPorSecretCode = (item, meta) => {
         };
       case "UltimoMantenimientoSistemaInyeccion":
         return {
-          title: `${nombreUser}, inyección a la vista`,
-          body: `Hola ${nombreUser}, ${diasTxt} para el mantenimiento de «${nombreTipo}» (sistema de inyección) de tu ${veh}. ${fechaTxtProx} ${cierreProx}`,
+          title: "¡Potencia al máximo!",
+          body: `Se acerca el mantenimiento de inyectores según tu registro. Mejora el rendimiento y el consumo de combustible.`,
         };
       case "UltimocambioAceite":
         return {
-          title: `${nombreUser}, cambio de aceite cerca`,
-          body: `Hola ${nombreUser}, ${diasTxt} para el «${nombreTipo}» (cambio de aceite) de tu ${veh}. ${fechaTxtProx} Reservar cita con anticipación le viene bien al motor. ${cierreProx}`,
+          title: "¿Hora de un servicio?",
+          body: `Tu cambio de aceite está cerca del límite programado. Agéndalo con un aliado y cuida el motor de tu ${veh}.`,
         };
       default:
         return {
@@ -4593,23 +4718,23 @@ const mensajeMantenimientoPushPorSecretCode = (item, meta) => {
   switch (item.secretCode) {
     case "KMCorreTiempo":
       return {
-        title: `${nombreUser}, tu correa o kit de distribución`,
-        body: `Hola ${nombreUser}, tu ${veh} ya superó la fecha del mantenimiento de «${nombreTipo}» (correa o kit de distribución). ${fechaTxtVenc} ${cierreVenc}`,
+        title: "ALERTA: Correa de tiempo",
+        body: `Límite de mantenimiento excedido. Es urgente realizar este servicio en tu ${veh} para proteger el motor.`,
       };
     case "UltimaAlineacionRuedas":
       return {
-        title: `${nombreUser}, alineación vencida`,
-        body: `Hola ${nombreUser}, para tu ${veh} la alineación de ruedas de «${nombreTipo}» quedó con fecha vencida. ${fechaTxtVenc} Alinear a tiempo cuida los neumáticos y la conducción. ${cierreVenc}`,
+        title: "Alineación vencida",
+        body: `Tu historial indica que ya expiró el tiempo o kilometraje para alinear. Evita el desgaste de tus cauchos.`,
       };
     case "UltimoAbastecimientoCombustible":
       return {
-        title: `${nombreUser}, revisión de combustible`,
-        body: `Hola ${nombreUser}, tu ${veh} tiene vencido el seguimiento de «${nombreTipo}» (abastecimiento de combustible). ${fechaTxtVenc} Un chequeo oportuno ayuda a detectar consumos raros. ${cierreVenc}`,
+        title: "Alerta de Combustible",
+        body: `Ya alcanzaste el intervalo programado para cargar combustible. Reporta tu carga ahora para no perder el control de tu historial.`,
       };
     case "UltimoCambioBujiasFiltro":
       return {
-        title: `${nombreUser}, bujías o filtros`,
-        body: `Hola ${nombreUser}, tu ${veh} lleva vencido el mantenimiento de «${nombreTipo}» (bujías y filtro). ${fechaTxtVenc} Cambiarlos a tiempo mejora el arranque y el consumo. ${cierreVenc}`,
+        title: "Mantenimiento de Bujías/Filtro",
+        body: `Intervalo de servicio excedido. Reemplaza las bujías y los filtros para evitar desgaste innecesario en tu ${veh}.`,
       };
     case "UltimoLavado":
       return {
@@ -4618,13 +4743,13 @@ const mensajeMantenimientoPushPorSecretCode = (item, meta) => {
       };
     case "UltimoMantenimientoSistemaInyeccion":
       return {
-        title: `${nombreUser}, sistema de inyección`,
-        body: `Hola ${nombreUser}, tu ${veh} tiene vencido el mantenimiento de «${nombreTipo}» (sistema de inyección). ${fechaTxtVenc} Revisarlo evita fallas y consumo extra. ${cierreVenc}`,
+        title: "Servicio de Inyección pendiente",
+        body: `Ya superaste el intervalo de limpieza programado. Evita fallas y mantén tu motor a punto.`,
       };
     case "UltimocambioAceite":
       return {
-        title: `${nombreUser}, cambio de aceite`,
-        body: `Hola ${nombreUser}, tu ${veh} ya superó la fecha del «${nombreTipo}» (cambio de aceite). ${fechaTxtVenc} El aceite fresco es clave para el motor. ${cierreVenc}`,
+        title: "Cambio de Aceite requerido",
+        body: `Ya alcanzaste el límite para tu servicio de aceite. Realízalo ahora para mantener tu estatus operativo en óptimo.`,
       };
     default:
       return {
@@ -4825,22 +4950,18 @@ const cronKmEnviarPushUsuario = async (token, title, body, secretCode) => {
 };
 
 const cronKmMensajeSuperadoProximo = (ctx) => {
-  const { nombre, vehDesc, nombreTipo, kmVehiculo, proximoKM } = ctx;
+  const { vehDesc } = ctx;
   return {
-    title: `${nombre}, tocó el mantenimiento por km`,
-    body: `Hola ${nombre}. Tu ${vehDesc} va en ${kmVehiculo} km y ya pasaste los ${proximoKM} km que tenías para «${nombreTipo}». Pasá por el taller o agendá cuando puedas.`,
+    title: "Sincroniza tu odómetro",
+    body: `Actualiza el kilometraje de tu ${vehDesc} para que tus recordatorios de mantenimiento sigan siendo exactos.`,
   };
 };
 
 const cronKmMensajeAdvertenciaRango = (ctx) => {
-  const { nombre, vehDesc, nombreTipo, kmVehiculo, proximoKM, kmRestantes } = ctx;
-  const distancia =
-    kmRestantes === 1
-      ? "te falta solo 1 km"
-      : `aún te quedan unos ${kmRestantes} km`;
+  const { vehDesc } = ctx;
   return {
-    title: `${nombre}, un recordatorio de tus kilómetros`,
-    body: `Hola ${nombre}. Tu ${vehDesc} va por ${kmVehiculo} km. Para «${nombreTipo}» tenías como referencia los ${proximoKM} km, y ${distancia} para acercarte a esa cifra. No va con prisa: solo tenlo en cuenta.`,
+    title: "Sincroniza tu odómetro",
+    body: `Actualiza el kilometraje de tu ${vehDesc} para que tus recordatorios de mantenimiento sigan siendo exactos.`,
   };
 };
 
@@ -5168,26 +5289,22 @@ const jobNotificacionesRcvYTrimestresVehiculos = async () => {
       let body;
       if (esRcv) {
         if (estado.kind === "vencida") {
-          title = `${nombre}, RCV vencido`;
-          body = `Hola ${nombre}, el RCV de tu ${veh} está vencido (fecha límite ${fechaTxt}). Renoválo para circular con la póliza al día.`;
+          title = "Alerta: RCV Vencido";
+          body = `La póliza de tu ${veh} expiró el ${fechaTxt}. Evita inconvenientes y ponte al día pronto.`;
         } else {
           const diasTxt =
             estado.diasRestantes === 1
               ? "Falta 1 día"
               : `Faltan ${estado.diasRestantes} días`;
-          title = `${nombre}, RCV por vencer`;
-          body = `Hola ${nombre}, ${diasTxt} para el vencimiento del RCV de tu ${veh} (${fechaTxt}), dentro del próximo mes. Te conviene renovarlo con tiempo.`;
+          title = "¡Tu RCV vence pronto!";
+          body = `${diasTxt} para el vencimiento. Recuerda renovarlo con tiempo para circular tranquilo.`;
         }
       } else if (estado.kind === "vencida") {
-        title = `${nombre}, trimestres vencidos`;
-        body = `Hola ${nombre}, la fecha de trimestres o circulación de tu ${veh} ya pasó (${fechaTxt}). Regulariza cuando puedas para evitar inconvenientes.`;
+        title = "Trimestre Vencido";
+        body = `El plazo de pago expiró el ${fechaTxt}. Te recomendamos regularizarlo para evitar recargos.`;
       } else {
-        const diasTxt =
-          estado.diasRestantes === 1
-            ? "Falta 1 día"
-            : `Faltan ${estado.diasRestantes} días`;
-        title = `${nombre}, trimestres por vencer`;
-        body = `Hola ${nombre}, ${diasTxt} para el vencimiento de trimestres de tu ${veh} (${fechaTxt}), dentro del próximo mes. Organiza el pago con calma.`;
+        title = "¡Día de Trimestres!";
+        body = `El impuesto de tu ${veh} vence pronto. Recuerda realizar tu pago municipal a tiempo.`;
       }
 
       const ok = await enviarPushDocumentacionConductorJob(token, title, body, secretCode);
@@ -5245,9 +5362,9 @@ const cargarKmVehiculos = async () => {
       const data = doc.data();
       const token = vehiculoCoalesceEmpty(data.token);
       if (!token) continue;
-      const nombre = nombreUsuarioDesdeDocUsuario(data) || "amigo";
-      const title = `${nombre}, tu kilometraje`;
-      const body = `Hola ${nombre}. Te pedimos un minuto: actualizá el km de tu vehículo en la app. Así mantenemos tus datos al día y los recordatorios te van a servir mucho mejor.`;
+      const vehDesc = describeVehiculoParaNotificacion(data);
+      const title = "Sincroniza tu odómetro";
+      const body = `Actualiza el kilometraje de tu ${vehDesc} para que tus recordatorios de mantenimiento sigan siendo exactos.`;
       const ok = await cronKmEnviarPushUsuario(
         token,
         title,
@@ -5319,5 +5436,6 @@ module.exports = {
   deleteVehiculo,
   updateVehiculoKm,
   cargarKmVehiculos,
+  jobRechazarPropuestasFechaPropuestaMayor3Dias,
   getServicesByTallerUidTrue
 };
