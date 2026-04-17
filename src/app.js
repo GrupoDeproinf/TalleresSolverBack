@@ -4,14 +4,14 @@ const cors = require('cors');
 const cron = require('node-cron');
 const Usuarios = require('../src/services/usuarios.services');
 
-// Rutas
+// Routers (Express) por dominio
 const usuarios = require('./routes/usuarios.routes');
 const home = require('./routes/home.routes');
 const distance = require('./routes/distance.routes');
 
 const app = express();
 
-// Configuración de CORS
+// Cabeceras CORS permisivas (origen *; ajustar en producción si hace falta)
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
   res.header(
@@ -24,6 +24,7 @@ app.use((req, res, next) => {
 });
 
 
+// Paquete cors: orígenes explícitos para el front (además del middleware anterior)
 app.use(
   cors({
     origin: [
@@ -45,7 +46,7 @@ app.use(express.urlencoded({ limit: '20mb', extended: true }));
 
 app.use(morgan('dev'));
 
-// Rutas
+// Prefijos de API
 app.get('/', async (req, res) => {
   res.send('API arriba');
 });
@@ -56,37 +57,37 @@ app.use('/api/distance', distance);
 
 
 
-// Job que se ejecuta cada 10 horas
+// --- Tareas programadas (node-cron). Hora del servidor salvo que configures `timezone`. ---
+
+// Cada 10 horas (minuto 0): estado de planes activos (getPlanesActivos).
 cron.schedule('0 */10 * * *', () => {
-  console.log('Ejecutando job cada 10 horas');
+  console.log('Ejecutando job cada 10 horas (getPlanesActivos)');
   Usuarios.getPlanesActivos();
 });
 
+// Cada 10 horas (minuto 0): usuarios con plan vencido (getPlanesVencidos).
 cron.schedule('0 */10 * * *', () => {
-  console.log('Ejecutando job cada 30 segundos');
+  console.log('Ejecutando job cada 10 horas (getPlanesVencidos)');
   Usuarios.getPlanesVencidos();
 });
 
 
 
 
-// Job que se ejecuta cada 10 horas
+// Cada 5 horas (minuto 0): avisos FCM a talleres con plan por vencer en ventana ~3 días (getPlanesActivos3Days).
 cron.schedule('0 */5 * * *', () => {
-  console.log('Ejecutando job cada 5 horas');
+  console.log('Ejecutando job cada 5 horas (getPlanesActivos3Days)');
   Usuarios.getPlanesActivos3Days();
 });
 
 
-// Job cada 24 horas (10:00, hora del servidor): usuarios con notificacionesVehiculos
+// Diario a las 10:00: pushes de mantenimiento según notificacionesVehiculos activas.
 cron.schedule('0 10 * * *', () => {
-  // cron.schedule('*/10 * * * * *', () => {
-  // console.log('Ejecutando job diario (usuarios con notificacionesVehiculos)');
   Usuarios.getUsuariosConNotificacionesVehiculos();
 });
 
-// Job cada 24 horas (10:00, hora del servidor): proximoKM vs KM (superado o aviso 1–3000 km)
-// cron.schedule('0 10 * * *', () => {
-  cron.schedule('*/10 * * * * *', () => {
+// Diario a las 10:00: odómetro vs próximo KM (superado o aviso si faltan 1–3000 km).
+cron.schedule('0 10 * * *', () => {
   console.log('Ejecutando job diario (proximoKM / odómetro)');
   Usuarios.jobNotificacionesVehiculosProximoKm();
 });
@@ -95,32 +96,25 @@ cron.schedule('0 10 * * *', () => {
 
 
 
-// Los proximos dos jobs no se pueden desactivar porque son muy importantes
+// Los dos siguientes son críticos (documentación de conductor y circulación); no desactivarlos en producción sin evaluar impacto.
 
-// Job cada 24 horas (10:00, hora del servidor): licencia / certificado médico (1–30 días o vencido)
+// Diario a las 10:00: licencia y certificado médico (vencido o entre 1 y 30 días).
 cron.schedule('0 10 * * *', () => {
-  // console.log('Ejecutando job diario (licencia y certificado médico)');
   Usuarios.jobNotificacionesLicenciaYCertificadoMedico();
 });
 
-// Job cada 24 horas (10:00, hora del servidor): RCV y trimestres en Vehiculos (vencido o ~1 mes)
+// Diario a las 10:00: RCV y trimestres por vehículo (vencido o vencimiento en ~un mes).
 cron.schedule('0 10 * * *', () => {
-  // console.log('Ejecutando job diario (RCV y trimestres por vehículo)');
   Usuarios.jobNotificacionesRcvYTrimestresVehiculos();
 });
 
-
-// Este es el job que hace que se vea el modal en el home 
-
-// Cada 7 días (lunes 10:00, hora del servidor): showModalKm + push para actualizar km
+// Semanal: lunes 10:00 — showModalKm en usuarios y push para actualizar kilometraje.
 cron.schedule('0 10 * * 1', () => {
-  // console.log('Job semanal: showModalKm y recordatorio de kilometraje');
   Usuarios.cargarKmVehiculos();
 });
 
-// Cada 10 segundos: propuestas vencidas + solicitudes en espera sin propuesta activa (>3 días)
-cron.schedule('0 10 * * 1', () => {
-  console.log('Ejecutando job cada 10s (propuestas/solicitudes >3 días)');
+// Diario a las 10:00: propuestas antiguas (Cotizado/Inspección) y solicitudes en espera sin propuesta activa (reglas de más de 3 días).
+cron.schedule('0 10 * * *', () => {
   Usuarios.jobRechazarPropuestasFechaPropuestaMayor3Dias();
 });
 
