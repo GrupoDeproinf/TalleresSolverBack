@@ -224,6 +224,8 @@ const updateNotificationUser = async (req, res) => {
       intervalokm,
       intervaloDias,
       intervaloKm,
+      intervaloTiempoXVencer,
+      intervaloKMXVencer,
     } = req.body || {};
 
     if (!uiduser || typeof uiduser !== "string" || uiduser.trim() === "") {
@@ -301,6 +303,12 @@ const updateNotificationUser = async (req, res) => {
       proximoKM: proximoKM ?? updatedNotificaciones[notifIndex].proximoKM ?? "",
       intervalodias: dias,
       intervalokm: km,
+      ...(intervaloTiempoXVencer !== undefined && intervaloTiempoXVencer !== null
+        ? { intervaloTiempoXVencer }
+        : {}),
+      ...(intervaloKMXVencer !== undefined && intervaloKMXVencer !== null
+        ? { intervaloKMXVencer }
+        : {}),
     };
 
     const updatedVehicles = [...current];
