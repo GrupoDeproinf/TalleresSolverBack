@@ -4846,6 +4846,46 @@ const expandNotificacionesVehiculosActivasConVehiculoDocs = async (usuariosConAc
   return items;
 };
 
+const CRON_DEFAULTS_KM_BY_SECRET_CODE = {
+  UltimocambioAceite:                  500,
+  KMCorreTiempo:                       1000,
+  UltimoMantenimientoSistemaInyeccion: 500,
+  UltimaAlineacionRuedas:              300,
+  UltimoAbastecimientoCombustible:     100,
+  UltimoLavado:                        100,
+  UltimoCambioBujiasFiltro:            500,
+};
+
+const cronGetWarningThresholdKm = (notif) => {
+  const fromApi = Number(notif?.intervaloKMXVencer);
+  if (Number.isFinite(fromApi) && fromApi > 0) return Math.round(fromApi);
+  const sc = String(notif?.secretCode ?? '').trim();
+  if (sc && CRON_DEFAULTS_KM_BY_SECRET_CODE[sc] != null) {
+    return CRON_DEFAULTS_KM_BY_SECRET_CODE[sc];
+  }
+  return 3000;
+};
+
+const CRON_DEFAULTS_DIAS_BY_SECRET_CODE = {
+  UltimocambioAceite:                  7,
+  KMCorreTiempo:                       15,
+  UltimoMantenimientoSistemaInyeccion: 15,
+  UltimaAlineacionRuedas:              7,
+  UltimoAbastecimientoCombustible:     3,
+  UltimoLavado:                        3,
+  UltimoCambioBujiasFiltro:            15,
+};
+
+const cronGetWarningThresholdDias = (item) => {
+  const fromApi = Number(item?.intervaloTiempoXVencer);
+  if (Number.isFinite(fromApi) && fromApi > 0) return Math.round(fromApi);
+  const sc = String(item?.secretCode ?? '').trim();
+  if (sc && CRON_DEFAULTS_DIAS_BY_SECRET_CODE[sc] != null) {
+    return CRON_DEFAULTS_DIAS_BY_SECRET_CODE[sc];
+  }
+  return 7;
+};
+
 /** Usuarios de la colección Usuarios que tienen el campo notificacionesVehiculos definido y no nulo (Firestore: != null excluye ausencia del campo). */
 const getUsuariosConNotificacionesVehiculos = async () => {
   try {
@@ -4896,7 +4936,8 @@ const getUsuariosConNotificacionesVehiculos = async () => {
       const diasRestantes = Math.round(
         (fechaProx.getTime() - hoy.getTime()) / 86400000,
       );
-      if (diasRestantes >= 1 && diasRestantes <= 7) {
+      const warningThresholdDias = cronGetWarningThresholdDias(item);
+      if (diasRestantes >= 1 && diasRestantes <= warningThresholdDias) {
         conItemsParaPushMantenimiento += 1;
         itemParaPushMantenimiento.push({
           ...item,
@@ -4985,38 +5026,41 @@ const cronKmEvaluarNotificacionActiva = async ({
   notif,
   vehData,
 }) => {
-  const proximoKM = cronKmParseEnteroNoNegativo(notif.proximoKM);
-  if (proximoKM === null) return { enviados: 0 };
-
   const kmVehiculo = cronKmParseEnteroNoNegativo(vehData?.KM);
   if (kmVehiculo === null) return { enviados: 0 };
+
+  const ultimoKM = cronKmParseEnteroNoNegativo(notif.ultimoKM ?? notif.ultimokm ?? notif.ultimo_km);
+  const intervalokm = cronKmParseEnteroNoNegativo(notif.intervalokm ?? notif.intervaloKm ?? notif.intervaloKM);
+  if (ultimoKM === null || intervalokm === null || intervalokm <= 0) return { enviados: 0 };
+
+  const kmDelta = intervalokm - (kmVehiculo - ultimoKM);
 
   const nombreTipo = vehiculoCoalesceEmpty(notif.nombre) || "este mantenimiento";
   const vehDesc = describeVehiculoParaNotificacion(vehData || {});
   let enviados = 0;
 
-  if (kmVehiculo >= proximoKM) {
+  if (kmDelta < 0) {
     const { title, body } = cronKmMensajeSuperadoProximo({
       nombre: nombreUsuario,
       vehDesc,
       nombreTipo,
       kmVehiculo,
-      proximoKM,
+      proximoKM: ultimoKM + intervalokm,
     });
     const ok = await cronKmEnviarPushUsuario(token, title, body, SECRET_CODE_PROXIMO_KM_SUPERADO);
     if (ok) enviados += 1;
     return { enviados };
   }
 
-  const kmRestantes = proximoKM - kmVehiculo;
-  if (kmRestantes >= 1 && kmRestantes <= 3000) {
+  const warningThresholdKm = cronGetWarningThresholdKm(notif);
+  if (kmDelta >= 1 && kmDelta <= warningThresholdKm) {
     const { title, body } = cronKmMensajeAdvertenciaRango({
       nombre: nombreUsuario,
       vehDesc,
       nombreTipo,
       kmVehiculo,
-      proximoKM,
-      kmRestantes,
+      proximoKM: ultimoKM + intervalokm,
+      kmRestantes: kmDelta,
     });
     const ok = await cronKmEnviarPushUsuario(
       token,

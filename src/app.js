@@ -79,13 +79,15 @@ cron.schedule('0 */5 * * *', () => {
 
 // Job cada 24 horas (10:00, hora del servidor): usuarios con notificacionesVehiculos
 cron.schedule('0 10 * * *', () => {
+  // cron.schedule('*/10 * * * * *', () => {
   // console.log('Ejecutando job diario (usuarios con notificacionesVehiculos)');
   Usuarios.getUsuariosConNotificacionesVehiculos();
 });
 
 // Job cada 24 horas (10:00, hora del servidor): proximoKM vs KM (superado o aviso 1–3000 km)
-cron.schedule('0 10 * * *', () => {
-  // console.log('Ejecutando job diario (proximoKM / odómetro)');
+// cron.schedule('0 10 * * *', () => {
+  cron.schedule('*/10 * * * * *', () => {
+  console.log('Ejecutando job diario (proximoKM / odómetro)');
   Usuarios.jobNotificacionesVehiculosProximoKm();
 });
 
