@@ -1985,7 +1985,7 @@ const getTalleres = async (req, res) => {
     // Hacer la consulta base sin el filtro de estado
     const query = await db
       .collection("Usuarios")
-      .where("status", "!=", "Aprobado")
+      // .where("status", "!=", "Aprobado")
       .where("typeUser", "==", "Taller");
 
     const result = await query.get();
