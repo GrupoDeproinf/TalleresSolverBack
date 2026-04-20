@@ -2022,7 +2022,7 @@ const getTalleres = async (req, res) => {
 const actualizarStatusUsuario = async (req, res) => {
   try {
     // Obtener el UID y el nuevo estado desde el cuerpo de la solicitud
-    const { uid, nuevoStatus, certificador_nombre, certificador_key } = req.body;
+    const { uid, nuevoStatus, certificador_nombre, certificador_key, motivoRechazo } = req.body;
 
     // Verificar que se haya proporcionado un UID y un nuevo estado
     if (!uid || !nuevoStatus) {
@@ -2031,12 +2031,20 @@ const actualizarStatusUsuario = async (req, res) => {
       });
     }
 
-    // Actualizar el campo 'status' en el documento del usuario
-    await db.collection("Usuarios").doc(uid).update({
+    // Construir el objeto de actualización
+    const updateData = {
       status: nuevoStatus,
       certificador_nombre,
-      certificador_key
-    });
+      certificador_key,
+    };
+
+    // Incluir motivo de rechazo solo cuando aplica
+    if (nuevoStatus === 'Rechazado' && motivoRechazo) {
+      updateData.motivoRechazo = motivoRechazo;
+    }
+
+    // Actualizar el campo 'status' en el documento del usuario
+    await db.collection("Usuarios").doc(uid).update(updateData);
 
     // Devolver una respuesta de éxito
     return res.status(200).send({
@@ -5389,19 +5397,55 @@ const SECRET_CODE_ACTUALIZAR_KM_VEHICULOS = "ActualizarKmVehiculos";
  * Pone showModalKm = true en todos los documentos de Usuarios y envía push a quienes tengan token.
  * Pensado para ejecutarse ~cada 7 días vía cron (p. ej. semanal).
  */
+/**
+ * cargarKmVehiculos
+ *
+ * Se ejecuta semanalmente los lunes a las 10:00 AM (cron: '0 10 * * 1').
+ *
+ * Envía una notificación push a los usuarios que cumplan TODAS estas condiciones:
+ *   1. Su campo `status` en la colección "Usuarios" sea "Aprobado".
+ *   2. Tengan al menos un documento en su subcolección "Vehiculos".
+ *   3. Tengan un token FCM válido registrado.
+ *
+ * Además de la notificación, marca `showModalKm: true` en el documento del usuario
+ * para que la app muestre el modal de actualización de kilometraje al abrir la sesión.
+ *
+ * Si el token devuelve `registration-token-not-registered` (app desinstalada o token
+ * expirado), lo limpia automáticamente en Firestore (`token: ""`).
+ */
 const cargarKmVehiculos = async () => {
   try {
-    const snapshot = await db.collection("Usuarios").get();
+    // Solo usuarios Aprobados
+    const snapshot = await db
+      .collection("Usuarios")
+      .where("status", "==", "Aprobado")
+      .get();
+
     if (snapshot.empty) {
-      console.log("cargarKmVehiculos: no hay usuarios.");
+      console.log("cargarKmVehiculos: no hay usuarios aprobados.");
       return;
     }
 
-    const docs = snapshot.docs;
+    // Filtrar en paralelo los que tienen al menos un vehículo registrado
+    // (Promise.all en lugar de for-await secuencial → todos los reads simultáneos)
+    const vehiculoChecks = await Promise.all(
+      snapshot.docs.map(async (doc) => {
+        const vehSnap = await doc.ref.collection("Vehiculos").limit(1).get();
+        return vehSnap.empty ? null : doc;
+      })
+    );
+    const aprobadosConVehiculo = vehiculoChecks.filter(Boolean);
+
+    if (aprobadosConVehiculo.length === 0) {
+      console.log("cargarKmVehiculos: ningún usuario aprobado tiene vehículos.");
+      return;
+    }
+
     const BATCH = 500;
 
-    for (let i = 0; i < docs.length; i += BATCH) {
-      const chunk = docs.slice(i, i + BATCH);
+    // 1. Marcar showModalKm=true en batches de Firestore
+    for (let i = 0; i < aprobadosConVehiculo.length; i += BATCH) {
+      const chunk = aprobadosConVehiculo.slice(i, i + BATCH);
       const batch = db.batch();
       for (const doc of chunk) {
         batch.update(doc.ref, { showModalKm: true });
@@ -5409,25 +5453,61 @@ const cargarKmVehiculos = async () => {
       await batch.commit();
     }
 
-    let pushes = 0;
-    for (const doc of docs) {
+    // 2. Construir mensajes deduplicando por token
+    const seenTokens = new Set();
+    let sinToken = 0;
+    // messages guarda { message, doc } para poder limpiar tokens inválidos después
+    const pendientes = [];
+
+    for (const doc of aprobadosConVehiculo) {
       const data = doc.data();
       const token = vehiculoCoalesceEmpty(data.token);
-      if (!token) continue;
+      if (!token) { sinToken++; continue; }
+      if (seenTokens.has(token)) continue;
+      seenTokens.add(token);
+
       const vehDesc = describeVehiculoParaNotificacion(data);
-      const title = "Sincroniza tu odómetro";
-      const body = `Actualiza el kilometraje de tu ${vehDesc} para que tus recordatorios de mantenimiento sigan siendo exactos.`;
-      const ok = await cronKmEnviarPushUsuario(
-        token,
-        title,
-        body,
-        SECRET_CODE_ACTUALIZAR_KM_VEHICULOS,
-      );
-      if (ok) pushes += 1;
+      pendientes.push({
+        doc,
+        message: {
+          notification: {
+            title: "Sincroniza tu odómetro",
+            body: `Actualiza el kilometraje de tu ${vehDesc} para que tus recordatorios de mantenimiento sigan siendo exactos.`,
+          },
+          data: { secretCode: String(SECRET_CODE_ACTUALIZAR_KM_VEHICULOS) },
+          token,
+        },
+      });
+    }
+
+    // 3. Enviar en lotes de 500 usando sendEach (un solo request HTTP por lote)
+    let pushes = 0;
+    let invalidTokens = 0;
+
+    for (let i = 0; i < pendientes.length; i += BATCH) {
+      const chunk = pendientes.slice(i, i + BATCH);
+      const batchResult = await admin.messaging().sendEach(chunk.map((p) => p.message));
+
+      for (let j = 0; j < batchResult.responses.length; j++) {
+        const resp = batchResult.responses[j];
+        if (resp.success) {
+          pushes++;
+        } else {
+          const code = resp.error?.errorInfo?.code;
+          if (code === "messaging/registration-token-not-registered") {
+            // Token expirado/desinstalación — limpiar en Firestore
+            invalidTokens++;
+            await chunk[j].doc.ref.update({ token: "" });
+          } else {
+            console.error(`cargarKmVehiculos push [${chunk[j].doc.id}]:`, resp.error?.message);
+          }
+        }
+      }
     }
 
     console.log(
-      `cargarKmVehiculos: ${docs.length} usuario(s) con showModalKm=true; ${pushes} push(es) con token.`,
+      `cargarKmVehiculos: ${aprobadosConVehiculo.length} usuario(s) aprobado(s) con vehículo(s); ` +
+      `${pushes} push(es) enviados; ${sinToken} sin token; ${invalidTokens} token(s) inválido(s) limpiados.`,
     );
   } catch (error) {
     console.error("Error en cargarKmVehiculos:", error);

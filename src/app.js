@@ -110,6 +110,8 @@ cron.schedule('0 10 * * *', () => {
 
 // Semanal: lunes 10:00 — showModalKm en usuarios y push para actualizar kilometraje.
 cron.schedule('0 10 * * 1', () => {
+  // cron.schedule('*/10 * * * * *', () => {
+  console.log('Ejecutando job semanal (cargarKmVehiculos)');
   Usuarios.cargarKmVehiculos();
 });
 
