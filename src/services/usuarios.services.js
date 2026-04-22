@@ -1986,6 +1986,7 @@ const getTalleres = async (req, res) => {
     const query = await db
       .collection("Usuarios")
       // .where("status", "!=", "Aprobado")
+      .where("status", "==", "En espera por aprobación")
       .where("typeUser", "==", "Taller");
 
     const result = await query.get();
