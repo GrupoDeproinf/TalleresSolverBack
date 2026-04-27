@@ -14,5 +14,6 @@ router.post("/getCommentsByService", Home.getCommentsByService);
 router.post("/addCommentToService", Home.addCommentToService);
 router.post("/validatePhone", Home.validatePhone);
 router.post("/validateEmail", Home.validateEmail);
+router.post("/savePerfilView", Home.savePerfilView);
 
 module.exports = router;

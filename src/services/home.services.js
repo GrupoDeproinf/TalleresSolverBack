@@ -762,5 +762,36 @@ module.exports = {
   getCommentsByService,
   addCommentToService,
   validatePhone,
-  validateEmail
+  validateEmail,
+  savePerfilView,
 };
+
+/* ─── Registra una visita al perfil de un taller ─────────────────────────── */
+async function savePerfilView(req, res) {
+  try {
+    const { id, nombre_taller, uid_taller, usuario } = req.body || {};
+
+    if (!uid_taller) {
+      return res.status(400).json({ error: "uid_taller es obligatorio." });
+    }
+
+    const docData = {
+      id:            id            || uid_taller,
+      nombre_taller: nombre_taller || null,
+      uid_taller,
+      usuario: {
+        id:     usuario?.id     || null,
+        email:  usuario?.email  || null,
+        nombre: usuario?.nombre || null,
+      },
+      fecha_creacion: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    await db.collection("perfilViews").add(docData);
+
+    return res.status(200).json({ message: "Vista registrada.", data: docData });
+  } catch (error) {
+    console.error("[savePerfilView] Error:", error);
+    return res.status(500).json({ error: "Error interno del servidor." });
+  }
+}
