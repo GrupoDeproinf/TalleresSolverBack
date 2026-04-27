@@ -776,7 +776,7 @@ async function savePerfilView(req, res) {
     }
 
     const docData = {
-      id:            id            || uid_taller,
+      // id:            id            || uid_taller,
       nombre_taller: nombre_taller || null,
       uid_taller,
       usuario: {
