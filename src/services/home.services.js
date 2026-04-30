@@ -764,6 +764,7 @@ module.exports = {
   validatePhone,
   validateEmail,
   savePerfilView,
+  saveServiceContactView,
 };
 
 /* ─── Registra una visita al perfil de un taller ─────────────────────────── */
@@ -791,6 +792,36 @@ async function savePerfilView(req, res) {
     return res.status(200).json({ message: "Vista registrada.", data: docData });
   } catch (error) {
     console.error("[savePerfilView] Error:", error);
+    return res.status(500).json({ error: "Error interno del servidor." });
+  }
+}
+
+/* ─── Registra un contacto de botón (Llamada / Whatsapp / Contactar) ─────── */
+async function saveServiceContactView(req, res) {
+  try {
+    const { nombre_taller, uid_taller, usuario, type } = req.body || {};
+
+    if (!uid_taller) {
+      return res.status(400).json({ error: "uid_taller es obligatorio." });
+    }
+
+    const docData = {
+      nombre_taller: nombre_taller || null,
+      uid_taller,
+      usuario: {
+        id:     usuario?.id     || null,
+        email:  usuario?.email  || null,
+        nombre: usuario?.nombre || null,
+      },
+      fecha_creacion: admin.firestore.FieldValue.serverTimestamp(),
+      type: type || null,
+    };
+
+    await db.collection("servicesContact").add(docData);
+
+    return res.status(200).json({ message: "Contacto registrado.", data: docData });
+  } catch (error) {
+    console.error("[saveServiceContactView] Error:", error);
     return res.status(500).json({ error: "Error interno del servidor." });
   }
 }

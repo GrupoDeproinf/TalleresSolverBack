@@ -15,5 +15,6 @@ router.post("/addCommentToService", Home.addCommentToService);
 router.post("/validatePhone", Home.validatePhone);
 router.post("/validateEmail", Home.validateEmail);
 router.post("/savePerfilView", Home.savePerfilView);
+router.post("/saveServiceContactView", Home.saveServiceContactView);
 
 module.exports = router;
