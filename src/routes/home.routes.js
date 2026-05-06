@@ -12,6 +12,7 @@ router.post("/getSubscriptionById", Home.getSubscriptionsById);
 router.post("/getProductsByCategory", Home.getProductsByCategory);
 router.post("/getCommentsByService", Home.getCommentsByService);
 router.post("/addCommentToService", Home.addCommentToService);
+router.post("/addCommentToTaller", Home.addCommentToTaller);
 router.post("/validatePhone", Home.validatePhone);
 router.post("/validateEmail", Home.validateEmail);
 router.post("/savePerfilView", Home.savePerfilView);

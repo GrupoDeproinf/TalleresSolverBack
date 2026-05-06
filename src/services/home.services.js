@@ -676,6 +676,67 @@ const addCommentToService = async (req, res) => {
 };
 
 
+/* ─── Agrega calificación de un taller al documento del usuario taller ──── */
+const addCommentToTaller = async (req, res) => {
+  try {
+    const {
+      uid_taller,
+      comentario,
+      puntuacion,
+      nombre_taller,
+      usuario,
+      etiquetas_rapidas,
+    } = req.body;
+
+    if (!uid_taller) {
+      return res.status(400).json({ error: '"uid_taller" es obligatorio.' });
+    }
+    if (!usuario || !usuario.uid) {
+      return res.status(400).json({
+        error: 'El objeto "usuario" con el campo "uid" es obligatorio.',
+      });
+    }
+
+    const etiquetasNormalizadas = Array.isArray(etiquetas_rapidas)
+      ? etiquetas_rapidas
+          .filter((t) => typeof t === "string" && t.trim() !== "")
+          .map((t) => t.trim())
+          .slice(0, 20)
+      : [];
+
+    // Referencia al documento del taller en la colección Usuarios
+    const tallerRef = db.collection("Usuarios").doc(uid_taller);
+    const tallerDoc = await tallerRef.get();
+
+    if (!tallerDoc.exists) {
+      return res
+        .status(404)
+        .json({ error: "No se encontró un taller con este ID en Usuarios." });
+    }
+
+    const newComment = {
+      comentario:        comentario ?? "",
+      puntuacion,
+      nombre_taller:     nombre_taller ?? "",
+      uid_taller,
+      usuario,
+      etiquetas_rapidas: etiquetasNormalizadas,
+      fecha_creacion:    new Date(),
+    };
+
+    // Guardar en Usuarios/{uid_taller}/calificaciones
+    await tallerRef.collection("calificaciones").add(newComment);
+
+    return res.status(201).json({
+      message: "Calificación del taller agregada exitosamente.",
+      comment: newComment,
+    });
+  } catch (error) {
+    console.error("addCommentToTaller error:", error);
+    return res.status(500).json({ error: "Error interno del servidor." });
+  }
+};
+
 const validatePhone = async (req, res) => {
   try {
     const { phone, uid } = req.body;
@@ -770,6 +831,7 @@ module.exports = {
   getProductsByCategory,
   getCommentsByService,
   addCommentToService,
+  addCommentToTaller,
   validatePhone,
   validateEmail,
   savePerfilView,
