@@ -624,6 +624,7 @@ const addCommentToService = async (req, res) => {
       nombre_taller,
       uid_taller,
       usuario, // Mantén `usuario` como un objeto completo
+      etiquetas_rapidas,
     } = req.body;
 
     // Validar que el objeto `usuario` y el campo `userId` existan
@@ -632,6 +633,13 @@ const addCommentToService = async (req, res) => {
         error: 'El objeto "usuario" con el campo "userId" es obligatorio.',
       });
     }
+
+    const etiquetasNormalizadas = Array.isArray(etiquetas_rapidas)
+      ? etiquetas_rapidas
+          .filter((t) => typeof t === "string" && t.trim() !== "")
+          .map((t) => t.trim())
+          .slice(0, 20)
+      : [];
 
     // Referencia al documento del servicio por su ID
     const serviceRef = db.collection("Servicios").doc(uid_service);
@@ -645,11 +653,12 @@ const addCommentToService = async (req, res) => {
 
     // Crear un nuevo comentario en la subcolección "calificaciones"
     const newComment = {
-      comentario,
+      comentario: comentario ?? "",
       puntuacion,
       nombre_taller,
       uid_taller,
       usuario, // Incluye el objeto `usuario` tal cual
+      etiquetas_rapidas: etiquetasNormalizadas,
       fecha_creacion: new Date(), // Fecha de creación
     };
 

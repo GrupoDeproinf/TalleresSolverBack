@@ -6,13 +6,30 @@ function asyncGeneratorStep(n, t, e, r, o, a, c) { try { var i = n[a](c), u = i.
 function _asyncToGenerator(n) { return function () { var t = this, e = arguments; return new Promise(function (r, o) { var a = n.apply(t, e); function _next(n) { asyncGeneratorStep(a, r, o, _next, _throw, "next", n); } function _throw(n) { asyncGeneratorStep(a, r, o, _next, _throw, "throw", n); } _next(void 0); }); }; }
 var express = require('express');
 var morgan = require('morgan');
+var cors = require('cors');
 var cron = require('node-cron');
 var Usuarios = require('../src/services/usuarios.services');
 
-// Rutas
+// Routers (Express) por dominio
 var usuarios = require('./routes/usuarios.routes');
 var home = require('./routes/home.routes');
+var distance = require('./routes/distance.routes');
 var app = express();
+
+// Cabeceras CORS permisivas (origen *; ajustar en producción si hace falta)
+app.use(function (req, res, next) {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "Authorization, X-API-KEY, Origin, X-Requested-With, Content-Type, Accept, Access-Control-Allow-Request-Method");
+  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE");
+  res.header("Allow", "GET, POST, OPTIONS, PUT, DELETE");
+  next();
+});
+
+// Paquete cors: orígenes explícitos para el front (además del middleware anterior)
+app.use(cors({
+  origin: ["https://app.solversapp.com/", "https://solversapp.com/", "http://localhost:5173/"],
+  methods: ["GET", "POST", "OPTIONS", "PUT", "DELETE"]
+}));
 
 // Configuración de middleware
 app.use(express.json({
@@ -24,7 +41,7 @@ app.use(express.urlencoded({
 }));
 app.use(morgan('dev'));
 
-// Rutas
+// Prefijos de API
 app.get('/', /*#__PURE__*/function () {
   var _ref = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee(req, res) {
     return _regeneratorRuntime().wrap(function _callee$(_context) {
@@ -43,11 +60,60 @@ app.get('/', /*#__PURE__*/function () {
 }());
 app.use('/api/usuarios', usuarios);
 app.use('/api/home', home);
+app.use('/api/distance', distance);
 
-// Job que se ejecuta cada 10 horas
+// --- Tareas programadas (node-cron). Hora del servidor salvo que configures `timezone`. ---
+
+// Cada 10 horas (minuto 0): estado de planes activos (getPlanesActivos).
 cron.schedule('0 */10 * * *', function () {
-  console.log('Ejecutando job cada 10 horas');
+  console.log('Ejecutando job cada 10 horas (getPlanesActivos)');
   Usuarios.getPlanesActivos();
-  // Aquí va tu lógica del job
+});
+
+// Cada 10 horas (minuto 0): usuarios con plan vencido (getPlanesVencidos).
+cron.schedule('0 */10 * * *', function () {
+  console.log('Ejecutando job cada 10 horas (getPlanesVencidos)');
+  Usuarios.getPlanesVencidos();
+});
+
+// Cada 5 horas (minuto 0): avisos FCM a talleres con plan por vencer en ventana ~3 días (getPlanesActivos3Days).
+cron.schedule('0 */5 * * *', function () {
+  console.log('Ejecutando job cada 5 horas (getPlanesActivos3Days)');
+  Usuarios.getPlanesActivos3Days();
+});
+
+// Diario a las 10:00: pushes de mantenimiento según notificacionesVehiculos activas.
+cron.schedule('0 10 * * *', function () {
+  Usuarios.getUsuariosConNotificacionesVehiculos();
+});
+
+// Diario a las 10:00: odómetro vs próximo KM (superado o aviso si faltan 1–3000 km).
+cron.schedule('0 10 * * *', function () {
+  console.log('Ejecutando job diario (proximoKM / odómetro)');
+  Usuarios.jobNotificacionesVehiculosProximoKm();
+});
+
+// Los dos siguientes son críticos (documentación de conductor y circulación); no desactivarlos en producción sin evaluar impacto.
+
+// Diario a las 10:00: licencia y certificado médico (vencido o entre 1 y 30 días).
+cron.schedule('0 10 * * *', function () {
+  Usuarios.jobNotificacionesLicenciaYCertificadoMedico();
+});
+
+// Diario a las 10:00: RCV y trimestres por vehículo (vencido o vencimiento en ~un mes).
+cron.schedule('0 10 * * *', function () {
+  Usuarios.jobNotificacionesRcvYTrimestresVehiculos();
+});
+
+// Semanal: lunes 10:00 — showModalKm en usuarios y push para actualizar kilometraje.
+cron.schedule('0 10 * * 1', function () {
+  // cron.schedule('*/10 * * * * *', () => {
+  console.log('Ejecutando job semanal (cargarKmVehiculos)');
+  Usuarios.cargarKmVehiculos();
+});
+
+// Diario a las 10:00: propuestas antiguas (Cotizado/Inspección) y solicitudes en espera sin propuesta activa (reglas de más de 3 días).
+cron.schedule('0 10 * * *', function () {
+  Usuarios.jobRechazarPropuestasFechaPropuestaMayor3Dias();
 });
 module.exports = app;
