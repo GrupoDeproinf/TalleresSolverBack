@@ -615,6 +615,46 @@ const getCommentsByService = async (req, res) => {
 };
 
 
+const getCommentsByTaller = async (req, res) => {
+  try {
+    const { uid_taller } = req.body;
+
+    if (!uid_taller || typeof uid_taller !== "string" || uid_taller.trim() === "") {
+      return res.status(400).json({
+        error: "uid_taller es requerido y debe ser un string no vacío.",
+      });
+    }
+
+    const tallerDoc = await db.collection("Usuarios").doc(uid_taller).get();
+
+    if (!tallerDoc.exists) {
+      return res
+        .status(404)
+        .json({ error: "No se encontró un taller con este ID en Usuarios." });
+    }
+
+    const commentsSnapshot = await db
+      .collection("Usuarios")
+      .doc(uid_taller)
+      .collection("calificaciones")
+      .get();
+
+    if (commentsSnapshot.empty) {
+      return res.status(200).json([]);
+    }
+
+    const comments = commentsSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    return res.status(200).json(comments);
+  } catch (error) {
+    console.error("Error al obtener calificaciones del taller:", error);
+    return res.status(500).json({ error: "Error al obtener calificaciones del taller" });
+  }
+};
+
 const addCommentToService = async (req, res) => {
   try {
     const {
@@ -830,6 +870,7 @@ module.exports = {
   getServicesContact,
   getProductsByCategory,
   getCommentsByService,
+  getCommentsByTaller,
   addCommentToService,
   addCommentToTaller,
   validatePhone,

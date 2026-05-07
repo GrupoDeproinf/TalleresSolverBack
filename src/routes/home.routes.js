@@ -11,6 +11,7 @@ router.post("/getServiciosPaginados", Home.getServiciosPaginados);
 router.post("/getSubscriptionById", Home.getSubscriptionsById);
 router.post("/getProductsByCategory", Home.getProductsByCategory);
 router.post("/getCommentsByService", Home.getCommentsByService);
+router.post("/getCommentsByTaller", Home.getCommentsByTaller);
 router.post("/addCommentToService", Home.addCommentToService);
 router.post("/addCommentToTaller", Home.addCommentToTaller);
 router.post("/validatePhone", Home.validatePhone);
