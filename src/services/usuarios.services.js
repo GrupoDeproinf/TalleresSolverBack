@@ -4243,7 +4243,13 @@ const getPlanesActivos = async () => {
       const batch = db.batch();
       serviciosSnapshot.forEach(doc => {
         const servicioRef = db.collection("Servicios").doc(doc.id);
-        batch.update(servicioRef, { estatus: false });
+        const estabaActivo = doc.data().estatus === true;
+        // Solo agrega lastActive a los que estaban activos (true → false)
+        // Los que ya estaban en false no reciben ese campo
+        batch.update(servicioRef, estabaActivo
+          ? { estatus: false, lastActive: true }
+          : { estatus: false }
+        );
       });
 
       await batch.commit();
@@ -4307,7 +4313,13 @@ const getPlanesVencidos = async () => {
       const batch = db.batch();
       serviciosSnapshot.forEach(doc => {
         const servicioRef = db.collection("Servicios").doc(doc.id);
-        batch.update(servicioRef, { estatus: false });
+        const estabaActivo = doc.data().estatus === true;
+        // Solo agrega lastActive a los que estaban activos (true → false)
+        // Los que ya estaban en false no reciben ese campo
+        batch.update(servicioRef, estabaActivo
+          ? { estatus: false, lastActive: true }
+          : { estatus: false }
+        );
       });
 
       await batch.commit();
