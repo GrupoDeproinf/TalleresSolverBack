@@ -281,6 +281,7 @@ const saveContactService = async (req, res) => {
       usuario_id,
       usuario_nombre,
       usuario_email,
+      type,
     } = req.body || {};
 
     if (
@@ -308,6 +309,7 @@ const saveContactService = async (req, res) => {
         nombre: usuario_nombre,
         email: usuario_email,
       },
+      type: type || null,
       fecha_creacion: admin.firestore.FieldValue.serverTimestamp(),
     };
 
