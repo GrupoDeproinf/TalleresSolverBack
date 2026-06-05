@@ -335,14 +335,21 @@ const getServicesContact = async (req, res) => {
         const servicioContactData = doc.data();
         const { uid_servicio } = servicioContactData;
 
-        // Buscar el servicio correspondiente en la colección "services"
-        const servicioDoc = await db
-          .collection("Servicios")
-          .doc(uid_servicio)
-          .get();
-
-        // Verificar si existe el servicio
-        const servicioData = servicioDoc.exists ? servicioDoc.data() : null;
+        // Buscar el servicio correspondiente en la colección "Servicios".
+        // Se valida uid_servicio para evitar que un valor null/undefined/""
+        // lance una excepción en .doc() y tumbe todo el Promise.all (500).
+        let servicioData = null;
+        if (
+          uid_servicio &&
+          typeof uid_servicio === "string" &&
+          uid_servicio.trim() !== ""
+        ) {
+          const servicioDoc = await db
+            .collection("Servicios")
+            .doc(uid_servicio)
+            .get();
+          servicioData = servicioDoc.exists ? servicioDoc.data() : null;
+        }
 
         return {
           id: doc.id, // ID del documento en "servicesContact"
