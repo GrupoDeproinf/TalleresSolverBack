@@ -2695,6 +2695,57 @@ const getSubcategoriesByCategoryUid = async (req, res) => {
 // };
 
 
+/**
+ * Asocia la categoría de un servicio al negocio (Usuarios/{uid}) si aún no la tiene.
+ * Deduplica por uid y por nombre (sin acentos/mayúsculas). No lanza errores:
+ * si algo falla solo lo registra, para no interrumpir el guardado del servicio.
+ */
+const ensureCategoriaAsociadaAlNegocio = async (
+  uidTaller,
+  uidCategoria,
+  nombreCategoria
+) => {
+  try {
+    const tallerId = String(uidTaller || "").trim();
+    const catUid = String(uidCategoria || "").trim();
+    const catNombre = String(nombreCategoria || "").trim();
+    if (!tallerId || !catUid || !catNombre) return;
+
+    const userRef = db.collection("Usuarios").doc(tallerId);
+    const snap = await userRef.get();
+    if (!snap.exists) return;
+
+    const data = snap.data() || {};
+    const existentes = Array.isArray(data.categorias) ? data.categorias : [];
+
+    const normalizar = (s) =>
+      String(s || "")
+        .normalize("NFD")
+        .replace(/[̀-ͯ]/g, "")
+        .toLowerCase()
+        .trim();
+
+    const yaPorUid = existentes.some(
+      (c) => String(c?.uid || "").trim() === catUid
+    );
+    const yaPorNombre = existentes.some(
+      (c) => normalizar(c?.nombre) === normalizar(catNombre)
+    );
+    if (yaPorUid || yaPorNombre) return; // el negocio ya tiene esa categoría
+
+    const categorias = [...existentes, { uid: catUid, nombre: catNombre }];
+    const categoriasUids = Array.from(
+      new Set(
+        categorias.map((c) => String(c?.uid || "").trim()).filter(Boolean)
+      )
+    );
+
+    await userRef.update({ categorias, categoriasUids });
+  } catch (e) {
+    console.warn("ensureCategoriaAsociadaAlNegocio:", e?.message);
+  }
+};
+
 const saveOrUpdateService = async (req, res) => {
   try {
     // Obtener los datos del servicio desde el cuerpo de la solicitud
@@ -2790,6 +2841,9 @@ const saveOrUpdateService = async (req, res) => {
         await file.delete();
       }
     };
+
+    // Asociar la categoría del servicio al negocio si aún no la tiene
+    await ensureCategoriaAsociadaAlNegocio(uid_taller, uid_categoria, categoria);
 
     // Si `id` tiene un valor, editar el documento en la colección "Servicios"
     if (id) {
