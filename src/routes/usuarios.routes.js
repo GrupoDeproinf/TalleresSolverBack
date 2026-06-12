@@ -90,5 +90,7 @@ router.post('/updateUsuarioDocumentacionConductor', Usuarios.updateUsuarioDocume
 
 router.post('/getServicesByTallerUidTrue', Usuarios.getServicesByTallerUidTrue);
 
+router.post('/asociarCategoriasDesdeServicios', Usuarios.asociarCategoriasDesdeServicios);
+
 
 module.exports = router;

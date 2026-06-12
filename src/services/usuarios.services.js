@@ -1147,25 +1147,25 @@ const SaveTallerExtended = async (req, res) => {
       userRecord = await admin.auth().getUserByEmail(email);
 
       // Si existe, actualizar la clave y otros detalles
+      const phoneForAuth = (phone || whatsapp || '').replace(/\s+/g, '');
       userRecord = await admin.auth().updateUser(userRecord.uid, {
         email: email,
         password: password,
-        phoneNumber: `+58${phone}`,
+        phoneNumber: `+58${phoneForAuth}`,
         displayName: nombre,
         disabled: false,
       });
     } catch (error) {
       if (error.code === "auth/user-not-found") {
-        // Si no existe, crearlo
+        const phoneForAuth = (phone || whatsapp || '').replace(/\s+/g, '');
         userRecord = await admin.auth().createUser({
           email: email,
           password: password,
-          phoneNumber: `+58${phone}`,
+          phoneNumber: `+58${phoneForAuth}`,
           displayName: nombre,
           disabled: false,
         });
       } else {
-        // Si otro error ocurre, lanzarlo
         throw error;
       }
     }
@@ -1270,7 +1270,7 @@ const SaveTallerExtended = async (req, res) => {
       uid: uid,
       nombre: nombre == undefined ? '' : nombre,
       rif: rif == undefined ? '' : rif,
-      phone: phone == undefined ? '' : phone?.replace(/\s+/g, ""),
+      phone: (phone || whatsapp || '').replace(/\s+/g, ''),
       typeUser: 'Taller',
       email: email == undefined ? '' : email.toLowerCase(),
       password: password,
@@ -3066,6 +3066,19 @@ const fetchServiciosByCategoriaId = async (categoriaId) => {
     .get();
 };
 
+/** Talleres que tienen la categoría en su campo `categoriasUids` (array flat). */
+const fetchTalleresByCategoria = async (categoriaId) => {
+  const snapshot = await db
+    .collection("Usuarios")
+    .where("typeUser", "==", "Taller")
+    .where("status", "==", "Aprobado")
+    .where("subscripcion_actual.status", "==", "Aprobado")
+    .where("categoriasUids", "array-contains", categoriaId)
+    .get();
+
+  return snapshot.docs.map((d) => ({ uid_taller: d.id, ...d.data() }));
+};
+
 const getUniqueUidTalleres = (serviciosSnapshot) => {
   const uidTalleres = new Set();
   serviciosSnapshot.docs.forEach((doc) => {
@@ -3207,11 +3220,27 @@ const saveSolicitud = async (req, res) => {
       talleresCercanos = tallerUnico ? [tallerUnico] : [];
       talleresParaNotificar = talleresCercanos;
     } else {
-      const serviciosSnapshot = await fetchServiciosByCategoriaId(categoriaId);
+      const [serviciosSnapshot, talleresPorCategoria] = await Promise.all([
+        fetchServiciosByCategoriaId(categoriaId),
+        fetchTalleresByCategoria(categoriaId),
+      ]);
+
       const uidTalleresUnicos = getUniqueUidTalleres(serviciosSnapshot);
-      const talleres = await fetchUsuariosByUids(uidTalleresUnicos);
+      const talleresPorServicio = await fetchUsuariosByUids(uidTalleresUnicos);
+
+      // Merge: talleres encontrados por servicio + por categoría del perfil (sin duplicados)
+      const vistos = new Set();
+      const talleresUnidos = [];
+      for (const t of [...talleresPorServicio, ...talleresPorCategoria]) {
+        const id = t.uid_taller;
+        if (id && !vistos.has(id)) {
+          vistos.add(id);
+          talleresUnidos.push(t);
+        }
+      }
+
       talleresCercanos = filterTalleresCercanos(
-        talleres,
+        talleresUnidos,
         userLat,
         userLng,
         RADIO_KM_NOTIFICACION,
@@ -4436,11 +4465,56 @@ const updateUsuarioDocumentacionConductor = async (req, res) => {
 
 const UpdateUsuariosAll = async (req, res) => {
   try {
-    // Recibir los datos del cliente desde el cuerpo de la solicitud
-    const { uid } = req.body
+    const { uid } = req.body;
 
-    // Actualizar el documento en la colección "Usuarios" con el UID proporcionado
-    await db.collection("Usuarios").doc(uid).update(req.body);
+    const updateData = { ...req.body };
+    if (Array.isArray(updateData.categorias)) {
+      updateData.categoriasUids = updateData.categorias
+        .map((c) => (c && typeof c.uid === "string" ? c.uid.trim() : null))
+        .filter(Boolean);
+    }
+
+    // Manejo de imagen de perfil: subir base64 a Storage y NO escribirlo en Firestore.
+    const base64 = updateData.base64;
+    const imageTodelete = updateData.imageTodelete;
+    delete updateData.base64;
+    delete updateData.imageTodelete;
+
+    if (base64 && String(base64).trim() !== "") {
+      // Índice incremental (mismo patrón que UpdateClient)
+      const prefix = `profileImages/${uid}`;
+      const [existing] = await bucket.getFiles({ prefix });
+      let maxIndex = 0;
+      existing.forEach((file) => {
+        const match = file.name.match(/(\d+)\.jpg$/);
+        if (match) {
+          const index = parseInt(match[1], 10);
+          if (index > maxIndex) maxIndex = index;
+        }
+      });
+
+      const newFileName = `profileImages/${uid}_${maxIndex + 1}.jpg`;
+      const buffer = Buffer.from(base64, "base64");
+      await bucket.file(newFileName).save(buffer, {
+        metadata: { contentType: "image/jpeg" },
+        public: true,
+        validation: "md5",
+      });
+      updateData.image_perfil = `https://storage.googleapis.com/${bucket.name}/${newFileName}`;
+
+      // Borrar imagen anterior (best-effort)
+      if (imageTodelete && String(imageTodelete).trim() !== "") {
+        try {
+          await bucket.file(`profileImages/${imageTodelete}`).delete();
+        } catch (delErr) {
+          if (delErr.code !== 404) {
+            console.warn("No se pudo borrar imagen anterior:", delErr.message);
+          }
+        }
+      }
+    }
+
+    await db.collection("Usuarios").doc(uid).update(updateData);
 
     // Responder con un mensaje de éxito
     res
@@ -5527,6 +5601,143 @@ const cargarKmVehiculos = async () => {
   }
 };
 
+/**
+ * Proceso de mantenimiento: lee los Servicios, agrupa las categorías por negocio
+ * (uid_taller) y las asocia al documento del Usuario (Taller) sin duplicar.
+ *
+ * - Cada servicio aporta { uid: uid_categoria, nombre: categoria }.
+ * - Se deduplica por uid de categoría.
+ * - Se conservan las categorías que el negocio ya tuviera (merge sin duplicados).
+ * - Se actualiza tanto `categorias` ([{uid, nombre}]) como `categoriasUids` ([uid]).
+ *
+ * Body opcional:
+ *   { uid_taller?: string, dryRun?: boolean }
+ *   - uid_taller: procesa solo ese negocio (si se omite, procesa todos).
+ *   - dryRun: true → no escribe, solo devuelve lo que haría.
+ */
+const asociarCategoriasDesdeServicios = async (req, res) => {
+  try {
+    const { uid_taller: soloTaller, dryRun } = req.body || {};
+
+    // 1) Leer servicios (todos o los de un taller específico)
+    let serviciosQuery = db.collection("Servicios");
+    if (soloTaller && String(soloTaller).trim() !== "") {
+      serviciosQuery = serviciosQuery.where(
+        "uid_taller",
+        "==",
+        String(soloTaller).trim()
+      );
+    }
+    const serviciosSnap = await serviciosQuery.get();
+
+    // 2) Agrupar categorías por negocio: uid_taller -> Map(uid_categoria -> nombre)
+    const porTaller = new Map();
+    serviciosSnap.forEach((doc) => {
+      const s = doc.data() || {};
+      const uidTaller = String(s.uid_taller || "").trim();
+      const uidCategoria = String(s.uid_categoria || "").trim();
+      const nombreCategoria = String(s.categoria || "").trim();
+      if (!uidTaller || !uidCategoria || !nombreCategoria) return;
+
+      if (!porTaller.has(uidTaller)) porTaller.set(uidTaller, new Map());
+      // Última escritura gana para el nombre; el uid evita duplicados.
+      porTaller.get(uidTaller).set(uidCategoria, nombreCategoria);
+    });
+
+    // 3) Para cada negocio, mezclar con lo existente (sin duplicar) y actualizar
+    let actualizados = 0;
+    let sinCambios = 0;
+    const detalle = [];
+
+    for (const [uidTaller, catMap] of porTaller.entries()) {
+      const userRef = db.collection("Usuarios").doc(uidTaller);
+      const userSnap = await userRef.get();
+      if (!userSnap.exists) {
+        detalle.push({ uid_taller: uidTaller, estado: "usuario_no_encontrado" });
+        continue;
+      }
+
+      const userData = userSnap.data() || {};
+
+      // Categorías ya guardadas en el negocio (puede venir como [{uid,nombre}])
+      const existentes = Array.isArray(userData.categorias)
+        ? userData.categorias
+        : [];
+
+      // Dedupe por uid: arrancar con las existentes y sumar las de servicios
+      const merge = new Map();
+      existentes.forEach((c) => {
+        const u = String(c?.uid || "").trim();
+        const n = String(c?.nombre || "").trim();
+        if (u && n) merge.set(u, n);
+      });
+      catMap.forEach((nombre, uid) => merge.set(uid, nombre));
+
+      // Segundo dedupe: colapsar por nombre (case/acentos-insensible) para que no
+      // queden categorías repetidas aunque vengan con uid distinto en los servicios.
+      const normalizar = (s) =>
+        String(s || "")
+          .normalize("NFD")
+          .replace(/[̀-ͯ]/g, "")
+          .toLowerCase()
+          .trim();
+      const porNombre = new Map(); // nombreNormalizado -> { uid, nombre }
+      merge.forEach((nombre, uid) => {
+        const clave = normalizar(nombre);
+        if (!clave) return;
+        if (!porNombre.has(clave)) porNombre.set(clave, { uid, nombre });
+      });
+
+      const categorias = Array.from(porNombre.values());
+      const categoriasUids = categorias.map((c) => c.uid);
+
+      // ¿Cambió algo respecto a lo existente? (compara conjuntos de uids)
+      const prevUids = new Set(
+        existentes
+          .map((c) => String(c?.uid || "").trim())
+          .filter(Boolean)
+      );
+      const cambio =
+        categoriasUids.length !== prevUids.size ||
+        categoriasUids.some((u) => !prevUids.has(u));
+
+      detalle.push({
+        uid_taller: uidTaller,
+        total_categorias: categorias.length,
+        categorias: categorias.map((c) => c.nombre),
+        accion: cambio ? (dryRun ? "actualizaria" : "actualizado") : "sin_cambios",
+      });
+
+      if (!cambio) {
+        sinCambios += 1;
+        continue;
+      }
+
+      if (!dryRun) {
+        await userRef.update({ categorias, categoriasUids });
+      }
+      actualizados += 1;
+    }
+
+    return res.status(200).send({
+      message: dryRun
+        ? "Simulación completada (no se escribió nada)"
+        : "Categorías asociadas a los negocios con éxito",
+      dryRun: !!dryRun,
+      negocios_procesados: porTaller.size,
+      actualizados,
+      sin_cambios: sinCambios,
+      detalle,
+    });
+  } catch (error) {
+    console.error("Error en asociarCategoriasDesdeServicios:", error);
+    return res.status(500).send({
+      message: "Error al asociar categorías desde servicios",
+      error: error.message,
+    });
+  }
+};
+
 
 module.exports = {
   getUsuarios,
@@ -5582,5 +5793,6 @@ module.exports = {
   updateVehiculoKm,
   cargarKmVehiculos,
   jobRechazarPropuestasFechaPropuestaMayor3Dias,
-  getServicesByTallerUidTrue
+  getServicesByTallerUidTrue,
+  asociarCategoriasDesdeServicios
 };
