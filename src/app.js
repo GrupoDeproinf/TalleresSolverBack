@@ -115,6 +115,12 @@ cron.schedule('0 10 * * 1', () => {
   Usuarios.cargarKmVehiculos();
 });
 
+// Semanal: lunes 10:00 — resetea showModalKm y showMaintenancePopup a true en TODOS los documentos de Usuarios.
+cron.schedule('0 10 * * 1', () => {
+  console.log('Ejecutando job semanal (resetWeeklyPopupFlags)');
+  Usuarios.resetWeeklyPopupFlags();
+});
+
 // Diario a las 10:00: propuestas antiguas (Cotizado/Inspección) y solicitudes en espera sin propuesta activa (reglas de más de 3 días).
 cron.schedule('0 10 * * *', () => {
   Usuarios.jobRechazarPropuestasFechaPropuestaMayor3Dias();

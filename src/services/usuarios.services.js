@@ -5554,6 +5554,34 @@ const SECRET_CODE_ACTUALIZAR_KM_VEHICULOS = "ActualizarKmVehiculos";
  * Si el token devuelve `registration-token-not-registered` (app desinstalada o token
  * expirado), lo limpia automáticamente en Firestore (`token: ""`).
  */
+/**
+ * Resetea showModalKm y showMaintenancePopup a true en TODOS los documentos
+ * de la colección Usuarios. Se ejecuta cada lunes a las 10:00 AM.
+ */
+const resetWeeklyPopupFlags = async () => {
+  try {
+    const snapshot = await db.collection("Usuarios").get();
+    if (snapshot.empty) {
+      console.log("resetWeeklyPopupFlags: colección Usuarios vacía.");
+      return;
+    }
+    const BATCH = 500;
+    let updated = 0;
+    for (let i = 0; i < snapshot.docs.length; i += BATCH) {
+      const chunk = snapshot.docs.slice(i, i + BATCH);
+      const batch = db.batch();
+      for (const doc of chunk) {
+        batch.update(doc.ref, { showModalKm: true, showMaintenancePopup: true });
+      }
+      await batch.commit();
+      updated += chunk.length;
+    }
+    console.log(`resetWeeklyPopupFlags: ${updated} documento(s) actualizados (showModalKm + showMaintenancePopup → true).`);
+  } catch (error) {
+    console.error("Error en resetWeeklyPopupFlags:", error);
+  }
+};
+
 const cargarKmVehiculos = async () => {
   try {
     // Solo usuarios Aprobados
@@ -5848,5 +5876,6 @@ module.exports = {
   cargarKmVehiculos,
   jobRechazarPropuestasFechaPropuestaMayor3Dias,
   getServicesByTallerUidTrue,
-  asociarCategoriasDesdeServicios
+  asociarCategoriasDesdeServicios,
+  resetWeeklyPopupFlags
 };
