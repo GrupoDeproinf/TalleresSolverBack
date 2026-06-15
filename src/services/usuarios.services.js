@@ -1232,33 +1232,44 @@ const SaveTallerExtended = async (req, res) => {
       lat,
       lng,
       token,
-      horarios_atencion
+      horarios_atencion,
+      authProvider
     } = req.body;
+
+    // Cuentas de Google ya existen en Firebase Auth y no tienen contraseña:
+    // en ese caso no tocamos credenciales (evita "contraseña inválida").
+    const isGoogle = authProvider === "google" || !password;
 
     let userRecord;
     try {
       // Intentar obtener el usuario por email
       userRecord = await admin.auth().getUserByEmail(email);
 
-      // Si existe, actualizar la clave y otros detalles
+      // Si existe, actualizar los detalles (la clave solo si NO es Google)
       const phoneForAuth = (phone || whatsapp || '').replace(/\s+/g, '');
-      userRecord = await admin.auth().updateUser(userRecord.uid, {
+      const updatePayload = {
         email: email,
-        password: password,
         phoneNumber: `+58${phoneForAuth}`,
         displayName: nombre,
         disabled: false,
-      });
+      };
+      if (!isGoogle && password) {
+        updatePayload.password = password;
+      }
+      userRecord = await admin.auth().updateUser(userRecord.uid, updatePayload);
     } catch (error) {
       if (error.code === "auth/user-not-found") {
         const phoneForAuth = (phone || whatsapp || '').replace(/\s+/g, '');
-        userRecord = await admin.auth().createUser({
+        const createPayload = {
           email: email,
-          password: password,
           phoneNumber: `+58${phoneForAuth}`,
           displayName: nombre,
           disabled: false,
-        });
+        };
+        if (password) {
+          createPayload.password = password;
+        }
+        userRecord = await admin.auth().createUser(createPayload);
       } else {
         throw error;
       }
