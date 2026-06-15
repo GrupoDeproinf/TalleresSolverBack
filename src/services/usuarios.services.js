@@ -920,7 +920,8 @@ const SaveClient = async (req, res) => {
 // directo" tras iniciar sesión con Google sin llenar formularios.
 const SaveClientGoogle = async (req, res) => {
   try {
-    const { uid, email, nombre, token } = req.body;
+    const { uid, email, nombre, token, authProvider } = req.body;
+    const provider = authProvider === "apple" ? "apple" : "google";
 
     if (!uid || !email) {
       return res
@@ -961,7 +962,7 @@ const SaveClientGoogle = async (req, res) => {
       email: email,
       estado: "",
       image_perfil: userRecord.photoURL || "",
-      authProvider: "google",
+      authProvider: provider,
       token: token || "",
       createdAt: new Date(),
     };
