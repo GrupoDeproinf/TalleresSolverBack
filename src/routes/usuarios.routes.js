@@ -10,6 +10,8 @@ router.post('/updateNotificationUser', Usuarios.updateNotificationUser);
 
 router.post('/SaveClient', Usuarios.SaveClient);
 
+router.post('/SaveClientGoogle', Usuarios.SaveClientGoogle);
+
 router.post('/SaveTaller', Usuarios.SaveTaller); 
  
 router.post('/SaveTallerExtended', Usuarios.SaveTallerExtended); 

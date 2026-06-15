@@ -914,6 +914,100 @@ const SaveClient = async (req, res) => {
   }
 };
 
+// Crea un Cliente a partir de una cuenta de Google ya autenticada en el
+// cliente (Firebase Auth). No recrea credenciales (no hay password); solo
+// genera el documento en la colección "Usuarios". Pensado para "entrar
+// directo" tras iniciar sesión con Google sin llenar formularios.
+const SaveClientGoogle = async (req, res) => {
+  try {
+    const { uid, email, nombre, token } = req.body;
+
+    if (!uid || !email) {
+      return res
+        .status(400)
+        .send({ message: "Faltan datos de la cuenta de Google (uid o email)" });
+    }
+
+    // El usuario ya existe en Firebase Auth (creado vía Google en el cliente);
+    // solo verificamos su existencia, no tocamos sus credenciales.
+    let userRecord;
+    try {
+      userRecord = await admin.auth().getUser(uid);
+    } catch (error) {
+      if (error.code === "auth/user-not-found") {
+        return res
+          .status(404)
+          .send({ message: "La cuenta de Google no existe en Firebase Auth" });
+      }
+      throw error;
+    }
+
+    // Si ya tiene documento en Usuarios, devolverlo sin duplicar.
+    const userDocRef = db.collection("Usuarios").doc(uid);
+    const existingDoc = await userDocRef.get();
+    if (existingDoc.exists) {
+      return res.status(200).send({
+        message: "El usuario ya estaba registrado",
+        userData: { uid, ...existingDoc.data() },
+      });
+    }
+
+    const infoUserCreated = {
+      uid: uid,
+      nombre: nombre || userRecord.displayName || "",
+      cedula: "",
+      phone: "",
+      typeUser: "Cliente",
+      email: email,
+      estado: "",
+      image_perfil: userRecord.photoURL || "",
+      authProvider: "google",
+      token: token || "",
+      createdAt: new Date(),
+    };
+
+    await userDocRef.set(infoUserCreated, { merge: true });
+
+    // Correo de bienvenida (no interrumpe el flujo si falla).
+    try {
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Bienvenido a Solvers</title></head>
+        <body style="font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; margin: 0; padding: 0; background-color: #eef5f9;">
+          <table cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; width: 100%; margin: 20px auto; border-radius: 12px; overflow: hidden; background-color: #ffffff; box-shadow: 0px 7px 30px 0px rgba(90,114,123,0.11);">
+            <tr><td style="height: 5px; background: linear-gradient(135deg, #5D87FF 0%, #4669d9 100%);"></td></tr>
+            <tr><td style="padding: 40px 30px; text-align: center;">
+              <img src="https://firebasestorage.googleapis.com/v0/b/talleres-solvers-app.firebasestorage.app/o/data%2Flogo%2Fsolverslogo.png?alt=media&token=c2937894-0be6-431b-a0df-4b5288fecfd5" alt="Solvers Logo" style="height: 40px; margin-bottom: 20px;">
+              <h1 style="margin: 0; font-size: 22px; color: #2B3445; font-weight: 600;">¡Bienvenido a <strong>Solvers</strong>!</h1>
+            </td></tr>
+            <tr><td style="padding: 0 30px 30px;">
+              <h2 style="margin: 0 0 16px; color: #2B3445; font-size: 18px; font-weight: 600;">Hola ${nombre || ""},</h2>
+              <p style="margin: 0; color: #2B3445; font-size: 15px;">Tu cuenta se creó correctamente con Google. Ya puedes solicitar servicios y gestionar tus vehículos desde la app.</p>
+            </td></tr>
+            <tr><td style="background-color: #f5f6f8; padding: 24px 30px; text-align: center; border-top: 1px solid #e9ecef;">
+              <p style="margin: 0 0 6px; color: #2B3445; font-size: 14px; font-weight: 600;">Solvers, C.A.</p>
+              <p style="margin: 0; color: #6C757D; font-size: 12px;">© ${new Date().getFullYear()} Solvers, C.A. Todos los derechos reservados.</p>
+            </td></tr>
+          </table>
+        </body>
+        </html>
+      `;
+      await sendEmail(email, htmlContent, "¡Bienvenido a Solvers!");
+    } catch (emailError) {
+      console.error("Error al enviar el correo de bienvenida:", emailError);
+    }
+
+    res.status(201).send({
+      message: "Usuario guardado con éxito",
+      userData: infoUserCreated,
+    });
+  } catch (error) {
+    console.error("Error en SaveClientGoogle:", error);
+    res.status(500).send({ message: "Error al guardar el usuario" });
+  }
+};
+
 const SaveTaller = async (req, res) => {
   try {
     // Recibir los datos del taller desde el cuerpo de la solicitud
@@ -5830,6 +5924,7 @@ module.exports = {
   getTiposVehiculo,
   saveOrUpdateVehiculo,
   SaveClient,
+  SaveClientGoogle,
   SaveTaller,
   authenticateUser,
   getUserByUid,
