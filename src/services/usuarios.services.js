@@ -1380,7 +1380,7 @@ const SaveTallerExtended = async (req, res) => {
       typeUser: 'Taller',
       email: email == undefined ? '' : email.toLowerCase(),
       password: password,
-      status: 'En espera por aprobación',
+      status: 'En espera de documentos',
       Direccion: Direccion == undefined ? '' : Direccion,
       RegComercial: RegComercial == undefined ? '' : RegComercial,
       Caracteristicas: Caracteristicas == undefined ? '' : Caracteristicas,
@@ -1999,6 +1999,17 @@ const UpdateTallerUsuarioDocs = async (req, res) => {
     Object.keys(payload).forEach((k) => {
       if (payload[k] === undefined) delete payload[k];
     });
+
+    // Promover estatus si ya tiene RIF + foto frente + foto interna
+    const hasRif = payload.rifIdFiscal && String(payload.rifIdFiscal).trim() !== '';
+    const hasFrente = payload.fotoFrenteTaller && String(payload.fotoFrenteTaller).trim() !== '';
+    const hasInterna = payload.fotoInternaTaller && String(payload.fotoInternaTaller).trim() !== '';
+    if (hasRif && hasFrente && hasInterna) {
+      const currentSnap = await db.collection("Usuarios").doc(uid).get();
+      if (currentSnap.exists && currentSnap.data()?.status === 'En espera de documentos') {
+        payload.status = 'En espera por aprobación';
+      }
+    }
 
     await db.collection("Usuarios").doc(uid).set(payload, { merge: true });
 
