@@ -2103,7 +2103,7 @@ const getTalleres = async (req, res) => {
     const query = await db
       .collection("Usuarios")
       // .where("status", "!=", "Aprobado")
-      .where("status", "==", "En espera por aprobación")
+      .where("status", "in", ["En espera por aprobación", "En espera de documentos"])
       .where("typeUser", "==", "Taller");
 
     const result = await query.get();
