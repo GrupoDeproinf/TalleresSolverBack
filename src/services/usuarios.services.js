@@ -1301,74 +1301,29 @@ const SaveTallerExtended = async (req, res) => {
       imageUrl = `https://storage.googleapis.com/${bucket.name}/profileImages/${uid}.jpg`;
     }
 
-    // Subir RIF ID Fiscal
+    // Subir RIF ID Fiscal (detecta el tipo real: PDF o imagen)
     if (rifIdFiscal && rifIdFiscal !== "") {
-      const buffer = Buffer.from(rifIdFiscal, "base64");
-      const file = bucket.file(`documents/${uid}/rifIdFiscal.jpg`);
-
-      await file.save(buffer, {
-        metadata: { contentType: "image/jpeg" },
-        public: true,
-        validation: "md5",
-      });
-
-      rifIdFiscalUrl = `https://storage.googleapis.com/${bucket.name}/documents/${uid}/rifIdFiscal.jpg`;
+      rifIdFiscalUrl = (await uploadTallerDoc(uid, "rifIdFiscal", rifIdFiscal)) || rifIdFiscalUrl;
     }
 
     // Subir Permiso de Operación
     if (permisoOperacion && permisoOperacion !== "") {
-      const buffer = Buffer.from(permisoOperacion, "base64");
-      const file = bucket.file(`documents/${uid}/permisoOperacion.jpg`);
-
-      await file.save(buffer, {
-        metadata: { contentType: "image/jpeg" },
-        public: true,
-        validation: "md5",
-      });
-
-      permisoOperacionUrl = `https://storage.googleapis.com/${bucket.name}/documents/${uid}/permisoOperacion.jpg`;
+      permisoOperacionUrl = (await uploadTallerDoc(uid, "permisoOperacion", permisoOperacion)) || permisoOperacionUrl;
     }
 
     // Subir Logotipo del Negocio
     if (logotipoNegocio && logotipoNegocio !== "") {
-      const buffer = Buffer.from(logotipoNegocio, "base64");
-      const file = bucket.file(`businessImages/${uid}/logotipoNegocio.jpg`);
-
-      await file.save(buffer, {
-        metadata: { contentType: "image/jpeg" },
-        public: true,
-        validation: "md5",
-      });
-
-      logotipoNegocioUrl = `https://storage.googleapis.com/${bucket.name}/businessImages/${uid}/logotipoNegocio.jpg`;
+      logotipoNegocioUrl = (await uploadTallerDoc(uid, "logotipoNegocio", logotipoNegocio)) || logotipoNegocioUrl;
     }
 
     // Subir Foto Frente del Taller
     if (fotoFrenteTaller && fotoFrenteTaller !== "") {
-      const buffer = Buffer.from(fotoFrenteTaller, "base64");
-      const file = bucket.file(`businessImages/${uid}/fotoFrenteTaller.jpg`);
-
-      await file.save(buffer, {
-        metadata: { contentType: "image/jpeg" },
-        public: true,
-        validation: "md5",
-      });
-
-      fotoFrenteTallerUrl = `https://storage.googleapis.com/${bucket.name}/businessImages/${uid}/fotoFrenteTaller.jpg`;
+      fotoFrenteTallerUrl = (await uploadTallerDoc(uid, "fotoFrenteTaller", fotoFrenteTaller)) || fotoFrenteTallerUrl;
     }
 
     // Subir Foto Interna del Taller
     if (fotoInternaTaller && fotoInternaTaller !== "") {
-      const buffer = Buffer.from(fotoInternaTaller, "base64");
-      const file = bucket.file(`businessImages/${uid}/fotoInternaTaller.jpg`);
-
-      await file.save(buffer, {
-        metadata: { contentType: "image/jpeg" },
-        public: true,
-        validation: "md5",
-      });
-
-      fotoInternaTallerUrl = `https://storage.googleapis.com/${bucket.name}/businessImages/${uid}/fotoInternaTaller.jpg`;
+      fotoInternaTallerUrl = (await uploadTallerDoc(uid, "fotoInternaTaller", fotoInternaTaller)) || fotoInternaTallerUrl;
     }
 
     // Crear o actualizar el documento en la colección "Usuarios" con campos extendidos
@@ -1820,10 +1775,53 @@ const looksLikeRawBase64 = (s) => {
 
 const extAndContentType = (mime) => {
   const m = String(mime || "").toLowerCase();
+  if (m.includes("pdf")) return { ext: "pdf", contentType: "application/pdf" };
   if (m.includes("png")) return { ext: "png", contentType: "image/png" };
   if (m.includes("webp")) return { ext: "webp", contentType: "image/webp" };
   if (m.includes("gif")) return { ext: "gif", contentType: "image/gif" };
   return { ext: "jpg", contentType: "image/jpeg" };
+};
+
+// Detecta el tipo REAL del archivo por sus magic bytes (más confiable que el mime declarado).
+const sniffBufferType = (buffer) => {
+  if (!buffer || buffer.length < 4) return null;
+  if (buffer.slice(0, 4).toString("ascii") === "%PDF")
+    return { ext: "pdf", contentType: "application/pdf" };
+  if (buffer[0] === 0xff && buffer[1] === 0xd8)
+    return { ext: "jpg", contentType: "image/jpeg" };
+  if (buffer[0] === 0x89 && buffer[1] === 0x50)
+    return { ext: "png", contentType: "image/png" };
+  if (buffer.slice(0, 4).toString("ascii") === "GIF8")
+    return { ext: "gif", contentType: "image/gif" };
+  if (
+    buffer.slice(0, 4).toString("ascii") === "RIFF" &&
+    buffer.slice(8, 12).toString("ascii") === "WEBP"
+  )
+    return { ext: "webp", contentType: "image/webp" };
+  return null;
+};
+
+// Sube un documento del taller detectando su tipo real (PDF/imagen). Acepta data URL o base64 crudo.
+const uploadTallerDoc = async (uid, fieldName, base64Raw) => {
+  const pathFn = TALLER_DOC_FIELD_PATHS[fieldName];
+  if (!pathFn) return "";
+
+  let buffer;
+  let mimeHint = "";
+  const dataUrl = parseDataUrlBase64(base64Raw);
+  if (dataUrl) {
+    buffer = Buffer.from(dataUrl.base64, "base64");
+    mimeHint = dataUrl.contentType || "";
+  } else {
+    buffer = Buffer.from(String(base64Raw || "").replace(/\s/g, ""), "base64");
+  }
+  if (!buffer || !buffer.length) return "";
+
+  // Magic bytes = fuente de verdad; si no se reconoce, usa el mime del data URL; si no, jpg.
+  const { ext, contentType } = sniffBufferType(buffer) || extAndContentType(mimeHint);
+  const storagePath = pathFn(uid, ext);
+  await uploadBufferToPath(storagePath, buffer, contentType);
+  return `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
 };
 
 const uploadBufferToPath = (path, buffer, contentType) => {
@@ -1862,7 +1860,8 @@ const resolveTallerDocumentacionField = async (uid, fieldName, value) => {
   const pathFn = TALLER_DOC_FIELD_PATHS[fieldName];
   if (!pathFn) return trimmed;
 
-  const { ext, contentType } = extAndContentType(mimeHint);
+  // Tipo real por magic bytes (PDF/PNG/JPEG/...); si no se reconoce, por el mime del data URL.
+  const { ext, contentType } = sniffBufferType(buffer) || extAndContentType(mimeHint);
   const storagePath = pathFn(uid, ext);
   await uploadBufferToPath(storagePath, buffer, contentType);
   return `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
