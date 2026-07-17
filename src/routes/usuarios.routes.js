@@ -54,7 +54,8 @@ router.get('/getActiveCategories', Usuarios.getActiveCategories);
 
 router.post('/getSubcategoriesByCategoryUid', Usuarios.getSubcategoriesByCategoryUid);
 
-router.post('/saveOrUpdateService', Usuarios.saveOrUpdateService); 
+router.post('/saveOrUpdateService', Usuarios.saveOrUpdateService);
+router.post('/deleteService', Usuarios.deleteService);
 
 router.get('/getPlanes', Usuarios.getPlanes); 
 

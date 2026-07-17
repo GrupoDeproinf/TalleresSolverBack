@@ -3105,6 +3105,70 @@ const saveOrUpdateService = async (req, res) => {
   }
 };
 
+// Elimina un servicio de la colección. Si el servicio está activo (publicado),
+// primero libera un cupo de publicación (cantidad_servicios += 1), exactamente
+// igual que al despublicarlo en el edit, para no descuadrar el contador del plan.
+const deleteService = async (req, res) => {
+  try {
+    const { id, uid_taller } = req.body;
+    if (!id) {
+      return res
+        .status(400)
+        .send({ message: "El id del servicio es obligatorio." });
+    }
+
+    const serviceRef = db.collection("Servicios").doc(id);
+    const snap = await serviceRef.get();
+    if (!snap.exists) {
+      return res
+        .status(404)
+        .send({ message: "No se encontró el servicio a eliminar." });
+    }
+
+    const serviceData = snap.data();
+    const ownerUid = uid_taller || serviceData.uid_taller;
+
+    // Servicio activo → liberar cupo (mismo ajuste que despublicar en el edit).
+    if (serviceData.estatus === true && ownerUid) {
+      const userRef = db.collection("Usuarios").doc(ownerUid);
+      const userDoc = await userRef.get();
+      if (userDoc.exists) {
+        const userData = userDoc.data();
+        let cantidadServicios =
+          parseInt(userData?.subscripcion_actual?.cantidad_servicios, 10) || 0;
+        cantidadServicios += 1;
+        await userRef.update({
+          "subscripcion_actual.cantidad_servicios": cantidadServicios.toString(),
+        });
+      }
+    }
+
+    // Borrar imágenes del servicio en Storage (best-effort, no bloquea el borrado).
+    try {
+      const [files] = await bucket.getFiles({ prefix: `service_images/${id}` });
+      for (const file of files) {
+        await file.delete();
+      }
+    } catch (imgErr) {
+      console.log(
+        "No se pudieron borrar todas las imágenes del servicio:",
+        imgErr?.message
+      );
+    }
+
+    await serviceRef.delete();
+
+    return res
+      .status(200)
+      .send({ message: "Servicio eliminado exitosamente" });
+  } catch (error) {
+    console.error("Error al eliminar el servicio:", error);
+    return res
+      .status(500)
+      .send({ message: "Error al eliminar el servicio", error: error.message });
+  }
+};
+
 const getPlanes = async (req, res) => {
   try {
     const result = await db
@@ -5963,6 +6027,7 @@ module.exports = {
   getActiveCategories,
   getSubcategoriesByCategoryUid,
   saveOrUpdateService,
+  deleteService,
   getPlanes,
   getMetodosPago,
   ReportarPagoData,
