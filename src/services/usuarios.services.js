@@ -2091,6 +2091,67 @@ const restorePass = async (req, res) => {
   }
 };
 
+// Cambio de contraseña para un usuario autenticado (desde la app). (APP-02)
+// 1) Verifica la contraseña ACTUAL reautenticando con el SDK cliente (mismo
+//    mecanismo que authenticateUser), para no confiar solo en el uid enviado.
+// 2) Si es correcta, actualiza la contraseña con el Admin SDK.
+const changePassword = async (req, res) => {
+  const { email, currentPassword, newPassword } = req.body;
+
+  if (!email || !currentPassword || !newPassword) {
+    return res.status(400).json({
+      message: "Email, contraseña actual y nueva contraseña son requeridos",
+    });
+  }
+
+  if (String(newPassword).length < 6) {
+    return res.status(400).json({
+      message: "La nueva contraseña debe tener al menos 6 caracteres",
+    });
+  }
+
+  if (newPassword === currentPassword) {
+    return res.status(400).json({
+      message: "La nueva contraseña debe ser diferente de la actual",
+    });
+  }
+
+  try {
+    // 1) Verificar la contraseña actual reautenticando.
+    let userCredential;
+    try {
+      userCredential = await signInWithEmailAndPassword(
+        auth,
+        String(email).toLowerCase().trim(),
+        currentPassword
+      );
+    } catch (e) {
+      return res
+        .status(401)
+        .json({ message: "La contraseña actual es incorrecta" });
+    }
+
+    const uid = userCredential.user && userCredential.user.uid;
+    if (!uid) {
+      return res
+        .status(404)
+        .json({ message: "No se pudo identificar al usuario" });
+    }
+
+    // 2) Actualizar la contraseña con el Admin SDK.
+    await admin.auth().updateUser(uid, { password: newPassword });
+
+    return res
+      .status(200)
+      .json({ message: "Contraseña actualizada correctamente" });
+  } catch (error) {
+    console.error("Error al cambiar la contraseña:", error);
+    return res
+      .status(500)
+      .json({ message: "No se pudo actualizar la contraseña" });
+  }
+};
+
 
 
 const getTalleres = async (req, res) => {
@@ -6018,6 +6079,7 @@ module.exports = {
   UpdateTallerUsuarioDocs,
   SaveTallerExtended,
   restorePass,
+  changePassword,
   getTalleres,
   actualizarStatusUsuario,
   UpdateClient,
