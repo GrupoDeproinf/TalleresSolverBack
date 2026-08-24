@@ -2136,6 +2136,100 @@ const getTalleres = async (req, res) => {
   }
 };
 
+// --- Requerimiento 001 (puntos 6 y 7) ---------------------------------------
+// Dias por defecto del plan gratis cuando el documento del plan no trae vigencia.
+const PLAN_GRATIS_DIAS_POR_DEFECTO = 5;
+const MS_POR_DIA = 24 * 60 * 60 * 1000;
+
+// Punto 7: al aprobar el comercio, todos sus servicios pasan a estatus true.
+const activarServiciosDelTaller = async (tallerId) => {
+  const snap = await db
+    .collection("Servicios")
+    .where("uid_taller", "==", tallerId)
+    .get();
+
+  if (snap.empty) return { total: 0, encendidos: 0 };
+
+  const docs = snap.docs;
+  let encendidos = 0;
+
+  for (let i = 0; i < docs.length; i += 400) {
+    const batch = db.batch();
+    docs.slice(i, i + 400).forEach((d) => {
+      if ((d.data() || {}).estatus !== true) encendidos += 1;
+      batch.update(d.ref, { estatus: true, lastActive: true });
+    });
+    await batch.commit();
+  }
+
+  return { total: docs.length, encendidos };
+};
+
+// Punto 6: los dias del plan no corren hasta que el negocio este aprobado.
+// AsociarPlan deja la suscripcion con pendiente_inicio true y sin fechas;
+// aqui se arranca el reloj.
+const arrancarVigenciaPlan = async (tallerId) => {
+  const userRef = db.collection("Usuarios").doc(tallerId);
+  const userSnap = await userRef.get();
+  if (!userSnap.exists) return { arrancado: false, motivo: "usuario_inexistente" };
+
+  const sub = (userSnap.data() || {}).subscripcion_actual;
+  if (!sub) return { arrancado: false, motivo: "sin_suscripcion" };
+
+  // Si ya tiene fechas y no quedo marcada como pendiente, no se toca.
+  if (sub.fecha_inicio && sub.pendiente_inicio !== true) {
+    return { arrancado: false, motivo: "ya_iniciada" };
+  }
+
+  const dias = parseInt(sub.vigencia, 10) || PLAN_GRATIS_DIAS_POR_DEFECTO;
+  const inicio = admin.firestore.Timestamp.now();
+  const fin = admin.firestore.Timestamp.fromMillis(
+    inicio.toMillis() + dias * MS_POR_DIA
+  );
+
+  await userRef.update({
+    "subscripcion_actual.fecha_inicio": inicio,
+    "subscripcion_actual.fecha_fin": fin,
+    "subscripcion_actual.pendiente_inicio": false,
+  });
+
+  // Espejo en la coleccion Subscripciones.
+  const pendientes = await db
+    .collection("Subscripciones")
+    .where("taller_uid", "==", tallerId)
+    .where("pendiente_inicio", "==", true)
+    .get();
+
+  if (!pendientes.empty) {
+    const batch = db.batch();
+    pendientes.docs.forEach((d) => {
+      batch.update(d.ref, {
+        fecha_inicio: inicio,
+        fecha_fin: fin,
+        pendiente_inicio: false,
+      });
+    });
+    await batch.commit();
+  }
+
+  return { arrancado: true, dias };
+};
+
+// Se ejecuta una sola vez, cuando el certificador aprueba el comercio.
+const activarComercioTrasAprobacion = async (uid) => {
+  const tallerId = String(uid || "").trim();
+  if (!tallerId) return;
+
+  try {
+    const servicios = await activarServiciosDelTaller(tallerId);
+    const plan = await arrancarVigenciaPlan(tallerId);
+    console.log("activarComercioTrasAprobacion", tallerId, servicios, plan);
+  } catch (e) {
+    // No debe tumbar la aprobacion del taller.
+    console.error("activarComercioTrasAprobacion:", e && e.message);
+  }
+};
+
 const actualizarStatusUsuario = async (req, res) => {
   try {
     // Obtener el UID y el nuevo estado desde el cuerpo de la solicitud
@@ -2162,6 +2256,11 @@ const actualizarStatusUsuario = async (req, res) => {
 
     // Actualizar el campo 'status' en el documento del usuario
     await db.collection("Usuarios").doc(uid).update(updateData);
+
+    // Requerimiento 001: al aprobar, encender los servicios y arrancar el plan.
+    if (nuevoStatus === "Aprobado") {
+      await activarComercioTrasAprobacion(uid);
+    }
 
     // Devolver una respuesta de éxito
     return res.status(200).send({
@@ -4325,8 +4424,12 @@ const AsociarPlan = async (req, res) => {
         taller_uid: userId == undefined ? "" : userId,
         vigencia: planData.vigencia == undefined ? "" : planData.vigencia,
 
-        fecha_inicio: admin.firestore.Timestamp.now(),
-        fecha_fin: planData.vigencia ? admin.firestore.Timestamp.fromMillis(Date.now() + parseInt(planData.vigencia) * 24 * 60 * 60 * 1000) : "",
+        // Requerimiento 001 punto 6: los dias del plan gratis NO arrancan al
+        // registrarse. Quedan pendientes hasta que el certificador apruebe el
+        // comercio (ver activarComercioTrasAprobacion).
+        fecha_inicio: null,
+        fecha_fin: null,
+        pendiente_inicio: true,
 
 
         nombre_taller: userData.nombre == undefined ? "" : userData.nombre,
@@ -4344,7 +4447,9 @@ const AsociarPlan = async (req, res) => {
       await db
         .collection('Usuarios')
         .doc(userId)
-        .update({ subscripcion_actual: subscripcionData });
+        .update({
+          subscripcion_actual: { ...subscripcionData, uid: subscripcionId },
+        });
 
 
       return res.status(201).send({
