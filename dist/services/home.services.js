@@ -442,12 +442,12 @@ var getServiciosPaginados = /*#__PURE__*/function () {
 }();
 var saveContactService = /*#__PURE__*/function () {
   var _ref9 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee6(req, res) {
-    var _ref10, id, nombre_servicio, precio, taller, uid_servicio, uid_taller, usuario_id, usuario_nombre, usuario_email, serviceData;
+    var _ref10, id, nombre_servicio, precio, taller, uid_servicio, uid_taller, usuario_id, usuario_nombre, usuario_email, type, serviceData;
     return _regeneratorRuntime().wrap(function _callee6$(_context7) {
       while (1) switch (_context7.prev = _context7.next) {
         case 0:
           _context7.prev = 0;
-          _ref10 = req.body || {}, id = _ref10.id, nombre_servicio = _ref10.nombre_servicio, precio = _ref10.precio, taller = _ref10.taller, uid_servicio = _ref10.uid_servicio, uid_taller = _ref10.uid_taller, usuario_id = _ref10.usuario_id, usuario_nombre = _ref10.usuario_nombre, usuario_email = _ref10.usuario_email;
+          _ref10 = req.body || {}, id = _ref10.id, nombre_servicio = _ref10.nombre_servicio, precio = _ref10.precio, taller = _ref10.taller, uid_servicio = _ref10.uid_servicio, uid_taller = _ref10.uid_taller, usuario_id = _ref10.usuario_id, usuario_nombre = _ref10.usuario_nombre, usuario_email = _ref10.usuario_email, type = _ref10.type;
           if (!(!id || !nombre_servicio || !precio || !taller || !uid_taller || !usuario_id)) {
             _context7.next = 4;
             break;
@@ -468,6 +468,7 @@ var saveContactService = /*#__PURE__*/function () {
               nombre: usuario_nombre,
               email: usuario_email
             },
+            type: type || null,
             fecha_creacion: admin.firestore.FieldValue.serverTimestamp()
           };
           _context7.next = 7;
@@ -508,25 +509,32 @@ var getServicesContact = /*#__PURE__*/function () {
           _context9.next = 6;
           return Promise.all(serviciosContactSnapshot.docs.map(/*#__PURE__*/function () {
             var _ref12 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee7(doc) {
-              var servicioContactData, uid_servicio, servicioDoc, servicioData;
+              var servicioContactData, uid_servicio, servicioData, servicioDoc;
               return _regeneratorRuntime().wrap(function _callee7$(_context8) {
                 while (1) switch (_context8.prev = _context8.next) {
                   case 0:
                     servicioContactData = doc.data();
-                    uid_servicio = servicioContactData.uid_servicio; // Buscar el servicio correspondiente en la colección "services"
-                    _context8.next = 4;
+                    uid_servicio = servicioContactData.uid_servicio; // Buscar el servicio correspondiente en la colección "Servicios".
+                    // Se valida uid_servicio para evitar que un valor null/undefined/""
+                    // lance una excepción en .doc() y tumbe todo el Promise.all (500).
+                    servicioData = null;
+                    if (!(uid_servicio && typeof uid_servicio === "string" && uid_servicio.trim() !== "")) {
+                      _context8.next = 8;
+                      break;
+                    }
+                    _context8.next = 6;
                     return db.collection("Servicios").doc(uid_servicio).get();
-                  case 4:
+                  case 6:
                     servicioDoc = _context8.sent;
-                    // Verificar si existe el servicio
                     servicioData = servicioDoc.exists ? servicioDoc.data() : null;
+                  case 8:
                     return _context8.abrupt("return", _objectSpread(_objectSpread({
                       id: doc.id
                     }, servicioContactData), {}, {
                       // Datos de "servicesContact"
                       servicio: servicioData // Datos del servicio asociado
                     }));
-                  case 7:
+                  case 9:
                   case "end":
                     return _context8.stop();
                 }
@@ -856,19 +864,80 @@ var getCommentsByService = /*#__PURE__*/function () {
     return _ref16.apply(this, arguments);
   };
 }();
-var addCommentToService = /*#__PURE__*/function () {
+var getCommentsByTaller = /*#__PURE__*/function () {
   var _ref17 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee13(req, res) {
-    var _req$body2, uid_service, comentario, puntuacion, nombre_taller, uid_taller, usuario, etiquetas_rapidas, etiquetasNormalizadas, serviceRef, serviceDoc, newComment;
+    var uid_taller, tallerDoc, commentsSnapshot, comments;
     return _regeneratorRuntime().wrap(function _callee13$(_context14) {
       while (1) switch (_context14.prev = _context14.next) {
         case 0:
           _context14.prev = 0;
-          _req$body2 = req.body, uid_service = _req$body2.uid_service, comentario = _req$body2.comentario, puntuacion = _req$body2.puntuacion, nombre_taller = _req$body2.nombre_taller, uid_taller = _req$body2.uid_taller, usuario = _req$body2.usuario, etiquetas_rapidas = _req$body2.etiquetas_rapidas; // Validar que el objeto `usuario` y el campo `userId` existan
-          if (!(!usuario || !usuario.uid)) {
+          uid_taller = req.body.uid_taller;
+          if (!(!uid_taller || typeof uid_taller !== "string" || uid_taller.trim() === "")) {
             _context14.next = 4;
             break;
           }
           return _context14.abrupt("return", res.status(400).json({
+            error: "uid_taller es requerido y debe ser un string no vacío."
+          }));
+        case 4:
+          _context14.next = 6;
+          return db.collection("Usuarios").doc(uid_taller).get();
+        case 6:
+          tallerDoc = _context14.sent;
+          if (tallerDoc.exists) {
+            _context14.next = 9;
+            break;
+          }
+          return _context14.abrupt("return", res.status(404).json({
+            error: "No se encontró un taller con este ID en Usuarios."
+          }));
+        case 9:
+          _context14.next = 11;
+          return db.collection("Usuarios").doc(uid_taller).collection("calificaciones").get();
+        case 11:
+          commentsSnapshot = _context14.sent;
+          if (!commentsSnapshot.empty) {
+            _context14.next = 14;
+            break;
+          }
+          return _context14.abrupt("return", res.status(200).json([]));
+        case 14:
+          comments = commentsSnapshot.docs.map(function (doc) {
+            return _objectSpread({
+              id: doc.id
+            }, doc.data());
+          });
+          return _context14.abrupt("return", res.status(200).json(comments));
+        case 18:
+          _context14.prev = 18;
+          _context14.t0 = _context14["catch"](0);
+          console.error("Error al obtener calificaciones del taller:", _context14.t0);
+          return _context14.abrupt("return", res.status(500).json({
+            error: "Error al obtener calificaciones del taller"
+          }));
+        case 22:
+        case "end":
+          return _context14.stop();
+      }
+    }, _callee13, null, [[0, 18]]);
+  }));
+  return function getCommentsByTaller(_x21, _x22) {
+    return _ref17.apply(this, arguments);
+  };
+}();
+var addCommentToService = /*#__PURE__*/function () {
+  var _ref18 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee14(req, res) {
+    var _req$body2, uid_service, comentario, puntuacion, nombre_taller, uid_taller, usuario, etiquetas_rapidas, etiquetasNormalizadas, serviceRef, serviceDoc, newComment;
+    return _regeneratorRuntime().wrap(function _callee14$(_context15) {
+      while (1) switch (_context15.prev = _context15.next) {
+        case 0:
+          _context15.prev = 0;
+          _req$body2 = req.body, uid_service = _req$body2.uid_service, comentario = _req$body2.comentario, puntuacion = _req$body2.puntuacion, nombre_taller = _req$body2.nombre_taller, uid_taller = _req$body2.uid_taller, usuario = _req$body2.usuario, etiquetas_rapidas = _req$body2.etiquetas_rapidas; // Validar que el objeto `usuario` y el campo `userId` existan
+          if (!(!usuario || !usuario.uid)) {
+            _context15.next = 4;
+            break;
+          }
+          return _context15.abrupt("return", res.status(400).json({
             error: 'El objeto "usuario" con el campo "userId" es obligatorio.'
           }));
         case 4:
@@ -878,15 +947,15 @@ var addCommentToService = /*#__PURE__*/function () {
             return t.trim();
           }).slice(0, 20) : []; // Referencia al documento del servicio por su ID
           serviceRef = db.collection("Servicios").doc(uid_service);
-          _context14.next = 8;
+          _context15.next = 8;
           return serviceRef.get();
         case 8:
-          serviceDoc = _context14.sent;
+          serviceDoc = _context15.sent;
           if (serviceDoc.exists) {
-            _context14.next = 11;
+            _context15.next = 11;
             break;
           }
-          return _context14.abrupt("return", res.status(404).json({
+          return _context15.abrupt("return", res.status(404).json({
             error: "No se encontró un servicio con este ID de documento."
           }));
         case 11:
@@ -901,144 +970,221 @@ var addCommentToService = /*#__PURE__*/function () {
             etiquetas_rapidas: etiquetasNormalizadas,
             fecha_creacion: new Date() // Fecha de creación
           };
-          _context14.next = 14;
+          _context15.next = 14;
           return serviceRef.collection("calificaciones").add(newComment);
         case 14:
-          return _context14.abrupt("return", res.status(201).json({
+          return _context15.abrupt("return", res.status(201).json({
             message: "Comentario agregado exitosamente.",
             comment: newComment
           }));
         case 17:
-          _context14.prev = 17;
-          _context14.t0 = _context14["catch"](0);
-          console.error("Error al agregar comentario:", _context14.t0);
-          return _context14.abrupt("return", res.status(500).json({
+          _context15.prev = 17;
+          _context15.t0 = _context15["catch"](0);
+          console.error("Error al agregar comentario:", _context15.t0);
+          return _context15.abrupt("return", res.status(500).json({
             error: "Error al agregar comentario."
           }));
         case 21:
         case "end":
-          return _context14.stop();
-      }
-    }, _callee13, null, [[0, 17]]);
-  }));
-  return function addCommentToService(_x21, _x22) {
-    return _ref17.apply(this, arguments);
-  };
-}();
-var validatePhone = /*#__PURE__*/function () {
-  var _ref18 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee14(req, res) {
-    var _req$body3, phone, uid, snapshot, phoneExists;
-    return _regeneratorRuntime().wrap(function _callee14$(_context15) {
-      while (1) switch (_context15.prev = _context15.next) {
-        case 0:
-          _context15.prev = 0;
-          _req$body3 = req.body, phone = _req$body3.phone, uid = _req$body3.uid; // Verificar que se proporcionen los parámetros necesarios
-          if (phone) {
-            _context15.next = 4;
-            break;
-          }
-          return _context15.abrupt("return", res.status(400).send({
-            message: "El número de teléfono es obligatorio."
-          }));
-        case 4:
-          _context15.next = 6;
-          return db.collection("Usuarios").where("phone", "==", phone).get();
-        case 6:
-          snapshot = _context15.sent;
-          if (snapshot.empty) {
-            _context15.next = 11;
-            break;
-          }
-          phoneExists = snapshot.docs.some(function (doc) {
-            return doc.id !== uid;
-          });
-          if (!phoneExists) {
-            _context15.next = 11;
-            break;
-          }
-          return _context15.abrupt("return", res.status(409).send({
-            message: "El número de teléfono ya está registrado.",
-            valid: false
-          }));
-        case 11:
-          return _context15.abrupt("return", res.status(200).send({
-            message: "El número de teléfono es válido.",
-            valid: true
-          }));
-        case 14:
-          _context15.prev = 14;
-          _context15.t0 = _context15["catch"](0);
-          console.error("Error al validar el número de teléfono:", _context15.t0);
-          res.status(500).send({
-            message: "Error al validar el número de teléfono.",
-            error: _context15.t0.message
-          });
-        case 18:
-        case "end":
           return _context15.stop();
       }
-    }, _callee14, null, [[0, 14]]);
+    }, _callee14, null, [[0, 17]]);
   }));
-  return function validatePhone(_x23, _x24) {
+  return function addCommentToService(_x23, _x24) {
     return _ref18.apply(this, arguments);
   };
 }();
-var validateEmail = /*#__PURE__*/function () {
+
+/* ─── Agrega calificación de un taller al documento del usuario taller ──── */
+var addCommentToTaller = /*#__PURE__*/function () {
   var _ref19 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee15(req, res) {
-    var _req$body4, email, uid, snapshot, phoneExists;
+    var _req$body3, uid_taller, comentario, puntuacion, nombre_taller, usuario, etiquetas_rapidas, etiquetasNormalizadas, tallerRef, tallerDoc, newComment;
     return _regeneratorRuntime().wrap(function _callee15$(_context16) {
       while (1) switch (_context16.prev = _context16.next) {
         case 0:
           _context16.prev = 0;
-          _req$body4 = req.body, email = _req$body4.email, uid = _req$body4.uid; // Verificar que se proporcionen los parámetros necesarios
-          if (email) {
+          _req$body3 = req.body, uid_taller = _req$body3.uid_taller, comentario = _req$body3.comentario, puntuacion = _req$body3.puntuacion, nombre_taller = _req$body3.nombre_taller, usuario = _req$body3.usuario, etiquetas_rapidas = _req$body3.etiquetas_rapidas;
+          if (uid_taller) {
             _context16.next = 4;
             break;
           }
-          return _context16.abrupt("return", res.status(400).send({
-            message: "El correo electrónico es obligatorio."
+          return _context16.abrupt("return", res.status(400).json({
+            error: '"uid_taller" es obligatorio.'
           }));
         case 4:
-          _context16.next = 6;
-          return db.collection("Usuarios").where("email", "==", email).get();
+          if (!(!usuario || !usuario.uid)) {
+            _context16.next = 6;
+            break;
+          }
+          return _context16.abrupt("return", res.status(400).json({
+            error: 'El objeto "usuario" con el campo "uid" es obligatorio.'
+          }));
         case 6:
-          snapshot = _context16.sent;
+          etiquetasNormalizadas = Array.isArray(etiquetas_rapidas) ? etiquetas_rapidas.filter(function (t) {
+            return typeof t === "string" && t.trim() !== "";
+          }).map(function (t) {
+            return t.trim();
+          }).slice(0, 20) : []; // Referencia al documento del taller en la colección Usuarios
+          tallerRef = db.collection("Usuarios").doc(uid_taller);
+          _context16.next = 10;
+          return tallerRef.get();
+        case 10:
+          tallerDoc = _context16.sent;
+          if (tallerDoc.exists) {
+            _context16.next = 13;
+            break;
+          }
+          return _context16.abrupt("return", res.status(404).json({
+            error: "No se encontró un taller con este ID en Usuarios."
+          }));
+        case 13:
+          newComment = {
+            comentario: comentario !== null && comentario !== void 0 ? comentario : "",
+            puntuacion: puntuacion,
+            nombre_taller: nombre_taller !== null && nombre_taller !== void 0 ? nombre_taller : "",
+            uid_taller: uid_taller,
+            usuario: usuario,
+            etiquetas_rapidas: etiquetasNormalizadas,
+            fecha_creacion: new Date()
+          }; // Guardar en Usuarios/{uid_taller}/calificaciones
+          _context16.next = 16;
+          return tallerRef.collection("calificaciones").add(newComment);
+        case 16:
+          return _context16.abrupt("return", res.status(201).json({
+            message: "Calificación del taller agregada exitosamente.",
+            comment: newComment
+          }));
+        case 19:
+          _context16.prev = 19;
+          _context16.t0 = _context16["catch"](0);
+          console.error("addCommentToTaller error:", _context16.t0);
+          return _context16.abrupt("return", res.status(500).json({
+            error: "Error interno del servidor."
+          }));
+        case 23:
+        case "end":
+          return _context16.stop();
+      }
+    }, _callee15, null, [[0, 19]]);
+  }));
+  return function addCommentToTaller(_x25, _x26) {
+    return _ref19.apply(this, arguments);
+  };
+}();
+var validatePhone = /*#__PURE__*/function () {
+  var _ref20 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee16(req, res) {
+    var _req$body4, phone, uid, snapshot, phoneExists;
+    return _regeneratorRuntime().wrap(function _callee16$(_context17) {
+      while (1) switch (_context17.prev = _context17.next) {
+        case 0:
+          _context17.prev = 0;
+          _req$body4 = req.body, phone = _req$body4.phone, uid = _req$body4.uid; // Verificar que se proporcionen los parámetros necesarios
+          if (phone) {
+            _context17.next = 4;
+            break;
+          }
+          return _context17.abrupt("return", res.status(400).send({
+            message: "El número de teléfono es obligatorio."
+          }));
+        case 4:
+          _context17.next = 6;
+          return db.collection("Usuarios").where("phone", "==", phone).get();
+        case 6:
+          snapshot = _context17.sent;
           if (snapshot.empty) {
-            _context16.next = 11;
+            _context17.next = 11;
             break;
           }
           phoneExists = snapshot.docs.some(function (doc) {
             return doc.id !== uid;
           });
           if (!phoneExists) {
-            _context16.next = 11;
+            _context17.next = 11;
             break;
           }
-          return _context16.abrupt("return", res.status(409).send({
+          return _context17.abrupt("return", res.status(409).send({
+            message: "El número de teléfono ya está registrado.",
+            valid: false
+          }));
+        case 11:
+          return _context17.abrupt("return", res.status(200).send({
+            message: "El número de teléfono es válido.",
+            valid: true
+          }));
+        case 14:
+          _context17.prev = 14;
+          _context17.t0 = _context17["catch"](0);
+          console.error("Error al validar el número de teléfono:", _context17.t0);
+          res.status(500).send({
+            message: "Error al validar el número de teléfono.",
+            error: _context17.t0.message
+          });
+        case 18:
+        case "end":
+          return _context17.stop();
+      }
+    }, _callee16, null, [[0, 14]]);
+  }));
+  return function validatePhone(_x27, _x28) {
+    return _ref20.apply(this, arguments);
+  };
+}();
+var validateEmail = /*#__PURE__*/function () {
+  var _ref21 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee17(req, res) {
+    var _req$body5, email, uid, snapshot, phoneExists;
+    return _regeneratorRuntime().wrap(function _callee17$(_context18) {
+      while (1) switch (_context18.prev = _context18.next) {
+        case 0:
+          _context18.prev = 0;
+          _req$body5 = req.body, email = _req$body5.email, uid = _req$body5.uid; // Verificar que se proporcionen los parámetros necesarios
+          if (email) {
+            _context18.next = 4;
+            break;
+          }
+          return _context18.abrupt("return", res.status(400).send({
+            message: "El correo electrónico es obligatorio."
+          }));
+        case 4:
+          _context18.next = 6;
+          return db.collection("Usuarios").where("email", "==", email).get();
+        case 6:
+          snapshot = _context18.sent;
+          if (snapshot.empty) {
+            _context18.next = 11;
+            break;
+          }
+          phoneExists = snapshot.docs.some(function (doc) {
+            return doc.id !== uid;
+          });
+          if (!phoneExists) {
+            _context18.next = 11;
+            break;
+          }
+          return _context18.abrupt("return", res.status(409).send({
             message: "El correo electrónico ya está registrado.",
             valid: false
           }));
         case 11:
-          return _context16.abrupt("return", res.status(200).send({
+          return _context18.abrupt("return", res.status(200).send({
             message: "El correo electrónico es válido.",
             valid: true
           }));
         case 14:
-          _context16.prev = 14;
-          _context16.t0 = _context16["catch"](0);
-          console.error("Error al validar el correo electrónico:", _context16.t0);
+          _context18.prev = 14;
+          _context18.t0 = _context18["catch"](0);
+          console.error("Error al validar el correo electrónico:", _context18.t0);
           res.status(500).send({
             message: "Error al validar el correo electrónico.",
-            error: _context16.t0.message
+            error: _context18.t0.message
           });
         case 18:
         case "end":
-          return _context16.stop();
+          return _context18.stop();
       }
-    }, _callee15, null, [[0, 14]]);
+    }, _callee17, null, [[0, 14]]);
   }));
-  return function validateEmail(_x25, _x26) {
-    return _ref19.apply(this, arguments);
+  return function validateEmail(_x29, _x30) {
+    return _ref21.apply(this, arguments);
   };
 }();
 module.exports = {
@@ -1050,7 +1196,9 @@ module.exports = {
   getServicesContact: getServicesContact,
   getProductsByCategory: getProductsByCategory,
   getCommentsByService: getCommentsByService,
+  getCommentsByTaller: getCommentsByTaller,
   addCommentToService: addCommentToService,
+  addCommentToTaller: addCommentToTaller,
   validatePhone: validatePhone,
   validateEmail: validateEmail,
   savePerfilView: savePerfilView,
@@ -1058,23 +1206,23 @@ module.exports = {
 };
 
 /* ─── Registra una visita al perfil de un taller ─────────────────────────── */
-function savePerfilView(_x27, _x28) {
+function savePerfilView(_x31, _x32) {
   return _savePerfilView.apply(this, arguments);
 }
 /* ─── Registra un contacto de botón (Llamada / Whatsapp / Contactar) ─────── */
 function _savePerfilView() {
-  _savePerfilView = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee16(req, res) {
-    var _ref20, id, nombre_taller, uid_taller, usuario, docData;
-    return _regeneratorRuntime().wrap(function _callee16$(_context17) {
-      while (1) switch (_context17.prev = _context17.next) {
+  _savePerfilView = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee18(req, res) {
+    var _ref22, id, nombre_taller, uid_taller, usuario, docData;
+    return _regeneratorRuntime().wrap(function _callee18$(_context19) {
+      while (1) switch (_context19.prev = _context19.next) {
         case 0:
-          _context17.prev = 0;
-          _ref20 = req.body || {}, id = _ref20.id, nombre_taller = _ref20.nombre_taller, uid_taller = _ref20.uid_taller, usuario = _ref20.usuario;
+          _context19.prev = 0;
+          _ref22 = req.body || {}, id = _ref22.id, nombre_taller = _ref22.nombre_taller, uid_taller = _ref22.uid_taller, usuario = _ref22.usuario;
           if (uid_taller) {
-            _context17.next = 4;
+            _context19.next = 4;
             break;
           }
-          return _context17.abrupt("return", res.status(400).json({
+          return _context19.abrupt("return", res.status(400).json({
             error: "uid_taller es obligatorio."
           }));
         case 4:
@@ -1088,44 +1236,44 @@ function _savePerfilView() {
             },
             fecha_creacion: admin.firestore.FieldValue.serverTimestamp()
           };
-          _context17.next = 7;
+          _context19.next = 7;
           return db.collection("perfilViews").add(docData);
         case 7:
-          return _context17.abrupt("return", res.status(200).json({
+          return _context19.abrupt("return", res.status(200).json({
             message: "Vista registrada.",
             data: docData
           }));
         case 10:
-          _context17.prev = 10;
-          _context17.t0 = _context17["catch"](0);
-          console.error("[savePerfilView] Error:", _context17.t0);
-          return _context17.abrupt("return", res.status(500).json({
+          _context19.prev = 10;
+          _context19.t0 = _context19["catch"](0);
+          console.error("[savePerfilView] Error:", _context19.t0);
+          return _context19.abrupt("return", res.status(500).json({
             error: "Error interno del servidor."
           }));
         case 14:
         case "end":
-          return _context17.stop();
+          return _context19.stop();
       }
-    }, _callee16, null, [[0, 10]]);
+    }, _callee18, null, [[0, 10]]);
   }));
   return _savePerfilView.apply(this, arguments);
 }
-function saveServiceContactView(_x29, _x30) {
+function saveServiceContactView(_x33, _x34) {
   return _saveServiceContactView.apply(this, arguments);
 }
 function _saveServiceContactView() {
-  _saveServiceContactView = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee17(req, res) {
-    var _ref21, nombre_taller, uid_taller, usuario, type, docData;
-    return _regeneratorRuntime().wrap(function _callee17$(_context18) {
-      while (1) switch (_context18.prev = _context18.next) {
+  _saveServiceContactView = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee19(req, res) {
+    var _ref23, nombre_taller, uid_taller, usuario, type, docData;
+    return _regeneratorRuntime().wrap(function _callee19$(_context20) {
+      while (1) switch (_context20.prev = _context20.next) {
         case 0:
-          _context18.prev = 0;
-          _ref21 = req.body || {}, nombre_taller = _ref21.nombre_taller, uid_taller = _ref21.uid_taller, usuario = _ref21.usuario, type = _ref21.type;
+          _context20.prev = 0;
+          _ref23 = req.body || {}, nombre_taller = _ref23.nombre_taller, uid_taller = _ref23.uid_taller, usuario = _ref23.usuario, type = _ref23.type;
           if (uid_taller) {
-            _context18.next = 4;
+            _context20.next = 4;
             break;
           }
-          return _context18.abrupt("return", res.status(400).json({
+          return _context20.abrupt("return", res.status(400).json({
             error: "uid_taller es obligatorio."
           }));
         case 4:
@@ -1140,25 +1288,25 @@ function _saveServiceContactView() {
             fecha_creacion: admin.firestore.FieldValue.serverTimestamp(),
             type: type || null
           };
-          _context18.next = 7;
+          _context20.next = 7;
           return db.collection("servicesContact").add(docData);
         case 7:
-          return _context18.abrupt("return", res.status(200).json({
+          return _context20.abrupt("return", res.status(200).json({
             message: "Contacto registrado.",
             data: docData
           }));
         case 10:
-          _context18.prev = 10;
-          _context18.t0 = _context18["catch"](0);
-          console.error("[saveServiceContactView] Error:", _context18.t0);
-          return _context18.abrupt("return", res.status(500).json({
+          _context20.prev = 10;
+          _context20.t0 = _context20["catch"](0);
+          console.error("[saveServiceContactView] Error:", _context20.t0);
+          return _context20.abrupt("return", res.status(500).json({
             error: "Error interno del servidor."
           }));
         case 14:
         case "end":
-          return _context18.stop();
+          return _context20.stop();
       }
-    }, _callee17, null, [[0, 10]]);
+    }, _callee19, null, [[0, 10]]);
   }));
   return _saveServiceContactView.apply(this, arguments);
 }
