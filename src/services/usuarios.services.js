@@ -5642,6 +5642,22 @@ const enviarPushDocumentacionConductorJob = async (token, title, body, secretCod
  * Usuarios con licencia_fecha_vencimiento y/o certificado_medico_fecha_vencimiento.
  * Notifica si venció o faltan 1–30 días. secretCode en data: licencia_fecha_vencimiento | certificado_medico_fecha_vencimiento
  */
+/**
+ * Regla de repetición de avisos de vencimiento (APP-UX-3).
+ * Antes de vencer: solo a los 30, 7 y 1 día y el mismo día. Ya vencido: una vez por
+ * semana (7, 14, 21… días después), no todos los días. Aplica a licencia, certificado
+ * médico, RCV y trimestres. El job sigue corriendo a diario; esta función decide si toca avisar hoy.
+ */
+const DIAS_AVISO_ANTES_DE_VENCER = [30, 7, 1, 0];
+const debeNotificarVencimiento = (fechaFin) => {
+  if (!(fechaFin instanceof Date) || isNaN(fechaFin.getTime())) return false;
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  const dias = Math.round((fechaFin.getTime() - hoy.getTime()) / 86400000);
+  if (dias >= 0) return DIAS_AVISO_ANTES_DE_VENCER.includes(dias);
+  return (-dias) % 7 === 0;
+};
+
 const jobNotificacionesLicenciaYCertificadoMedico = async () => {
   try {
     const [licSnap, certSnap] = await Promise.all([
@@ -5657,6 +5673,7 @@ const jobNotificacionesLicenciaYCertificadoMedico = async () => {
       if (!fechaFin) return;
       const estado = clasificarVencimientoDocumento(fechaFin);
       if (!estado) return;
+      if (!debeNotificarVencimiento(fechaFin)) return;
 
       const token = vehiculoCoalesceEmpty(data.token);
       if (!token) return;
@@ -5764,6 +5781,7 @@ const jobNotificacionesRcvYTrimestresVehiculos = async () => {
 
       const estado = clasificarVencimientoDocumentoProximoMes(fechaFin);
       if (!estado) return;
+      if (!debeNotificarVencimiento(fechaFin)) return;
 
       const { token, nombre } = await obtenerUsuarioLiteParaJobVehiculo(uid, userCache);
       if (!token) return;

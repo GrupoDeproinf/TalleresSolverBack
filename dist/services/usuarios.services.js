@@ -7742,6 +7742,21 @@ var enviarPushDocumentacionConductorJob = /*#__PURE__*/function () {
  * Usuarios con licencia_fecha_vencimiento y/o certificado_medico_fecha_vencimiento.
  * Notifica si venció o faltan 1–30 días. secretCode en data: licencia_fecha_vencimiento | certificado_medico_fecha_vencimiento
  */
+/**
+ * Regla de repetición de avisos de vencimiento (APP-UX-3).
+ * Antes de vencer: solo a los 30, 7 y 1 día y el mismo día. Ya vencido: una vez por
+ * semana (7, 14, 21… días después), no todos los días. Aplica a licencia, certificado
+ * médico, RCV y trimestres. El job sigue corriendo a diario; esta función decide si toca avisar hoy.
+ */
+var DIAS_AVISO_ANTES_DE_VENCER = [30, 7, 1, 0];
+var debeNotificarVencimiento = function debeNotificarVencimiento(fechaFin) {
+  if (!(fechaFin instanceof Date) || isNaN(fechaFin.getTime())) return false;
+  var hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  var dias = Math.round((fechaFin.getTime() - hoy.getTime()) / 86400000);
+  if (dias >= 0) return DIAS_AVISO_ANTES_DE_VENCER.includes(dias);
+  return -dias % 7 === 0;
+};
 var jobNotificacionesLicenciaYCertificadoMedico = /*#__PURE__*/function () {
   var _ref117 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee83() {
     var _yield$Promise$all3, _yield$Promise$all4, licSnap, certSnap, enviados, procesarCampo, _iterator16, _step16, doc, _iterator17, _step17, _doc2;
@@ -7778,13 +7793,19 @@ var jobNotificacionesLicenciaYCertificadoMedico = /*#__PURE__*/function () {
                     }
                     return _context86.abrupt("return");
                   case 7:
-                    token = vehiculoCoalesceEmpty(data.token);
-                    if (token) {
-                      _context86.next = 10;
+                    if (debeNotificarVencimiento(fechaFin)) {
+                      _context86.next = 9;
                       break;
                     }
                     return _context86.abrupt("return");
-                  case 10:
+                  case 9:
+                    token = vehiculoCoalesceEmpty(data.token);
+                    if (token) {
+                      _context86.next = 12;
+                      break;
+                    }
+                    return _context86.abrupt("return");
+                  case 12:
                     nombre = nombreUsuarioDesdeDocUsuario(_objectSpread({}, data)) || "amigo";
                     fechaTxt = formatoFechaDDMMAAAA(fechaFin);
                     if (esLicencia) {
@@ -7804,12 +7825,12 @@ var jobNotificacionesLicenciaYCertificadoMedico = /*#__PURE__*/function () {
                       title = "".concat(nombre, ", certificado m\xE9dico por vencer");
                       body = "Hola ".concat(nombre, ", ").concat(_diasTxt, " para el vencimiento de tu certificado m\xE9dico (").concat(fechaTxt, "). Agenda tu cita m\xE9dica con anticipaci\xF3n.");
                     }
-                    _context86.next = 15;
+                    _context86.next = 17;
                     return enviarPushDocumentacionConductorJob(token, title, body, secretCode);
-                  case 15:
+                  case 17:
                     ok = _context86.sent;
                     if (ok) enviados += 1;
-                  case 17:
+                  case 19:
                   case "end":
                     return _context86.stop();
                 }
@@ -7989,18 +8010,24 @@ var jobNotificacionesRcvYTrimestresVehiculos = /*#__PURE__*/function () {
                     }
                     return _context89.abrupt("return");
                   case 10:
-                    _context89.next = 12;
-                    return obtenerUsuarioLiteParaJobVehiculo(uid, userCache);
+                    if (debeNotificarVencimiento(fechaFin)) {
+                      _context89.next = 12;
+                      break;
+                    }
+                    return _context89.abrupt("return");
                   case 12:
+                    _context89.next = 14;
+                    return obtenerUsuarioLiteParaJobVehiculo(uid, userCache);
+                  case 14:
                     _yield$obtenerUsuario = _context89.sent;
                     token = _yield$obtenerUsuario.token;
                     nombre = _yield$obtenerUsuario.nombre;
                     if (token) {
-                      _context89.next = 17;
+                      _context89.next = 19;
                       break;
                     }
                     return _context89.abrupt("return");
-                  case 17:
+                  case 19:
                     veh = describeVehiculoParaNotificacion(data);
                     fechaTxt = formatoFechaDDMMAAAA(fechaFin);
                     if (esRcv) {
@@ -8019,12 +8046,12 @@ var jobNotificacionesRcvYTrimestresVehiculos = /*#__PURE__*/function () {
                       title = "¡Día de Trimestres!";
                       body = "El impuesto de tu ".concat(veh, " vence pronto. Recuerda realizar tu pago municipal a tiempo.");
                     }
-                    _context89.next = 22;
+                    _context89.next = 24;
                     return enviarPushDocumentacionConductorJob(token, title, body, secretCode);
-                  case 22:
+                  case 24:
                     ok = _context89.sent;
                     if (ok) enviados += 1;
-                  case 24:
+                  case 26:
                   case "end":
                     return _context89.stop();
                 }
