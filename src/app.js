@@ -4,7 +4,7 @@ const cors = require('cors');
 const cron = require('node-cron');
 // Todas las tareas corren en hora de Venezuela (antes: hora del servidor = UTC, por eso llegaban a las 6 a. m.).
 const CRON_TZ = { timezone: 'America/Caracas' };
-const cronSchedule = (expr, fn) => cronSchedule(expr, fn, CRON_TZ);
+const cronSchedule = (expr, fn) => cron.schedule(expr, fn, CRON_TZ);
 const Usuarios = require('../src/services/usuarios.services');
 
 // Routers (Express) por dominio
