@@ -27,13 +27,16 @@ app.use((req, res, next) => {
 });
 
 
-// Paquete cors: orígenes explícitos para el front (además del middleware anterior)
+// Paquete cors: orígenes explícitos para el front (además del middleware anterior).
+// El navegador manda el Origin SIN "/" final: con "/" nunca coincidía y hoy
+// todo pasa solo gracias al "*" de arriba. Así queda listo para quitar el "*".
 app.use(
   cors({
     origin: [
-      "https://app.solversapp.com/",
-      "https://solversapp.com/",
-      "http://localhost:5173/",
+      "https://app.solversapp.com",
+      "https://solversapp.com",
+      "https://www.solversapp.com",
+      "http://localhost:5173",
     ],
     methods: ["GET", "POST", "OPTIONS", "PUT", "DELETE"],
   })
