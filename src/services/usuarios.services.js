@@ -1276,7 +1276,9 @@ const SaveTallerExtended = async (req, res) => {
       lng,
       token,
       horarios_atencion,
-      authProvider
+      authProvider,
+      responsable,
+      categorias
     } = req.body;
 
     let userRecord;
@@ -1347,8 +1349,12 @@ const SaveTallerExtended = async (req, res) => {
       phone: (phone || whatsapp || '').replace(/\s+/g, ''),
       typeUser: 'Taller',
       email: email == undefined ? '' : email.toLowerCase(),
-      password: password,
-      status: 'En espera de documentos',
+      // La contraseña NO se guarda en Firestore: solo vive en Firebase Auth.
+      // Si ya subió RIF + foto frente + foto interna, pasa directo a revisión.
+      status: rifIdFiscalUrl && fotoFrenteTallerUrl && fotoInternaTallerUrl
+        ? 'En espera por aprobación'
+        : 'En espera de documentos',
+      responsable: responsable == undefined ? '' : String(responsable).trim(),
       Direccion: Direccion == undefined ? '' : Direccion,
       RegComercial: RegComercial == undefined ? '' : RegComercial,
       Caracteristicas: Caracteristicas == undefined ? '' : Caracteristicas,
@@ -1375,6 +1381,17 @@ const SaveTallerExtended = async (req, res) => {
       createdAt: new Date(),
       horarios_atencion: horarios_atencion == undefined ? [] : horarios_atencion
     };
+
+    // Categorías elegidas en el registro (paso "Servicios").
+    if (Array.isArray(categorias) && categorias.length) {
+      const limpias = categorias
+        .map((c) => ({ uid: String(c?.uid || '').trim(), nombre: String(c?.nombre || '').trim() }))
+        .filter((c) => c.uid && c.nombre);
+      if (limpias.length) {
+        infoUserCreated.categorias = limpias;
+        infoUserCreated.categoriasUids = Array.from(new Set(limpias.map((c) => c.uid)));
+      }
+    }
 
     await db
       .collection("Usuarios")
