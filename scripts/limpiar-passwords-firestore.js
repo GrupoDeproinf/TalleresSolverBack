@@ -2,11 +2,30 @@
 // Lo dejaba el registro antiguo del panel web. La contraseña real vive en
 // Firebase Auth, así que borrarlo no afecta el inicio de sesión.
 //
-// Uso (desde la raíz del back, donde está firebase.json):
-//   node scripts/limpiar-passwords-firestore.js          -> solo cuenta (no cambia nada)
-//   node scripts/limpiar-passwords-firestore.js --apply  -> borra el campo
+// Necesita la llave de servicio de Firebase (la misma del back). Por defecto
+// usa firebase.json en la raíz del back (existe en el servidor, no en git).
+// En otra máquina, pasa la ruta con --cred o GOOGLE_APPLICATION_CREDENTIALS.
+//
+// Uso:
+//   node scripts/limpiar-passwords-firestore.js                     -> solo cuenta
+//   node scripts/limpiar-passwords-firestore.js --apply             -> borra el campo
+//   node scripts/limpiar-passwords-firestore.js --cred ~/llave.json -> otra llave
+const fs = require('fs');
+const path = require('path');
 const admin = require('firebase-admin');
-const serviceAccount = require('../firebase.json');
+
+const i = process.argv.indexOf('--cred');
+const credPath = path.resolve(
+  (i > -1 && process.argv[i + 1]) ||
+    process.env.GOOGLE_APPLICATION_CREDENTIALS ||
+    path.join(__dirname, '..', 'firebase.json'),
+);
+if (!fs.existsSync(credPath)) {
+  console.error(`No encuentro la llave de Firebase en ${credPath}.`);
+  console.error('Córrelo en el servidor del back, o descarga una llave en Firebase > Configuración > Cuentas de servicio y usa --cred <ruta>.');
+  process.exit(1);
+}
+const serviceAccount = JSON.parse(fs.readFileSync(credPath, 'utf8'));
 
 admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 const db = admin.firestore();
