@@ -721,6 +721,75 @@ const saveOrUpdateVehiculo = async (req, res) => {
   }
 };
 
+/**
+ * Registro seguro: obtiene o crea la cuenta de Firebase Auth para un alta nueva.
+ *
+ * Antes, si el correo ya existía, se le cambiaba la contraseña a la recibida
+ * (cualquiera podía tomar la cuenta de otro, incluidos Admins). Ahora:
+ *  - Cuenta nueva            -> se crea.
+ *  - Cuenta con Google/Apple -> solo si trae idToken válido del mismo usuario.
+ *  - Cuenta huérfana (sin documento en Usuarios/Admins y que nunca inició
+ *    sesión: quedó a medias en un registro fallido) -> se repara.
+ *  - Cualquier otro caso     -> error 409 "ya registrado".
+ */
+const registroError = (status, message) => {
+  const err = new Error(message);
+  err.httpStatus = status;
+  return err;
+};
+
+const obtenerOCrearCuentaRegistro = async ({ email, password, phone, displayName, idToken }) => {
+  const phoneForAuth = String(phone || "").replace(/\s+/g, "");
+  const basePayload = { email, displayName: displayName || "", disabled: false };
+  if (phoneForAuth) basePayload.phoneNumber = `+58${phoneForAuth}`;
+
+  let existing = null;
+  try {
+    existing = await admin.auth().getUserByEmail(email);
+  } catch (error) {
+    if (error.code !== "auth/user-not-found") throw error;
+  }
+
+  if (!existing) {
+    if (!password && !idToken) {
+      throw registroError(400, "La contraseña es obligatoria.");
+    }
+    const createPayload = { ...basePayload };
+    if (password) createPayload.password = password;
+    return admin.auth().createUser(createPayload);
+  }
+
+  // Cuenta creada en el cliente con Google/Apple: debe probar que es suya.
+  if (idToken) {
+    let decoded;
+    try {
+      decoded = await admin.auth().verifyIdToken(idToken);
+    } catch (e) {
+      throw registroError(401, "La sesión no es válida. Inicia sesión de nuevo.");
+    }
+    if (decoded.uid !== existing.uid) {
+      throw registroError(403, "La sesión no corresponde a este correo.");
+    }
+    const { email: _e, ...rest } = basePayload; // no cambiamos el correo
+    return admin.auth().updateUser(existing.uid, rest);
+  }
+
+  const [usuarioDoc, adminSnap] = await Promise.all([
+    db.collection("Usuarios").doc(existing.uid).get(),
+    db.collection("Admins").where("email", "==", email).limit(1).get(),
+  ]);
+  const nuncaInicioSesion = !existing.metadata || !existing.metadata.lastSignInTime;
+  const esHuerfana = !usuarioDoc.exists && adminSnap.empty && nuncaInicioSesion;
+
+  if (!esHuerfana) {
+    throw registroError(409, "Este correo ya está registrado. Inicia sesión o recupera tu contraseña.");
+  }
+
+  const repairPayload = { ...basePayload };
+  if (password) repairPayload.password = password;
+  return admin.auth().updateUser(existing.uid, repairPayload);
+};
+
 const SaveClient = async (req, res) => {
   try {
     // Recibir los datos del cliente desde el cuerpo de la solicitud
@@ -736,31 +805,12 @@ const SaveClient = async (req, res) => {
 
     let userRecord;
     try {
-      // Intentar obtener el usuario por email
-      userRecord = await admin.auth().getUserByEmail(email);
-
-      // Si existe, actualizar la clave y otros detalles
-      userRecord = await admin.auth().updateUser(userRecord.uid, {
-        email: email,
-        password: password,
-        phoneNumber: `+58${phone}`,
-        displayName: Nombre,
-        disabled: false,
-      });
+      userRecord = await obtenerOCrearCuentaRegistro({ email, password, phone, displayName: Nombre });
     } catch (error) {
-      if (error.code === "auth/user-not-found") {
-        // Si no existe, crearlo
-        userRecord = await admin.auth().createUser({
-          email: email,
-          password: password,
-          phoneNumber: `+58${phone}`,
-          displayName: Nombre,
-          disabled: false,
-        });
-      } else {
-        // Si otro error ocurre, lanzarlo
-        throw error;
+      if (error.httpStatus) {
+        return res.status(error.httpStatus).send({ message: error.message });
       }
+      throw error;
     }
 
     // Obtener el UID del usuario
@@ -920,13 +970,24 @@ const SaveClient = async (req, res) => {
 // directo" tras iniciar sesión con Google sin llenar formularios.
 const SaveClientGoogle = async (req, res) => {
   try {
-    const { uid, email, nombre, token, authProvider } = req.body;
+    const { uid, email, nombre, token, authProvider, idToken } = req.body;
     const provider = authProvider === "apple" ? "apple" : "google";
 
-    if (!uid || !email) {
+    if (!uid || !email || !idToken) {
       return res
         .status(400)
-        .send({ message: "Faltan datos de la cuenta de Google (uid o email)" });
+        .send({ message: "Faltan datos de la cuenta de Google/Apple (uid, email o idToken)" });
+    }
+
+    // Debe probar que la cuenta es suya; antes bastaba con enviar un uid
+    // para recibir el documento completo de cualquier usuario.
+    try {
+      const decoded = await admin.auth().verifyIdToken(idToken);
+      if (decoded.uid !== uid) {
+        return res.status(403).send({ message: "La sesión no corresponde a esta cuenta." });
+      }
+    } catch (e) {
+      return res.status(401).send({ message: "La sesión no es válida. Inicia sesión de nuevo." });
     }
 
     // El usuario ya existe en Firebase Auth (creado vía Google en el cliente);
@@ -1016,31 +1077,12 @@ const SaveTaller = async (req, res) => {
 
     let userRecord;
     try {
-      // Intentar obtener el usuario por email
-      userRecord = await admin.auth().getUserByEmail(email);
-
-      // Si existe, actualizar la clave y otros detalles
-      userRecord = await admin.auth().updateUser(userRecord.uid, {
-        email: email,
-        password: password,
-        phoneNumber: `+58${phone}`,
-        displayName: Nombre,
-        disabled: false,
-      });
+      userRecord = await obtenerOCrearCuentaRegistro({ email, password, phone, displayName: Nombre });
     } catch (error) {
-      if (error.code === "auth/user-not-found") {
-        // Si no existe, crearlo
-        userRecord = await admin.auth().createUser({
-          email: email,
-          password: password,
-          phoneNumber: `+58${phone}`,
-          displayName: Nombre,
-          disabled: false,
-        });
-      } else {
-        // Si otro error ocurre, lanzarlo
-        throw error;
+      if (error.httpStatus) {
+        return res.status(error.httpStatus).send({ message: error.message });
       }
+      throw error;
     }
 
     // Obtener el UID del usuario
@@ -1237,43 +1279,14 @@ const SaveTallerExtended = async (req, res) => {
       authProvider
     } = req.body;
 
-    // Cuentas de Google ya existen en Firebase Auth y no tienen contraseña:
-    // en ese caso no tocamos credenciales (evita "contraseña inválida").
-    const isGoogle = authProvider === "google" || !password;
-
     let userRecord;
     try {
-      // Intentar obtener el usuario por email
-      userRecord = await admin.auth().getUserByEmail(email);
-
-      // Si existe, actualizar los detalles (la clave solo si NO es Google)
-      const phoneForAuth = (phone || whatsapp || '').replace(/\s+/g, '');
-      const updatePayload = {
-        email: email,
-        phoneNumber: `+58${phoneForAuth}`,
-        displayName: nombre,
-        disabled: false,
-      };
-      if (!isGoogle && password) {
-        updatePayload.password = password;
-      }
-      userRecord = await admin.auth().updateUser(userRecord.uid, updatePayload);
+      userRecord = await obtenerOCrearCuentaRegistro({ email, password, phone: phone || whatsapp, displayName: nombre, idToken: req.body.idToken });
     } catch (error) {
-      if (error.code === "auth/user-not-found") {
-        const phoneForAuth = (phone || whatsapp || '').replace(/\s+/g, '');
-        const createPayload = {
-          email: email,
-          phoneNumber: `+58${phoneForAuth}`,
-          displayName: nombre,
-          disabled: false,
-        };
-        if (password) {
-          createPayload.password = password;
-        }
-        userRecord = await admin.auth().createUser(createPayload);
-      } else {
-        throw error;
+      if (error.httpStatus) {
+        return res.status(error.httpStatus).send({ message: error.message });
       }
+      throw error;
     }
 
     // Obtener el UID del usuario
