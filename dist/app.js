@@ -8,6 +8,13 @@ var express = require('express');
 var morgan = require('morgan');
 var cors = require('cors');
 var cron = require('node-cron');
+// Todas las tareas corren en hora de Venezuela (antes: hora del servidor = UTC, por eso llegaban a las 6 a. m.).
+var CRON_TZ = {
+  timezone: 'America/Caracas'
+};
+var cronSchedule = function cronSchedule(expr, fn) {
+  return cron.schedule(expr, fn, CRON_TZ);
+};
 var Usuarios = require('../src/services/usuarios.services');
 
 // Routers (Express) por dominio
@@ -65,55 +72,61 @@ app.use('/api/distance', distance);
 // --- Tareas programadas (node-cron). Hora del servidor salvo que configures `timezone`. ---
 
 // Cada 10 horas (minuto 0): estado de planes activos (getPlanesActivos).
-cron.schedule('0 */10 * * *', function () {
+cronSchedule('0 */10 * * *', function () {
   console.log('Ejecutando job cada 10 horas (getPlanesActivos)');
   Usuarios.getPlanesActivos();
 });
 
 // Cada 10 horas (minuto 0): usuarios con plan vencido (getPlanesVencidos).
-cron.schedule('0 */10 * * *', function () {
+cronSchedule('0 */10 * * *', function () {
   console.log('Ejecutando job cada 10 horas (getPlanesVencidos)');
   Usuarios.getPlanesVencidos();
 });
 
 // Cada 5 horas (minuto 0): avisos FCM a talleres con plan por vencer en ventana ~3 días (getPlanesActivos3Days).
-cron.schedule('0 */5 * * *', function () {
+cronSchedule('0 */5 * * *', function () {
   console.log('Ejecutando job cada 5 horas (getPlanesActivos3Days)');
   Usuarios.getPlanesActivos3Days();
 });
 
-// Diario a las 10:00: pushes de mantenimiento según notificacionesVehiculos activas.
-cron.schedule('0 10 * * *', function () {
+// Diario a las 8:00 (Caracas): pushes de mantenimiento según notificacionesVehiculos activas.
+cronSchedule('0 8 * * *', function () {
   Usuarios.getUsuariosConNotificacionesVehiculos();
 });
 
-// Diario a las 10:00: odómetro vs próximo KM (superado o aviso si faltan 1–3000 km).
-cron.schedule('0 10 * * *', function () {
+// Diario a las 8:00 (Caracas): odómetro vs próximo KM (superado o aviso si faltan 1–3000 km).
+cronSchedule('0 8 * * *', function () {
   console.log('Ejecutando job diario (proximoKM / odómetro)');
   Usuarios.jobNotificacionesVehiculosProximoKm();
 });
 
 // Los dos siguientes son críticos (documentación de conductor y circulación); no desactivarlos en producción sin evaluar impacto.
 
-// Diario a las 10:00: licencia y certificado médico (vencido o entre 1 y 30 días).
-cron.schedule('0 10 * * *', function () {
+// Diario a las 8:00 (Caracas): licencia y certificado médico (vencido o entre 1 y 30 días).
+cronSchedule('0 8 * * *', function () {
   Usuarios.jobNotificacionesLicenciaYCertificadoMedico();
 });
 
-// Diario a las 10:00: RCV y trimestres por vehículo (vencido o vencimiento en ~un mes).
-cron.schedule('0 10 * * *', function () {
+// Diario a las 8:00 (Caracas): RCV y trimestres por vehículo (vencido o vencimiento en ~un mes).
+cronSchedule('0 8 * * *', function () {
   Usuarios.jobNotificacionesRcvYTrimestresVehiculos();
 });
 
-// Semanal: lunes 10:00 — showModalKm en usuarios y push para actualizar kilometraje.
-cron.schedule('0 10 * * 1', function () {
-  // cron.schedule('*/10 * * * * *', () => {
+// Semanal: lunes 8:00 (Caracas) — showModalKm en usuarios y push para actualizar kilometraje.
+cronSchedule('0 8 * * 1', function () {
+  // cronSchedule('*/10 * * * * *', () => {
   console.log('Ejecutando job semanal (cargarKmVehiculos)');
   Usuarios.cargarKmVehiculos();
 });
 
-// Diario a las 10:00: propuestas antiguas (Cotizado/Inspección) y solicitudes en espera sin propuesta activa (reglas de más de 3 días).
-cron.schedule('0 10 * * *', function () {
+// Semanal: lunes 8:00 (Caracas) — resetea showModalKm y showMaintenancePopup a true en TODOS los documentos de Usuarios.
+cronSchedule('0 8 * * 1', function () {
+  console.log('Ejecutando job semanal (resetWeeklyPopupFlags)');
+  Usuarios.resetWeeklyPopupFlags();
+});
+
+// Diario a las 8:00 (Caracas): propuestas antiguas (Cotizado/Inspección) y solicitudes en espera sin propuesta activa (reglas de más de 3 días).
+cronSchedule('0 8 * * *', function () {
   Usuarios.jobRechazarPropuestasFechaPropuestaMayor3Dias();
 });
 module.exports = app;

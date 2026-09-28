@@ -87,6 +87,7 @@ router.post('/AsociarPlan', Usuarios.AsociarPlan);
 
 router.post('/updateScheduleDate', Usuarios.updateScheduleDate); 
 
+router.post('/notificarCertificadores', Usuarios.notificarCertificadores);
 router.post('/sendNotification', Usuarios.sendNotification); 
 
 router.post('/UpdateUsuariosAll', Usuarios.UpdateUsuariosAll); 

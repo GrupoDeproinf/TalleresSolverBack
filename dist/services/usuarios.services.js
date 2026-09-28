@@ -1266,21 +1266,133 @@ var SaveClient = /*#__PURE__*/function () {
     return _ref24.apply(this, arguments);
   };
 }();
-var SaveTaller = /*#__PURE__*/function () {
+
+// Crea un Cliente a partir de una cuenta de Google ya autenticada en el
+// cliente (Firebase Auth). No recrea credenciales (no hay password); solo
+// genera el documento en la colección "Usuarios". Pensado para "entrar
+// directo" tras iniciar sesión con Google sin llenar formularios.
+var SaveClientGoogle = /*#__PURE__*/function () {
   var _ref25 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee16(req, res) {
-    var _req$body2, Nombre, rif, phone, email, password, whats, metodos_pago, estado, base64, lat, lng, token, userRecord, uid, imageUrl, buffer, file, infoUserCreated, htmlContent;
+    var _req$body2, uid, email, nombre, token, authProvider, provider, userRecord, userDocRef, existingDoc, infoUserCreated, htmlContent;
     return _regeneratorRuntime().wrap(function _callee16$(_context17) {
       while (1) switch (_context17.prev = _context17.next) {
         case 0:
           _context17.prev = 0;
+          _req$body2 = req.body, uid = _req$body2.uid, email = _req$body2.email, nombre = _req$body2.nombre, token = _req$body2.token, authProvider = _req$body2.authProvider;
+          provider = authProvider === "apple" ? "apple" : "google";
+          if (!(!uid || !email)) {
+            _context17.next = 5;
+            break;
+          }
+          return _context17.abrupt("return", res.status(400).send({
+            message: "Faltan datos de la cuenta de Google (uid o email)"
+          }));
+        case 5:
+          _context17.prev = 5;
+          _context17.next = 8;
+          return admin.auth().getUser(uid);
+        case 8:
+          userRecord = _context17.sent;
+          _context17.next = 16;
+          break;
+        case 11:
+          _context17.prev = 11;
+          _context17.t0 = _context17["catch"](5);
+          if (!(_context17.t0.code === "auth/user-not-found")) {
+            _context17.next = 15;
+            break;
+          }
+          return _context17.abrupt("return", res.status(404).send({
+            message: "La cuenta de Google no existe en Firebase Auth"
+          }));
+        case 15:
+          throw _context17.t0;
+        case 16:
+          // Si ya tiene documento en Usuarios, devolverlo sin duplicar.
+          userDocRef = db.collection("Usuarios").doc(uid);
+          _context17.next = 19;
+          return userDocRef.get();
+        case 19:
+          existingDoc = _context17.sent;
+          if (!existingDoc.exists) {
+            _context17.next = 22;
+            break;
+          }
+          return _context17.abrupt("return", res.status(200).send({
+            message: "El usuario ya estaba registrado",
+            userData: _objectSpread({
+              uid: uid
+            }, existingDoc.data())
+          }));
+        case 22:
+          infoUserCreated = {
+            uid: uid,
+            nombre: nombre || userRecord.displayName || "",
+            cedula: "",
+            phone: "",
+            typeUser: "Cliente",
+            email: email,
+            estado: "",
+            image_perfil: userRecord.photoURL || "",
+            authProvider: provider,
+            token: token || "",
+            createdAt: new Date()
+          };
+          _context17.next = 25;
+          return userDocRef.set(infoUserCreated, {
+            merge: true
+          });
+        case 25:
+          _context17.prev = 25;
+          htmlContent = "\n        <!DOCTYPE html>\n        <html>\n        <head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Bienvenido a Solvers</title></head>\n        <body style=\"font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; margin: 0; padding: 0; background-color: #eef5f9;\">\n          <table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"max-width: 600px; width: 100%; margin: 20px auto; border-radius: 12px; overflow: hidden; background-color: #ffffff; box-shadow: 0px 7px 30px 0px rgba(90,114,123,0.11);\">\n            <tr><td style=\"height: 5px; background: linear-gradient(135deg, #5D87FF 0%, #4669d9 100%);\"></td></tr>\n            <tr><td style=\"padding: 40px 30px; text-align: center;\">\n              <img src=\"https://firebasestorage.googleapis.com/v0/b/talleres-solvers-app.firebasestorage.app/o/data%2Flogo%2Fsolverslogo.png?alt=media&token=c2937894-0be6-431b-a0df-4b5288fecfd5\" alt=\"Solvers Logo\" style=\"height: 40px; margin-bottom: 20px;\">\n              <h1 style=\"margin: 0; font-size: 22px; color: #2B3445; font-weight: 600;\">\xA1Bienvenido a <strong>Solvers</strong>!</h1>\n            </td></tr>\n            <tr><td style=\"padding: 0 30px 30px;\">\n              <h2 style=\"margin: 0 0 16px; color: #2B3445; font-size: 18px; font-weight: 600;\">Hola ".concat(nombre || "", ",</h2>\n              <p style=\"margin: 0; color: #2B3445; font-size: 15px;\">Tu cuenta se cre\xF3 correctamente con Google. Ya puedes solicitar servicios y gestionar tus veh\xEDculos desde la app.</p>\n            </td></tr>\n            <tr><td style=\"background-color: #f5f6f8; padding: 24px 30px; text-align: center; border-top: 1px solid #e9ecef;\">\n              <p style=\"margin: 0 0 6px; color: #2B3445; font-size: 14px; font-weight: 600;\">Solvers, C.A.</p>\n              <p style=\"margin: 0; color: #6C757D; font-size: 12px;\">\xA9 ").concat(new Date().getFullYear(), " Solvers, C.A. Todos los derechos reservados.</p>\n            </td></tr>\n          </table>\n        </body>\n        </html>\n      ");
+          _context17.next = 29;
+          return sendEmail(email, htmlContent, "¡Bienvenido a Solvers!");
+        case 29:
+          _context17.next = 34;
+          break;
+        case 31:
+          _context17.prev = 31;
+          _context17.t1 = _context17["catch"](25);
+          console.error("Error al enviar el correo de bienvenida:", _context17.t1);
+        case 34:
+          res.status(201).send({
+            message: "Usuario guardado con éxito",
+            userData: infoUserCreated
+          });
+          _context17.next = 41;
+          break;
+        case 37:
+          _context17.prev = 37;
+          _context17.t2 = _context17["catch"](0);
+          console.error("Error en SaveClientGoogle:", _context17.t2);
+          res.status(500).send({
+            message: "Error al guardar el usuario"
+          });
+        case 41:
+        case "end":
+          return _context17.stop();
+      }
+    }, _callee16, null, [[0, 37], [5, 11], [25, 31]]);
+  }));
+  return function SaveClientGoogle(_x47, _x48) {
+    return _ref25.apply(this, arguments);
+  };
+}();
+var SaveTaller = /*#__PURE__*/function () {
+  var _ref26 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee17(req, res) {
+    var _req$body3, Nombre, rif, phone, email, password, whats, metodos_pago, estado, base64, lat, lng, token, userRecord, uid, imageUrl, buffer, file, infoUserCreated, htmlContent;
+    return _regeneratorRuntime().wrap(function _callee17$(_context18) {
+      while (1) switch (_context18.prev = _context18.next) {
+        case 0:
+          _context18.prev = 0;
           // Recibir los datos del taller desde el cuerpo de la solicitud
-          _req$body2 = req.body, Nombre = _req$body2.Nombre, rif = _req$body2.rif, phone = _req$body2.phone, email = _req$body2.email, password = _req$body2.password, whats = _req$body2.whats, metodos_pago = _req$body2.metodos_pago, estado = _req$body2.estado, base64 = _req$body2.base64, lat = _req$body2.lat, lng = _req$body2.lng, token = _req$body2.token;
-          _context17.prev = 2;
-          _context17.next = 5;
+          _req$body3 = req.body, Nombre = _req$body3.Nombre, rif = _req$body3.rif, phone = _req$body3.phone, email = _req$body3.email, password = _req$body3.password, whats = _req$body3.whats, metodos_pago = _req$body3.metodos_pago, estado = _req$body3.estado, base64 = _req$body3.base64, lat = _req$body3.lat, lng = _req$body3.lng, token = _req$body3.token;
+          _context18.prev = 2;
+          _context18.next = 5;
           return admin.auth().getUserByEmail(email);
         case 5:
-          userRecord = _context17.sent;
-          _context17.next = 8;
+          userRecord = _context18.sent;
+          _context18.next = 8;
           return admin.auth().updateUser(userRecord.uid, {
             email: email,
             password: password,
@@ -1289,17 +1401,17 @@ var SaveTaller = /*#__PURE__*/function () {
             disabled: false
           });
         case 8:
-          userRecord = _context17.sent;
-          _context17.next = 20;
+          userRecord = _context18.sent;
+          _context18.next = 20;
           break;
         case 11:
-          _context17.prev = 11;
-          _context17.t0 = _context17["catch"](2);
-          if (!(_context17.t0.code === "auth/user-not-found")) {
-            _context17.next = 19;
+          _context18.prev = 11;
+          _context18.t0 = _context18["catch"](2);
+          if (!(_context18.t0.code === "auth/user-not-found")) {
+            _context18.next = 19;
             break;
           }
-          _context17.next = 16;
+          _context18.next = 16;
           return admin.auth().createUser({
             email: email,
             password: password,
@@ -1308,22 +1420,22 @@ var SaveTaller = /*#__PURE__*/function () {
             disabled: false
           });
         case 16:
-          userRecord = _context17.sent;
-          _context17.next = 20;
+          userRecord = _context18.sent;
+          _context18.next = 20;
           break;
         case 19:
-          throw _context17.t0;
+          throw _context18.t0;
         case 20:
           // Obtener el UID del usuario
           uid = userRecord.uid; // Subir la imagen de perfil al Storage
           imageUrl = "";
           if (!base64) {
-            _context17.next = 28;
+            _context18.next = 28;
             break;
           }
           buffer = Buffer.from(base64, "base64");
           file = bucket.file("profileImages/".concat(uid, ".jpg"));
-          _context17.next = 27;
+          _context18.next = 27;
           return file.save(buffer, {
             metadata: {
               contentType: "image/jpeg"
@@ -1354,22 +1466,22 @@ var SaveTaller = /*#__PURE__*/function () {
             },
             token: token
           };
-          _context17.next = 31;
+          _context18.next = 31;
           return db.collection("Usuarios").doc(uid).set(infoUserCreated, {
             merge: true
           });
         case 31:
           htmlContent = "\n      <!DOCTYPE html>\n          <html>\n          <head>\n            <meta charset=\"utf-8\">\n            <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n            <title>Bienvenido a Solvers</title>\n          </head>\n          <body style=\"font-family: 'Plus Jakarta Sans', 'Segoe UI', Arial, sans-serif; line-height: 1.6; margin: 0; padding: 0; background-color: #eef5f9;\">\n            <table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"max-width: 600px; width: 100%; margin: 20px auto; border-radius: 12px; overflow: hidden; background-color: #ffffff; box-shadow: 0px 7px 30px 0px rgba(90, 114, 123, 0.11);\">\n              <!-- Header superior con borde azul -->\n              <tr>\n                <td style=\"height: 5px; background: linear-gradient(135deg, #5D87FF 0%, #4669d9 100%);\"></td>\n              </tr>\n\n              <!-- Logo y t\xEDtulo -->\n              <tr>\n                <td style=\"padding: 40px 30px; text-align: center; background-color: #ffffff;\">\n                  <table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"width: 100%;\">\n                    <tr>\n                      <td style=\"text-align: center;\">\n                        <img src=\"https://firebasestorage.googleapis.com/v0/b/talleres-solvers-app.firebasestorage.app/o/data%2Flogo%2Fsolverslogo.png?alt=media&token=c2937894-0be6-431b-a0df-4b5288fecfd5\" \n                            alt=\"Solvers Logo\" \n                            style=\"height: 40px; margin-bottom: 20px;\">\n                        <h1 style=\"margin: 0; font-size: 24px; color: #2B3445; font-weight: 600;\">\xA1Bienvenido a <strong>Solvers</strong>! Nos alegra tenerte con nosotros.</h1>\n                      </td>\n                    </tr>\n                  </table>\n                </td>\n              </tr>\n              \n              <!-- Contenido principal -->\n              <tr>\n                <td style=\"padding: 0 30px 30px;\">\n                  <table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"width: 100%;\">\n                    <tr>\n                     <td>\n  <h2 style=\"margin: 0 0 20px; color: #2B3445; font-size: 18px; font-weight: 600;\">Hola ".concat(Nombre, ",</h2>\n  \n  <p style=\"margin: 0 0 20px; color: #2B3445; font-size: 15px; line-height: 1.6;\">\n    Tu taller ha sido registrado exitosamente en nuestra plataforma.\n  </p>\n  \n  <p style=\"margin: 0 0 20px; color: #2B3445; font-size: 15px; line-height: 1.6;\">\n    A partir de ahora podr\xE1s recibir solicitudes de clientes que necesitan asistencia con sus veh\xEDculos, gestionar tus servicios, y hacer crecer tu negocio con el respaldo de Solvers.\n  </p>\n  \n  <p style=\"margin: 0 0 20px; color: #2B3445; font-size: 15px; line-height: 1.6;\">\n    La cuenta del taller est\xE1 asociada al correo:  \n    <span style=\"color: #5D87FF; font-weight: 600;\">").concat(email, "</span>\n  </p>\n\n  <p style=\"margin: 0 0 20px; color: #2B3445; font-size: 15px; line-height: 1.6;\">\n    Te invitamos a explorar la app y configurar tus servicios para comenzar a recibir clientes.\n  </p>\n</td>\n\n\n                    </tr>\n                  </table>\n                </td>\n              </tr>\n              \n              <!-- Footer -->\n              <tr>\n                <td style=\"background-color: #f5f6f8; padding: 30px; text-align: center; border-top: 1px solid #e9ecef;\">\n                  <p style=\"margin: 0 0 10px; color: #2B3445; font-size: 14px; font-weight: 600;\">\n                    Solvers, C.A.\n                  </p>\n                  <p style=\"margin: 0 0 5px; color: #6C757D; font-size: 12px;\">\n                    Este es un correo autom\xE1tico, por favor no respondas a este mensaje.\n                  </p>\n                  <p style=\"margin: 0; color: #6C757D; font-size: 12px;\">\n                    \xA9 ").concat(new Date().getFullYear(), " Solvers, C.A. Todos los derechos reservados.\n                  </p>\n                </td>\n              </tr>\n            </table>\n          </body>\n          </html>\n    ");
-          _context17.prev = 32;
-          _context17.next = 35;
+          _context18.prev = 32;
+          _context18.next = 35;
           return sendEmail(email, htmlContent, '¡Bienvenido a Solvers!');
         case 35:
-          _context17.next = 40;
+          _context18.next = 40;
           break;
         case 37:
-          _context17.prev = 37;
-          _context17.t1 = _context17["catch"](32);
-          console.error("Error al enviar el correo de bienvenida:", _context17.t1);
+          _context18.prev = 37;
+          _context18.t1 = _context18["catch"](32);
+          console.error("Error al enviar el correo de bienvenida:", _context18.t1);
           // No interrumpimos el flujo si falla el envío del correo
         case 40:
           // Responder con el ID del documento creado o actualizado
@@ -1377,43 +1489,43 @@ var SaveTaller = /*#__PURE__*/function () {
             message: "Usuario guardado con éxito",
             uid: uid
           });
-          _context17.next = 61;
+          _context18.next = 61;
           break;
         case 43:
-          _context17.prev = 43;
-          _context17.t2 = _context17["catch"](0);
-          console.error("Error al guardar el usuario:", _context17.t2);
+          _context18.prev = 43;
+          _context18.t2 = _context18["catch"](0);
+          console.error("Error al guardar el usuario:", _context18.t2);
 
           // Manejar errores específicos de Firebase
-          if (!(_context17.t2.code === "auth/email-already-exists")) {
-            _context17.next = 50;
+          if (!(_context18.t2.code === "auth/email-already-exists")) {
+            _context18.next = 50;
             break;
           }
-          return _context17.abrupt("return", res.status(400).send({
+          return _context18.abrupt("return", res.status(400).send({
             message: "Este email ya está registrado."
           }));
         case 50:
-          if (!(_context17.t2.code === "auth/phone-number-already-exists")) {
-            _context17.next = 54;
+          if (!(_context18.t2.code === "auth/phone-number-already-exists")) {
+            _context18.next = 54;
             break;
           }
-          return _context17.abrupt("return", res.status(400).send({
+          return _context18.abrupt("return", res.status(400).send({
             message: "Este número de teléfono ya está registrado."
           }));
         case 54:
-          if (!(_context17.t2.code === "auth/invalid-phone-number")) {
-            _context17.next = 58;
+          if (!(_context18.t2.code === "auth/invalid-phone-number")) {
+            _context18.next = 58;
             break;
           }
-          return _context17.abrupt("return", res.status(400).send({
+          return _context18.abrupt("return", res.status(400).send({
             message: "El número de teléfono no es válido."
           }));
         case 58:
-          if (!(_context17.t2.code === "auth/invalid-password")) {
-            _context17.next = 60;
+          if (!(_context18.t2.code === "auth/invalid-password")) {
+            _context18.next = 60;
             break;
           }
-          return _context17.abrupt("return", res.status(400).send({
+          return _context18.abrupt("return", res.status(400).send({
             message: "La contraseña es inválida."
           }));
         case 60:
@@ -1421,62 +1533,73 @@ var SaveTaller = /*#__PURE__*/function () {
           res.status(500).send("Error al guardar el usuario");
         case 61:
         case "end":
-          return _context17.stop();
+          return _context18.stop();
       }
-    }, _callee16, null, [[0, 43], [2, 11], [32, 37]]);
+    }, _callee17, null, [[0, 43], [2, 11], [32, 37]]);
   }));
-  return function SaveTaller(_x47, _x48) {
-    return _ref25.apply(this, arguments);
+  return function SaveTaller(_x49, _x50) {
+    return _ref26.apply(this, arguments);
   };
 }();
 var SaveTallerExtended = /*#__PURE__*/function () {
-  var _ref26 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee17(req, res) {
-    var _req$body3, nombre, cedula, rif, phone, email, password, Direccion, RegComercial, Caracteristicas, Experiencia, LinkFacebook, LinkInstagram, LinkTiktok, seguro, checked, whatsapp, metodos_pago, estado, base64, rifIdFiscal, permisoOperacion, logotipoNegocio, fotoFrenteTaller, fotoInternaTaller, lat, lng, token, horarios_atencion, userRecord, uid, imageUrl, rifIdFiscalUrl, permisoOperacionUrl, logotipoNegocioUrl, fotoFrenteTallerUrl, fotoInternaTallerUrl, buffer, file, _buffer, _file, _buffer2, _file2, _buffer3, _file3, _buffer4, _file4, _buffer5, _file5, infoUserCreated, htmlContent;
-    return _regeneratorRuntime().wrap(function _callee17$(_context18) {
-      while (1) switch (_context18.prev = _context18.next) {
+  var _ref27 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee18(req, res) {
+    var _req$body4, nombre, cedula, rif, phone, email, password, Direccion, RegComercial, Caracteristicas, Experiencia, LinkFacebook, LinkInstagram, LinkTiktok, seguro, checked, whatsapp, metodos_pago, estado, base64, rifIdFiscal, permisoOperacion, logotipoNegocio, fotoFrenteTaller, fotoInternaTaller, lat, lng, token, horarios_atencion, authProvider, isGoogle, userRecord, phoneForAuth, updatePayload, _phoneForAuth, createPayload, uid, imageUrl, rifIdFiscalUrl, permisoOperacionUrl, logotipoNegocioUrl, fotoFrenteTallerUrl, fotoInternaTallerUrl, buffer, file, infoUserCreated, htmlContent;
+    return _regeneratorRuntime().wrap(function _callee18$(_context19) {
+      while (1) switch (_context19.prev = _context19.next) {
         case 0:
-          _context18.prev = 0;
+          _context19.prev = 0;
           // Recibir los datos del taller desde el cuerpo de la solicitud
-          _req$body3 = req.body, nombre = _req$body3.nombre, cedula = _req$body3.cedula, rif = _req$body3.rif, phone = _req$body3.phone, email = _req$body3.email, password = _req$body3.password, Direccion = _req$body3.Direccion, RegComercial = _req$body3.RegComercial, Caracteristicas = _req$body3.Caracteristicas, Experiencia = _req$body3.Experiencia, LinkFacebook = _req$body3.LinkFacebook, LinkInstagram = _req$body3.LinkInstagram, LinkTiktok = _req$body3.LinkTiktok, seguro = _req$body3.seguro, checked = _req$body3.checked, whatsapp = _req$body3.whatsapp, metodos_pago = _req$body3.metodos_pago, estado = _req$body3.estado, base64 = _req$body3.base64, rifIdFiscal = _req$body3.rifIdFiscal, permisoOperacion = _req$body3.permisoOperacion, logotipoNegocio = _req$body3.logotipoNegocio, fotoFrenteTaller = _req$body3.fotoFrenteTaller, fotoInternaTaller = _req$body3.fotoInternaTaller, lat = _req$body3.lat, lng = _req$body3.lng, token = _req$body3.token, horarios_atencion = _req$body3.horarios_atencion;
-          _context18.prev = 2;
-          _context18.next = 5;
+          _req$body4 = req.body, nombre = _req$body4.nombre, cedula = _req$body4.cedula, rif = _req$body4.rif, phone = _req$body4.phone, email = _req$body4.email, password = _req$body4.password, Direccion = _req$body4.Direccion, RegComercial = _req$body4.RegComercial, Caracteristicas = _req$body4.Caracteristicas, Experiencia = _req$body4.Experiencia, LinkFacebook = _req$body4.LinkFacebook, LinkInstagram = _req$body4.LinkInstagram, LinkTiktok = _req$body4.LinkTiktok, seguro = _req$body4.seguro, checked = _req$body4.checked, whatsapp = _req$body4.whatsapp, metodos_pago = _req$body4.metodos_pago, estado = _req$body4.estado, base64 = _req$body4.base64, rifIdFiscal = _req$body4.rifIdFiscal, permisoOperacion = _req$body4.permisoOperacion, logotipoNegocio = _req$body4.logotipoNegocio, fotoFrenteTaller = _req$body4.fotoFrenteTaller, fotoInternaTaller = _req$body4.fotoInternaTaller, lat = _req$body4.lat, lng = _req$body4.lng, token = _req$body4.token, horarios_atencion = _req$body4.horarios_atencion, authProvider = _req$body4.authProvider; // Cuentas de Google ya existen en Firebase Auth y no tienen contraseña:
+          // en ese caso no tocamos credenciales (evita "contraseña inválida").
+          isGoogle = authProvider === "google" || !password;
+          _context19.prev = 3;
+          _context19.next = 6;
           return admin.auth().getUserByEmail(email);
-        case 5:
-          userRecord = _context18.sent;
-          _context18.next = 8;
-          return admin.auth().updateUser(userRecord.uid, {
+        case 6:
+          userRecord = _context19.sent;
+          // Si existe, actualizar los detalles (la clave solo si NO es Google)
+          phoneForAuth = (phone || whatsapp || '').replace(/\s+/g, '');
+          updatePayload = {
             email: email,
-            password: password,
-            phoneNumber: "+58".concat(phone),
+            phoneNumber: "+58".concat(phoneForAuth),
             displayName: nombre,
             disabled: false
-          });
-        case 8:
-          userRecord = _context18.sent;
-          _context18.next = 20;
+          };
+          if (!isGoogle && password) {
+            updatePayload.password = password;
+          }
+          _context19.next = 12;
+          return admin.auth().updateUser(userRecord.uid, updatePayload);
+        case 12:
+          userRecord = _context19.sent;
+          _context19.next = 27;
           break;
-        case 11:
-          _context18.prev = 11;
-          _context18.t0 = _context18["catch"](2);
-          if (!(_context18.t0.code === "auth/user-not-found")) {
-            _context18.next = 19;
+        case 15:
+          _context19.prev = 15;
+          _context19.t0 = _context19["catch"](3);
+          if (!(_context19.t0.code === "auth/user-not-found")) {
+            _context19.next = 26;
             break;
           }
-          _context18.next = 16;
-          return admin.auth().createUser({
+          _phoneForAuth = (phone || whatsapp || '').replace(/\s+/g, '');
+          createPayload = {
             email: email,
-            password: password,
-            phoneNumber: "+58".concat(phone),
+            phoneNumber: "+58".concat(_phoneForAuth),
             displayName: nombre,
             disabled: false
-          });
-        case 16:
-          userRecord = _context18.sent;
-          _context18.next = 20;
+          };
+          if (password) {
+            createPayload.password = password;
+          }
+          _context19.next = 23;
+          return admin.auth().createUser(createPayload);
+        case 23:
+          userRecord = _context19.sent;
+          _context19.next = 27;
           break;
-        case 19:
-          throw _context18.t0;
-        case 20:
+        case 26:
+          throw _context19.t0;
+        case 27:
           // Obtener el UID del usuario
           uid = userRecord.uid; // Subir las imágenes al Storage
           imageUrl = "";
@@ -1486,12 +1609,12 @@ var SaveTallerExtended = /*#__PURE__*/function () {
           fotoFrenteTallerUrl = "";
           fotoInternaTallerUrl = ""; // Subir imagen de perfil
           if (!(base64 && base64 !== "")) {
-            _context18.next = 33;
+            _context19.next = 40;
             break;
           }
           buffer = Buffer.from(base64, "base64");
           file = bucket.file("profileImages/".concat(uid, ".jpg"));
-          _context18.next = 32;
+          _context19.next = 39;
           return file.save(buffer, {
             metadata: {
               contentType: "image/jpeg"
@@ -1499,104 +1622,99 @@ var SaveTallerExtended = /*#__PURE__*/function () {
             "public": true,
             validation: "md5"
           });
-        case 32:
-          imageUrl = "https://storage.googleapis.com/".concat(bucket.name, "/profileImages/").concat(uid, ".jpg");
-        case 33:
-          if (!(rifIdFiscal && rifIdFiscal !== "")) {
-            _context18.next = 39;
-            break;
-          }
-          _buffer = Buffer.from(rifIdFiscal, "base64");
-          _file = bucket.file("documents/".concat(uid, "/rifIdFiscal.jpg"));
-          _context18.next = 38;
-          return _file.save(_buffer, {
-            metadata: {
-              contentType: "image/jpeg"
-            },
-            "public": true,
-            validation: "md5"
-          });
-        case 38:
-          rifIdFiscalUrl = "https://storage.googleapis.com/".concat(bucket.name, "/documents/").concat(uid, "/rifIdFiscal.jpg");
         case 39:
+          imageUrl = "https://storage.googleapis.com/".concat(bucket.name, "/profileImages/").concat(uid, ".jpg");
+        case 40:
+          if (!(rifIdFiscal && rifIdFiscal !== "")) {
+            _context19.next = 47;
+            break;
+          }
+          _context19.next = 43;
+          return uploadTallerDoc(uid, "rifIdFiscal", rifIdFiscal);
+        case 43:
+          _context19.t1 = _context19.sent;
+          if (_context19.t1) {
+            _context19.next = 46;
+            break;
+          }
+          _context19.t1 = rifIdFiscalUrl;
+        case 46:
+          rifIdFiscalUrl = _context19.t1;
+        case 47:
           if (!(permisoOperacion && permisoOperacion !== "")) {
-            _context18.next = 45;
+            _context19.next = 54;
             break;
           }
-          _buffer2 = Buffer.from(permisoOperacion, "base64");
-          _file2 = bucket.file("documents/".concat(uid, "/permisoOperacion.jpg"));
-          _context18.next = 44;
-          return _file2.save(_buffer2, {
-            metadata: {
-              contentType: "image/jpeg"
-            },
-            "public": true,
-            validation: "md5"
-          });
-        case 44:
-          permisoOperacionUrl = "https://storage.googleapis.com/".concat(bucket.name, "/documents/").concat(uid, "/permisoOperacion.jpg");
-        case 45:
-          if (!(logotipoNegocio && logotipoNegocio !== "")) {
-            _context18.next = 51;
-            break;
-          }
-          _buffer3 = Buffer.from(logotipoNegocio, "base64");
-          _file3 = bucket.file("businessImages/".concat(uid, "/logotipoNegocio.jpg"));
-          _context18.next = 50;
-          return _file3.save(_buffer3, {
-            metadata: {
-              contentType: "image/jpeg"
-            },
-            "public": true,
-            validation: "md5"
-          });
+          _context19.next = 50;
+          return uploadTallerDoc(uid, "permisoOperacion", permisoOperacion);
         case 50:
-          logotipoNegocioUrl = "https://storage.googleapis.com/".concat(bucket.name, "/businessImages/").concat(uid, "/logotipoNegocio.jpg");
-        case 51:
-          if (!(fotoFrenteTaller && fotoFrenteTaller !== "")) {
-            _context18.next = 57;
+          _context19.t2 = _context19.sent;
+          if (_context19.t2) {
+            _context19.next = 53;
             break;
           }
-          _buffer4 = Buffer.from(fotoFrenteTaller, "base64");
-          _file4 = bucket.file("businessImages/".concat(uid, "/fotoFrenteTaller.jpg"));
-          _context18.next = 56;
-          return _file4.save(_buffer4, {
-            metadata: {
-              contentType: "image/jpeg"
-            },
-            "public": true,
-            validation: "md5"
-          });
-        case 56:
-          fotoFrenteTallerUrl = "https://storage.googleapis.com/".concat(bucket.name, "/businessImages/").concat(uid, "/fotoFrenteTaller.jpg");
+          _context19.t2 = permisoOperacionUrl;
+        case 53:
+          permisoOperacionUrl = _context19.t2;
+        case 54:
+          if (!(logotipoNegocio && logotipoNegocio !== "")) {
+            _context19.next = 61;
+            break;
+          }
+          _context19.next = 57;
+          return uploadTallerDoc(uid, "logotipoNegocio", logotipoNegocio);
         case 57:
-          if (!(fotoInternaTaller && fotoInternaTaller !== "")) {
-            _context18.next = 63;
+          _context19.t3 = _context19.sent;
+          if (_context19.t3) {
+            _context19.next = 60;
             break;
           }
-          _buffer5 = Buffer.from(fotoInternaTaller, "base64");
-          _file5 = bucket.file("businessImages/".concat(uid, "/fotoInternaTaller.jpg"));
-          _context18.next = 62;
-          return _file5.save(_buffer5, {
-            metadata: {
-              contentType: "image/jpeg"
-            },
-            "public": true,
-            validation: "md5"
-          });
-        case 62:
-          fotoInternaTallerUrl = "https://storage.googleapis.com/".concat(bucket.name, "/businessImages/").concat(uid, "/fotoInternaTaller.jpg");
-        case 63:
+          _context19.t3 = logotipoNegocioUrl;
+        case 60:
+          logotipoNegocioUrl = _context19.t3;
+        case 61:
+          if (!(fotoFrenteTaller && fotoFrenteTaller !== "")) {
+            _context19.next = 68;
+            break;
+          }
+          _context19.next = 64;
+          return uploadTallerDoc(uid, "fotoFrenteTaller", fotoFrenteTaller);
+        case 64:
+          _context19.t4 = _context19.sent;
+          if (_context19.t4) {
+            _context19.next = 67;
+            break;
+          }
+          _context19.t4 = fotoFrenteTallerUrl;
+        case 67:
+          fotoFrenteTallerUrl = _context19.t4;
+        case 68:
+          if (!(fotoInternaTaller && fotoInternaTaller !== "")) {
+            _context19.next = 75;
+            break;
+          }
+          _context19.next = 71;
+          return uploadTallerDoc(uid, "fotoInternaTaller", fotoInternaTaller);
+        case 71:
+          _context19.t5 = _context19.sent;
+          if (_context19.t5) {
+            _context19.next = 74;
+            break;
+          }
+          _context19.t5 = fotoInternaTallerUrl;
+        case 74:
+          fotoInternaTallerUrl = _context19.t5;
+        case 75:
           // Crear o actualizar el documento en la colección "Usuarios" con campos extendidos
           infoUserCreated = {
             uid: uid,
             nombre: nombre == undefined ? '' : nombre,
             rif: rif == undefined ? '' : rif,
-            phone: phone == undefined ? '' : phone === null || phone === void 0 ? void 0 : phone.replace(/\s+/g, ""),
+            phone: (phone || whatsapp || '').replace(/\s+/g, ''),
             typeUser: 'Taller',
             email: email == undefined ? '' : email.toLowerCase(),
             password: password,
-            status: 'En espera por aprobación',
+            status: 'En espera de documentos',
             Direccion: Direccion == undefined ? '' : Direccion,
             RegComercial: RegComercial == undefined ? '' : RegComercial,
             Caracteristicas: Caracteristicas == undefined ? '' : Caracteristicas,
@@ -1629,129 +1747,129 @@ var SaveTallerExtended = /*#__PURE__*/function () {
             createdAt: new Date(),
             horarios_atencion: horarios_atencion == undefined ? [] : horarios_atencion
           };
-          _context18.next = 66;
+          _context19.next = 78;
           return db.collection("Usuarios").doc(uid).set(infoUserCreated, {
             merge: true
           });
-        case 66:
+        case 78:
           htmlContent = "\n      <!DOCTYPE html>\n          <html>\n          <head>\n            <meta charset=\"utf-8\">\n            <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n            <title>Bienvenido a Solvers</title>\n          </head>\n          <body style=\"font-family: 'Plus Jakarta Sans', 'Segoe UI', Arial, sans-serif; line-height: 1.6; margin: 0; padding: 0; background-color: #eef5f9;\">\n            <table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"max-width: 600px; width: 100%; margin: 20px auto; border-radius: 12px; overflow: hidden; background-color: #ffffff; box-shadow: 0px 7px 30px 0px rgba(90, 114, 123, 0.11);\">\n              <!-- Header superior con borde azul -->\n              <tr>\n                <td style=\"height: 5px; background: linear-gradient(135deg, #5D87FF 0%, #4669d9 100%);\"></td>\n              </tr>\n\n              <!-- Logo y t\xEDtulo -->\n              <tr>\n                <td style=\"padding: 40px 30px; text-align: center; background-color: #ffffff;\">\n                  <table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"width: 100%;\">\n                    <tr>\n                      <td style=\"text-align: center;\">\n                        <img src=\"https://firebasestorage.googleapis.com/v0/b/talleres-solvers-app.firebasestorage.app/o/data%2Flogo%2Fsolverslogo.png?alt=media&token=c2937894-0be6-431b-a0df-4b5288fecfd5\" \n                            alt=\"Solvers Logo\" \n                            style=\"height: 40px; margin-bottom: 20px;\">\n                        <h1 style=\"margin: 0; font-size: 24px; color: #2B3445; font-weight: 600;\">\xA1Bienvenido a <strong>Solvers</strong>! Nos alegra tenerte con nosotros.</h1>\n                      </td>\n                    </tr>\n                  </table>\n                </td>\n              </tr>\n              \n              <!-- Contenido principal -->\n              <tr>\n                <td style=\"padding: 0 30px 30px;\">\n                  <table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"width: 100%;\">\n                    <tr>\n                     <td>\n  <h2 style=\"margin: 0 0 20px; color: #2B3445; font-size: 18px; font-weight: 600;\">Hola ".concat(nombre, ",</h2>\n  \n  <p style=\"margin: 0 0 20px; color: #2B3445; font-size: 15px; line-height: 1.6;\">\n    Tu taller ha sido registrado exitosamente en nuestra plataforma con informaci\xF3n extendida.\n  </p>\n  \n  <p style=\"margin: 0 0 20px; color: #2B3445; font-size: 15px; line-height: 1.6;\">\n    A partir de ahora podr\xE1s recibir solicitudes de clientes que necesitan asistencia con sus veh\xEDculos, gestionar tus servicios, y hacer crecer tu negocio con el respaldo de Solvers.\n  </p>\n  \n  <p style=\"margin: 0 0 20px; color: #2B3445; font-size: 15px; line-height: 1.6;\">\n    La cuenta del taller est\xE1 asociada al correo:  \n    <span style=\"color: #5D87FF; font-weight: 600;\">").concat(email, "</span>\n  </p>\n\n  <p style=\"margin: 0 0 20px; color: #2B3445; font-size: 15px; line-height: 1.6;\">\n    Tu solicitud est\xE1 en proceso de revisi\xF3n. Te notificaremos una vez que sea aprobada.\n  </p>\n</td>\n\n\n                    </tr>\n                  </table>\n                </td>\n              </tr>\n              \n              <!-- Footer -->\n              <tr>\n                <td style=\"background-color: #f5f6f8; padding: 30px; text-align: center; border-top: 1px solid #e9ecef;\">\n                  <p style=\"margin: 0 0 10px; color: #2B3445; font-size: 14px; font-weight: 600;\">\n                    Solvers, C.A.\n                  </p>\n                  <p style=\"margin: 0 0 5px; color: #6C757D; font-size: 12px;\">\n                    Este es un correo autom\xE1tico, por favor no respondas a este mensaje.\n                  </p>\n                  <p style=\"margin: 0; color: #6C757D; font-size: 12px;\">\n                    \xA9 ").concat(new Date().getFullYear(), " Solvers, C.A. Todos los derechos reservados.\n                  </p>\n                </td>\n              </tr>\n            </table>\n          </body>\n          </html>\n    ");
-          _context18.prev = 67;
-          _context18.next = 70;
+          _context19.prev = 79;
+          _context19.next = 82;
           return sendEmail(email, htmlContent, '¡Bienvenido a Solvers!');
-        case 70:
-          _context18.next = 75;
+        case 82:
+          _context19.next = 87;
           break;
-        case 72:
-          _context18.prev = 72;
-          _context18.t1 = _context18["catch"](67);
-          console.error("Error al enviar el correo de bienvenida:", _context18.t1);
+        case 84:
+          _context19.prev = 84;
+          _context19.t6 = _context19["catch"](79);
+          console.error("Error al enviar el correo de bienvenida:", _context19.t6);
           // No interrumpimos el flujo si falla el envío del correo
-        case 75:
+        case 87:
           // Responder con el ID del documento creado o actualizado
           res.status(201).send({
             message: "Usuario guardado con éxito",
             uid: uid
           });
-          _context18.next = 96;
+          _context19.next = 108;
           break;
-        case 78:
-          _context18.prev = 78;
-          _context18.t2 = _context18["catch"](0);
-          console.error("Error al guardar el usuario:", _context18.t2);
+        case 90:
+          _context19.prev = 90;
+          _context19.t7 = _context19["catch"](0);
+          console.error("Error al guardar el usuario:", _context19.t7);
 
           // Manejar errores específicos de Firebase
-          if (!(_context18.t2.code === "auth/email-already-exists")) {
-            _context18.next = 85;
+          if (!(_context19.t7.code === "auth/email-already-exists")) {
+            _context19.next = 97;
             break;
           }
-          return _context18.abrupt("return", res.status(400).send({
+          return _context19.abrupt("return", res.status(400).send({
             message: "Este email ya está registrado."
           }));
-        case 85:
-          if (!(_context18.t2.code === "auth/phone-number-already-exists")) {
-            _context18.next = 89;
+        case 97:
+          if (!(_context19.t7.code === "auth/phone-number-already-exists")) {
+            _context19.next = 101;
             break;
           }
-          return _context18.abrupt("return", res.status(400).send({
+          return _context19.abrupt("return", res.status(400).send({
             message: "Este número de teléfono ya está registrado."
           }));
-        case 89:
-          if (!(_context18.t2.code === "auth/invalid-phone-number")) {
-            _context18.next = 93;
+        case 101:
+          if (!(_context19.t7.code === "auth/invalid-phone-number")) {
+            _context19.next = 105;
             break;
           }
-          return _context18.abrupt("return", res.status(400).send({
+          return _context19.abrupt("return", res.status(400).send({
             message: "El número de teléfono no es válido."
           }));
-        case 93:
-          if (!(_context18.t2.code === "auth/invalid-password")) {
-            _context18.next = 95;
+        case 105:
+          if (!(_context19.t7.code === "auth/invalid-password")) {
+            _context19.next = 107;
             break;
           }
-          return _context18.abrupt("return", res.status(400).send({
+          return _context19.abrupt("return", res.status(400).send({
             message: "La contraseña es inválida."
           }));
-        case 95:
+        case 107:
           // En caso de un error inesperado
           res.status(500).send("Error al guardar el usuario");
-        case 96:
+        case 108:
         case "end":
-          return _context18.stop();
+          return _context19.stop();
       }
-    }, _callee17, null, [[0, 78], [2, 11], [67, 72]]);
+    }, _callee18, null, [[0, 90], [3, 15], [79, 84]]);
   }));
-  return function SaveTallerExtended(_x49, _x50) {
-    return _ref26.apply(this, arguments);
+  return function SaveTallerExtended(_x51, _x52) {
+    return _ref27.apply(this, arguments);
   };
 }();
 
 // Función para autenticar usuarios
 var authenticateUser = /*#__PURE__*/function () {
-  var _ref27 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee18(req, res) {
-    var _req$body4, email, password, userCredential, user, result, resultAdmin, adminData, userData;
-    return _regeneratorRuntime().wrap(function _callee18$(_context19) {
-      while (1) switch (_context19.prev = _context19.next) {
+  var _ref28 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee19(req, res) {
+    var _req$body5, email, password, userCredential, user, result, resultAdmin, adminData, userData;
+    return _regeneratorRuntime().wrap(function _callee19$(_context20) {
+      while (1) switch (_context20.prev = _context20.next) {
         case 0:
-          _context19.prev = 0;
-          _req$body4 = req.body, email = _req$body4.email, password = _req$body4.password; // Validar que se proporcione el email y la contraseña
+          _context20.prev = 0;
+          _req$body5 = req.body, email = _req$body5.email, password = _req$body5.password; // Validar que se proporcione el email y la contraseña
           if (!(!email || !password)) {
-            _context19.next = 4;
+            _context20.next = 4;
             break;
           }
-          return _context19.abrupt("return", res.status(400).send({
+          return _context20.abrupt("return", res.status(400).send({
             message: "Email y contraseña son requeridos"
           }));
         case 4:
-          _context19.next = 6;
+          _context20.next = 6;
           return signInWithEmailAndPassword(auth, email, password);
         case 6:
-          userCredential = _context19.sent;
+          userCredential = _context20.sent;
           user = userCredential.user; // Verificar si el usuario está autenticado
           if (user) {
-            _context19.next = 10;
+            _context20.next = 10;
             break;
           }
-          return _context19.abrupt("return", res.status(404).send({
+          return _context20.abrupt("return", res.status(404).send({
             message: "Usuario no encontrado"
           }));
         case 10:
-          _context19.next = 12;
+          _context20.next = 12;
           return db.collection("Usuarios").where("email", "==", email).get();
         case 12:
-          result = _context19.sent;
+          result = _context20.sent;
           if (!result.empty) {
-            _context19.next = 25;
+            _context20.next = 25;
             break;
           }
-          _context19.next = 16;
+          _context20.next = 16;
           return db.collection("Admins").where("email", "==", email).get();
         case 16:
-          resultAdmin = _context19.sent;
+          resultAdmin = _context20.sent;
           if (!resultAdmin.empty) {
-            _context19.next = 21;
+            _context20.next = 21;
             break;
           }
-          return _context19.abrupt("return", res.status(404).send({
+          return _context20.abrupt("return", res.status(404).send({
             message: "Usuario no encontrado ni en Usuarios ni en Admins"
           }));
         case 21:
@@ -1761,12 +1879,12 @@ var authenticateUser = /*#__PURE__*/function () {
               uid: doc.id
             }, doc.data());
           });
-          return _context19.abrupt("return", res.status(200).send({
+          return _context20.abrupt("return", res.status(200).send({
             message: "Usuario autenticado exitosamente como Admin",
             userData: adminData[0] // Enviar el primer documento encontrado con el UID
           }));
         case 23:
-          _context19.next = 27;
+          _context20.next = 27;
           break;
         case 25:
           // Si se encuentra en "Usuarios", devolver los datos del usuario y el UID del documento
@@ -1775,66 +1893,66 @@ var authenticateUser = /*#__PURE__*/function () {
               uid: doc.id
             }, doc.data());
           });
-          return _context19.abrupt("return", res.status(200).send({
+          return _context20.abrupt("return", res.status(200).send({
             message: "Usuario autenticado exitosamente",
             userData: userData[0] // Enviar el primer documento encontrado con el UID
           }));
         case 27:
-          _context19.next = 41;
+          _context20.next = 41;
           break;
         case 29:
-          _context19.prev = 29;
-          _context19.t0 = _context19["catch"](0);
+          _context20.prev = 29;
+          _context20.t0 = _context20["catch"](0);
           // Manejo de errores
-          console.error("Error al autenticar al usuario:", _context19.t0);
-          if (!(_context19.t0.code === "auth/user-not-found")) {
-            _context19.next = 36;
+          console.error("Error al autenticar al usuario:", _context20.t0);
+          if (!(_context20.t0.code === "auth/user-not-found")) {
+            _context20.next = 36;
             break;
           }
-          return _context19.abrupt("return", res.status(404).send({
+          return _context20.abrupt("return", res.status(404).send({
             message: "Usuario no encontrado en Firebase Authentication"
           }));
         case 36:
-          if (!(_context19.t0.code === "auth/wrong-password")) {
-            _context19.next = 40;
+          if (!(_context20.t0.code === "auth/wrong-password")) {
+            _context20.next = 40;
             break;
           }
-          return _context19.abrupt("return", res.status(401).send({
+          return _context20.abrupt("return", res.status(401).send({
             message: "Contraseña incorrecta"
           }));
         case 40:
-          return _context19.abrupt("return", res.status(500).send({
+          return _context20.abrupt("return", res.status(500).send({
             message: "Error al autenticar al usuario",
-            error: _context19.t0.message // Incluir detalles para depuración
+            error: _context20.t0.message // Incluir detalles para depuración
           }));
         case 41:
         case "end":
-          return _context19.stop();
+          return _context20.stop();
       }
-    }, _callee18, null, [[0, 29]]);
+    }, _callee19, null, [[0, 29]]);
   }));
-  return function authenticateUser(_x51, _x52) {
-    return _ref27.apply(this, arguments);
+  return function authenticateUser(_x53, _x54) {
+    return _ref28.apply(this, arguments);
   };
 }();
 var getUserByUid = /*#__PURE__*/function () {
-  var _ref28 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee19(req, res) {
+  var _ref29 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee20(req, res) {
     var uid, userDoc;
-    return _regeneratorRuntime().wrap(function _callee19$(_context20) {
-      while (1) switch (_context20.prev = _context20.next) {
+    return _regeneratorRuntime().wrap(function _callee20$(_context21) {
+      while (1) switch (_context21.prev = _context21.next) {
         case 0:
-          _context20.prev = 0;
+          _context21.prev = 0;
           // Obtener el UID desde los parámetros de la URL
           uid = req.body.uid;
           console.log(uid);
 
           // Buscar el documento del usuario con el UID en la colección "Usuarios"
-          _context20.next = 5;
+          _context21.next = 5;
           return db.collection("Usuarios").doc(uid).get();
         case 5:
-          userDoc = _context20.sent;
+          userDoc = _context21.sent;
           if (!userDoc.exists) {
-            _context20.next = 14;
+            _context21.next = 14;
             break;
           }
           console.log("Existe");
@@ -1842,41 +1960,41 @@ var getUserByUid = /*#__PURE__*/function () {
           console.log("***********************************************");
           console.log(userDoc.data());
           // Si el documento existe, devolver los datos del usuario
-          return _context20.abrupt("return", res.status(200).send({
+          return _context21.abrupt("return", res.status(200).send({
             message: "Usuario encontrado",
             userData: userDoc.data() // Devuelve los datos del documento
           }));
         case 14:
           console.log("No Existe");
           // Si el documento no existe, devolver un mensaje de error
-          return _context20.abrupt("return", res.status(404).send({
+          return _context21.abrupt("return", res.status(404).send({
             message: "No se encontró el usuario con el UID proporcionado"
           }));
         case 16:
-          _context20.next = 23;
+          _context21.next = 23;
           break;
         case 18:
-          _context20.prev = 18;
-          _context20.t0 = _context20["catch"](0);
-          console.error("Error al obtener el usuario por UID:", _context20.t0);
+          _context21.prev = 18;
+          _context21.t0 = _context21["catch"](0);
+          console.error("Error al obtener el usuario por UID:", _context21.t0);
           console.log("Dio errro");
           res.status(500).send("Error al obtener el usuario");
         case 23:
         case "end":
-          return _context20.stop();
+          return _context21.stop();
       }
-    }, _callee19, null, [[0, 18]]);
+    }, _callee20, null, [[0, 18]]);
   }));
-  return function getUserByUid(_x53, _x54) {
-    return _ref28.apply(this, arguments);
+  return function getUserByUid(_x55, _x56) {
+    return _ref29.apply(this, arguments);
   };
 }();
 var SaveTallerAll = function SaveTallerAll(req, res) {
   try {
-    var _req$body5 = req.body,
-      uid = _req$body5.uid,
-      base64 = _req$body5.base64,
-      imageTodelete = _req$body5.imageTodelete;
+    var _req$body6 = req.body,
+      uid = _req$body6.uid,
+      base64 = _req$body6.base64,
+      imageTodelete = _req$body6.imageTodelete;
 
     // Verificar que el UID no esté vacío
     if (!uid) {
@@ -1889,9 +2007,9 @@ var SaveTallerAll = function SaveTallerAll(req, res) {
         var prefix = "profileImages/".concat(uid);
         bucket.getFiles({
           prefix: prefix
-        }).then(function (_ref29) {
-          var _ref30 = _slicedToArray(_ref29, 1),
-            files = _ref30[0];
+        }).then(function (_ref30) {
+          var _ref31 = _slicedToArray(_ref30, 1),
+            files = _ref31[0];
           var maxIndex = 0;
           files.forEach(function (file) {
             var match = file.name.match(/(\d+)\.jpg$/);
@@ -2073,6 +2191,10 @@ var looksLikeRawBase64 = function looksLikeRawBase64(s) {
 };
 var extAndContentType = function extAndContentType(mime) {
   var m = String(mime || "").toLowerCase();
+  if (m.includes("pdf")) return {
+    ext: "pdf",
+    contentType: "application/pdf"
+  };
   if (m.includes("png")) return {
     ext: "png",
     contentType: "image/png"
@@ -2090,6 +2212,78 @@ var extAndContentType = function extAndContentType(mime) {
     contentType: "image/jpeg"
   };
 };
+
+// Detecta el tipo REAL del archivo por sus magic bytes (más confiable que el mime declarado).
+var sniffBufferType = function sniffBufferType(buffer) {
+  if (!buffer || buffer.length < 4) return null;
+  if (buffer.slice(0, 4).toString("ascii") === "%PDF") return {
+    ext: "pdf",
+    contentType: "application/pdf"
+  };
+  if (buffer[0] === 0xff && buffer[1] === 0xd8) return {
+    ext: "jpg",
+    contentType: "image/jpeg"
+  };
+  if (buffer[0] === 0x89 && buffer[1] === 0x50) return {
+    ext: "png",
+    contentType: "image/png"
+  };
+  if (buffer.slice(0, 4).toString("ascii") === "GIF8") return {
+    ext: "gif",
+    contentType: "image/gif"
+  };
+  if (buffer.slice(0, 4).toString("ascii") === "RIFF" && buffer.slice(8, 12).toString("ascii") === "WEBP") return {
+    ext: "webp",
+    contentType: "image/webp"
+  };
+  return null;
+};
+
+// Sube un documento del taller detectando su tipo real (PDF/imagen). Acepta data URL o base64 crudo.
+var uploadTallerDoc = /*#__PURE__*/function () {
+  var _ref32 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee21(uid, fieldName, base64Raw) {
+    var pathFn, buffer, mimeHint, dataUrl, _ref33, ext, contentType, storagePath;
+    return _regeneratorRuntime().wrap(function _callee21$(_context22) {
+      while (1) switch (_context22.prev = _context22.next) {
+        case 0:
+          pathFn = TALLER_DOC_FIELD_PATHS[fieldName];
+          if (pathFn) {
+            _context22.next = 3;
+            break;
+          }
+          return _context22.abrupt("return", "");
+        case 3:
+          mimeHint = "";
+          dataUrl = parseDataUrlBase64(base64Raw);
+          if (dataUrl) {
+            buffer = Buffer.from(dataUrl.base64, "base64");
+            mimeHint = dataUrl.contentType || "";
+          } else {
+            buffer = Buffer.from(String(base64Raw || "").replace(/\s/g, ""), "base64");
+          }
+          if (!(!buffer || !buffer.length)) {
+            _context22.next = 8;
+            break;
+          }
+          return _context22.abrupt("return", "");
+        case 8:
+          // Magic bytes = fuente de verdad; si no se reconoce, usa el mime del data URL; si no, jpg.
+          _ref33 = sniffBufferType(buffer) || extAndContentType(mimeHint), ext = _ref33.ext, contentType = _ref33.contentType;
+          storagePath = pathFn(uid, ext);
+          _context22.next = 12;
+          return uploadBufferToPath(storagePath, buffer, contentType);
+        case 12:
+          return _context22.abrupt("return", "https://storage.googleapis.com/".concat(bucket.name, "/").concat(storagePath));
+        case 13:
+        case "end":
+          return _context22.stop();
+      }
+    }, _callee21);
+  }));
+  return function uploadTallerDoc(_x57, _x58, _x59) {
+    return _ref32.apply(this, arguments);
+  };
+}();
 var uploadBufferToPath = function uploadBufferToPath(path, buffer, contentType) {
   var file = bucket.file(path);
   return file.save(buffer, {
@@ -2106,83 +2300,84 @@ var uploadBufferToPath = function uploadBufferToPath(path, buffer, contentType) 
  * texto corto (p. ej. RIF) se guarda tal cual.
  */
 var resolveTallerDocumentacionField = /*#__PURE__*/function () {
-  var _ref31 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee20(uid, fieldName, value) {
-    var raw, trimmed, dataUrl, buffer, mimeHint, pathFn, _extAndContentType, ext, contentType, storagePath;
-    return _regeneratorRuntime().wrap(function _callee20$(_context21) {
-      while (1) switch (_context21.prev = _context21.next) {
+  var _ref34 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee22(uid, fieldName, value) {
+    var raw, trimmed, dataUrl, buffer, mimeHint, pathFn, _ref35, ext, contentType, storagePath;
+    return _regeneratorRuntime().wrap(function _callee22$(_context23) {
+      while (1) switch (_context23.prev = _context23.next) {
         case 0:
           raw = value !== null && value !== void 0 ? value : "";
           trimmed = typeof raw === "string" ? raw.trim() : String(raw).trim();
           if (!(trimmed === "")) {
-            _context21.next = 4;
+            _context23.next = 4;
             break;
           }
-          return _context21.abrupt("return", "");
+          return _context23.abrupt("return", "");
         case 4:
           if (!isWebOrGsUrl(trimmed)) {
-            _context21.next = 6;
+            _context23.next = 6;
             break;
           }
-          return _context21.abrupt("return", trimmed);
+          return _context23.abrupt("return", trimmed);
         case 6:
           dataUrl = parseDataUrlBase64(trimmed);
           mimeHint = "image/jpeg";
           if (!dataUrl) {
-            _context21.next = 13;
+            _context23.next = 13;
             break;
           }
           buffer = Buffer.from(dataUrl.base64, "base64");
           mimeHint = dataUrl.contentType || "image/jpeg";
-          _context21.next = 18;
+          _context23.next = 18;
           break;
         case 13:
           if (!looksLikeRawBase64(trimmed)) {
-            _context21.next = 17;
+            _context23.next = 17;
             break;
           }
           buffer = Buffer.from(trimmed.replace(/\s/g, ""), "base64");
-          _context21.next = 18;
+          _context23.next = 18;
           break;
         case 17:
-          return _context21.abrupt("return", trimmed);
+          return _context23.abrupt("return", trimmed);
         case 18:
           pathFn = TALLER_DOC_FIELD_PATHS[fieldName];
           if (pathFn) {
-            _context21.next = 21;
+            _context23.next = 21;
             break;
           }
-          return _context21.abrupt("return", trimmed);
+          return _context23.abrupt("return", trimmed);
         case 21:
-          _extAndContentType = extAndContentType(mimeHint), ext = _extAndContentType.ext, contentType = _extAndContentType.contentType;
+          // Tipo real por magic bytes (PDF/PNG/JPEG/...); si no se reconoce, por el mime del data URL.
+          _ref35 = sniffBufferType(buffer) || extAndContentType(mimeHint), ext = _ref35.ext, contentType = _ref35.contentType;
           storagePath = pathFn(uid, ext);
-          _context21.next = 25;
+          _context23.next = 25;
           return uploadBufferToPath(storagePath, buffer, contentType);
         case 25:
-          return _context21.abrupt("return", "https://storage.googleapis.com/".concat(bucket.name, "/").concat(storagePath));
+          return _context23.abrupt("return", "https://storage.googleapis.com/".concat(bucket.name, "/").concat(storagePath));
         case 26:
         case "end":
-          return _context21.stop();
+          return _context23.stop();
       }
-    }, _callee20);
+    }, _callee22);
   }));
-  return function resolveTallerDocumentacionField(_x55, _x56, _x57) {
-    return _ref31.apply(this, arguments);
+  return function resolveTallerDocumentacionField(_x60, _x61, _x62) {
+    return _ref34.apply(this, arguments);
   };
 }();
 var UpdateTallerUsuarioDocs = /*#__PURE__*/function () {
-  var _ref32 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee21(req, res) {
-    var payload, uid, base64, imageTodelete, getLastImageIndex, processImage, clearOldImageField, deleteOldImage, index, keys, resolved;
-    return _regeneratorRuntime().wrap(function _callee21$(_context22) {
-      while (1) switch (_context22.prev = _context22.next) {
+  var _ref36 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee23(req, res) {
+    var payload, uid, base64, imageTodelete, getLastImageIndex, processImage, clearOldImageField, deleteOldImage, index, keys, resolved, hasRif, hasFrente, hasInterna, _currentSnap$data, currentSnap;
+    return _regeneratorRuntime().wrap(function _callee23$(_context24) {
+      while (1) switch (_context24.prev = _context24.next) {
         case 0:
-          _context22.prev = 0;
+          _context24.prev = 0;
           payload = _objectSpread({}, req.body || {});
           uid = payload.uid, base64 = payload.base64, imageTodelete = payload.imageTodelete;
           if (uid) {
-            _context22.next = 5;
+            _context24.next = 5;
             break;
           }
-          return _context22.abrupt("return", res.status(400).send({
+          return _context24.abrupt("return", res.status(400).send({
             message: "El UID es obligatorio."
           }));
         case 5:
@@ -2192,9 +2387,9 @@ var UpdateTallerUsuarioDocs = /*#__PURE__*/function () {
               var prefix = "profileImages/".concat(uid);
               bucket.getFiles({
                 prefix: prefix
-              }).then(function (_ref33) {
-                var _ref34 = _slicedToArray(_ref33, 1),
-                  files = _ref34[0];
+              }).then(function (_ref37) {
+                var _ref38 = _slicedToArray(_ref37, 1),
+                  files = _ref38[0];
                 var maxIndex = 0;
                 files.forEach(function (file) {
                   var match = file.name.match(/(\d+)\.jpg$/);
@@ -2263,25 +2458,25 @@ var UpdateTallerUsuarioDocs = /*#__PURE__*/function () {
               }
             });
           };
-          _context22.next = 11;
+          _context24.next = 11;
           return getLastImageIndex();
         case 11:
-          index = _context22.sent;
+          index = _context24.sent;
           if (!(base64 && base64.trim() !== "")) {
-            _context22.next = 17;
+            _context24.next = 17;
             break;
           }
-          _context22.next = 15;
+          _context24.next = 15;
           return clearOldImageField();
         case 15:
-          _context22.next = 17;
+          _context24.next = 17;
           return deleteOldImage();
         case 17:
-          _context22.next = 19;
+          _context24.next = 19;
           return processImage(index);
         case 19:
           keys = ["rifIdFiscal", "permisoOperacion", "logotipoNegocio", "fotoFrenteTaller", "fotoInternaTaller"];
-          _context22.next = 22;
+          _context24.next = 22;
           return Promise.all(keys.map(function (k) {
             var _payload$k;
             return resolveTallerDocumentacionField(uid, k, (_payload$k = payload[k]) !== null && _payload$k !== void 0 ? _payload$k : "").then(function (v) {
@@ -2289,11 +2484,11 @@ var UpdateTallerUsuarioDocs = /*#__PURE__*/function () {
             });
           }));
         case 22:
-          resolved = _context22.sent;
-          resolved.forEach(function (_ref35) {
-            var _ref36 = _slicedToArray(_ref35, 2),
-              k = _ref36[0],
-              v = _ref36[1];
+          resolved = _context24.sent;
+          resolved.forEach(function (_ref39) {
+            var _ref40 = _slicedToArray(_ref39, 2),
+              k = _ref40[0],
+              v = _ref40[1];
             payload[k] = v;
           });
           delete payload.base64;
@@ -2301,195 +2496,415 @@ var UpdateTallerUsuarioDocs = /*#__PURE__*/function () {
           Object.keys(payload).forEach(function (k) {
             if (payload[k] === undefined) delete payload[k];
           });
-          _context22.next = 29;
+
+          // Promover estatus si ya tiene RIF + foto frente + foto interna
+          hasRif = payload.rifIdFiscal && String(payload.rifIdFiscal).trim() !== '';
+          hasFrente = payload.fotoFrenteTaller && String(payload.fotoFrenteTaller).trim() !== '';
+          hasInterna = payload.fotoInternaTaller && String(payload.fotoInternaTaller).trim() !== '';
+          if (!(hasRif && hasFrente && hasInterna)) {
+            _context24.next = 35;
+            break;
+          }
+          _context24.next = 33;
+          return db.collection("Usuarios").doc(uid).get();
+        case 33:
+          currentSnap = _context24.sent;
+          if (currentSnap.exists && ((_currentSnap$data = currentSnap.data()) === null || _currentSnap$data === void 0 ? void 0 : _currentSnap$data.status) === 'En espera de documentos') {
+            payload.status = 'En espera por aprobación';
+          }
+        case 35:
+          _context24.next = 37;
           return db.collection("Usuarios").doc(uid).set(payload, {
             merge: true
           });
-        case 29:
-          return _context22.abrupt("return", res.status(201).send({
+        case 37:
+          return _context24.abrupt("return", res.status(201).send({
             message: "Usuario actualizado con éxito",
             uid: uid
           }));
-        case 32:
-          _context22.prev = 32;
-          _context22.t0 = _context22["catch"](0);
-          console.error("Error al actualizar documentación del taller:", _context22.t0);
-          if (!(_context22.t0.code === "permission-denied")) {
-            _context22.next = 37;
+        case 40:
+          _context24.prev = 40;
+          _context24.t0 = _context24["catch"](0);
+          console.error("Error al actualizar documentación del taller:", _context24.t0);
+          if (!(_context24.t0.code === "permission-denied")) {
+            _context24.next = 45;
             break;
           }
-          return _context22.abrupt("return", res.status(403).send({
+          return _context24.abrupt("return", res.status(403).send({
             message: "Permisos insuficientes para guardar el usuario."
           }));
-        case 37:
-          if (!(_context22.t0.code === "not-found")) {
-            _context22.next = 39;
+        case 45:
+          if (!(_context24.t0.code === "not-found")) {
+            _context24.next = 47;
             break;
           }
-          return _context22.abrupt("return", res.status(404).send({
+          return _context24.abrupt("return", res.status(404).send({
             message: "Usuario no encontrado."
           }));
-        case 39:
-          return _context22.abrupt("return", res.status(500).send({
+        case 47:
+          return _context24.abrupt("return", res.status(500).send({
             message: "Error al guardar el usuario",
-            error: _context22.t0.message
+            error: _context24.t0.message
           }));
-        case 40:
+        case 48:
         case "end":
-          return _context22.stop();
+          return _context24.stop();
       }
-    }, _callee21, null, [[0, 32]]);
+    }, _callee23, null, [[0, 40]]);
   }));
-  return function UpdateTallerUsuarioDocs(_x58, _x59) {
-    return _ref32.apply(this, arguments);
+  return function UpdateTallerUsuarioDocs(_x63, _x64) {
+    return _ref36.apply(this, arguments);
   };
 }();
 var restorePass = /*#__PURE__*/function () {
-  var _ref37 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee22(req, res) {
+  var _ref41 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee24(req, res) {
     var email, link, htmlContent;
-    return _regeneratorRuntime().wrap(function _callee22$(_context23) {
-      while (1) switch (_context23.prev = _context23.next) {
+    return _regeneratorRuntime().wrap(function _callee24$(_context25) {
+      while (1) switch (_context25.prev = _context25.next) {
         case 0:
           email = req.body.email;
           if (email) {
-            _context23.next = 3;
+            _context25.next = 3;
             break;
           }
-          return _context23.abrupt("return", res.status(400).json({
+          return _context25.abrupt("return", res.status(400).json({
             message: "El campo email es obligatorio"
           }));
         case 3:
-          _context23.prev = 3;
-          _context23.next = 6;
+          _context25.prev = 3;
+          _context25.next = 6;
           return admin.auth().generatePasswordResetLink(email);
         case 6:
-          link = _context23.sent;
+          link = _context25.sent;
           if (!(!link || typeof link !== 'string')) {
-            _context23.next = 9;
+            _context25.next = 9;
             break;
           }
           throw new Error("No se pudo generar el link de restablecimiento");
         case 9:
           // HTML con enlace seguro
           htmlContent = "\n      <div style=\"font-family: 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow: hidden;\">\n        <div style=\"background-color: #1e3a8a; padding: 40px 30px; text-align: center;\">\n          <h1 style=\"color: #ffffff; margin: 0; font-size: 28px; font-weight: 600;\">Restablecer Contrase\xF1a</h1>\n        </div>\n        <div style=\"padding: 40px 30px;\">\n          <h2 style=\"color: #1e40af; margin: 0 0 20px 0; font-size: 24px; font-weight: 500;\">Hola,</h2>\n          <p style=\"color: #000000; line-height: 1.6; margin: 0 0 20px 0; font-size: 16px;\">\n            Hemos recibido una solicitud para restablecer la contrase\xF1a de tu cuenta.\n          </p>\n          <p style=\"color: #000000; line-height: 1.6; margin: 0 0 30px 0; font-size: 16px;\">\n            Usa el siguiente enlace para cambiar tu contrase\xF1a:\n          </p>\n          <div style=\"background-color: #dbeafe; border: 2px solid #3b82f6; border-radius: 6px; padding: 20px; margin: 30px 0; text-align: center;\">\n            <p style=\"color: #1d4ed8; text-decoration: underline; font-weight: 600; font-size: 16px; word-break: break-all; line-height: 1.4;\">\n              ".concat(String(link), "\n            </p>\n          </div>\n          <p style=\"color: #3730a3; font-size: 14px; line-height: 1.5; margin: 30px 0 0 0; text-align: center;\">\n            Si no solicitaste este cambio, puedes ignorar este mensaje de forma segura.\n          </p>\n        </div>\n        <div style=\"background-color: #eff6ff; padding: 20px 30px; text-align: center; border-top: 1px solid #bfdbfe;\">\n          <p style=\"color: #3730a3; font-size: 12px; margin: 0; line-height: 1.4;\">\n            Este enlace expirar\xE1 en 24 horas por motivos de seguridad.\n          </p>\n        </div>\n      </div>\n    "); // Enviar email
-          _context23.next = 12;
+          _context25.next = 12;
           return sendEmail(email, htmlContent, 'Restablecer contraseña');
         case 12:
           res.status(200).json({
             message: "Si el correo existe, se enviará un enlace para restablecer la contraseña"
           });
-          _context23.next = 19;
+          _context25.next = 19;
           break;
         case 15:
-          _context23.prev = 15;
-          _context23.t0 = _context23["catch"](3);
-          console.error("❌ Error generando link:", _context23.t0);
+          _context25.prev = 15;
+          _context25.t0 = _context25["catch"](3);
+          console.error("❌ Error generando link:", _context25.t0);
           res.status(500).json({
             message: "Hubo un error al procesar la solicitud"
           });
         case 19:
         case "end":
-          return _context23.stop();
+          return _context25.stop();
       }
-    }, _callee22, null, [[3, 15]]);
+    }, _callee24, null, [[3, 15]]);
   }));
-  return function restorePass(_x60, _x61) {
-    return _ref37.apply(this, arguments);
+  return function restorePass(_x65, _x66) {
+    return _ref41.apply(this, arguments);
   };
 }();
 var getTalleres = /*#__PURE__*/function () {
-  var _ref38 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee23(req, res) {
+  var _ref42 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee25(req, res) {
     var estado, query, result, usuarios;
-    return _regeneratorRuntime().wrap(function _callee23$(_context24) {
-      while (1) switch (_context24.prev = _context24.next) {
+    return _regeneratorRuntime().wrap(function _callee25$(_context26) {
+      while (1) switch (_context26.prev = _context26.next) {
         case 0:
-          _context24.prev = 0;
+          _context26.prev = 0;
           estado = req.body.estado; // Hacer la consulta base sin el filtro de estado
-          _context24.next = 4;
+          _context26.next = 4;
           return db.collection("Usuarios")
           // .where("status", "!=", "Aprobado")
-          .where("status", "==", "En espera por aprobación").where("typeUser", "==", "Taller");
+          .where("status", "in", ["En espera por aprobación", "En espera de documentos"]).where("typeUser", "==", "Taller");
         case 4:
-          query = _context24.sent;
-          _context24.next = 7;
+          query = _context26.sent;
+          _context26.next = 7;
           return query.get();
         case 7:
-          result = _context24.sent;
+          result = _context26.sent;
           if (!result.empty) {
-            _context24.next = 10;
+            _context26.next = 10;
             break;
           }
-          return _context24.abrupt("return", res.status(404).send('No se encontraron usuarios con el tipo "Taller"'));
+          return _context26.abrupt("return", res.status(404).send('No se encontraron usuarios con el tipo "Taller"'));
         case 10:
           usuarios = result.docs.map(function (doc) {
             return doc.data();
           }); // Filtrar en memoria según el estado
           if (!Array.isArray(estado)) {
-            _context24.next = 17;
+            _context26.next = 17;
             break;
           }
           if (!(estado.length === 0)) {
-            _context24.next = 14;
+            _context26.next = 14;
             break;
           }
-          return _context24.abrupt("return", res.status(400).send("El array de estados está vacío."));
+          return _context26.abrupt("return", res.status(400).send("El array de estados está vacío."));
         case 14:
           // Filtrar los usuarios cuyo estado esté en el array
           usuarios = usuarios.filter(function (usuario) {
             return estado.includes(usuario.estado);
           });
-          _context24.next = 23;
+          _context26.next = 23;
           break;
         case 17:
           if (!(typeof estado === "string")) {
-            _context24.next = 21;
+            _context26.next = 21;
             break;
           }
           // Filtrar los usuarios con ese estado específico
           usuarios = usuarios.filter(function (usuario) {
             return usuario.estado === estado;
           });
-          _context24.next = 23;
+          _context26.next = 23;
           break;
         case 21:
           if (!(estado !== undefined)) {
-            _context24.next = 23;
+            _context26.next = 23;
             break;
           }
-          return _context24.abrupt("return", res.status(400).send("El parámetro 'estado' debe ser un string o un array de strings."));
+          return _context26.abrupt("return", res.status(400).send("El parámetro 'estado' debe ser un string o un array de strings."));
         case 23:
           res.send(usuarios);
-          _context24.next = 30;
+          _context26.next = 30;
           break;
         case 26:
-          _context24.prev = 26;
-          _context24.t0 = _context24["catch"](0);
-          console.error("Error al obtener usuarios:", _context24.t0);
+          _context26.prev = 26;
+          _context26.t0 = _context26["catch"](0);
+          console.error("Error al obtener usuarios:", _context26.t0);
           res.status(500).send("Error al obtener usuarios");
         case 30:
         case "end":
-          return _context24.stop();
+          return _context26.stop();
       }
-    }, _callee23, null, [[0, 26]]);
+    }, _callee25, null, [[0, 26]]);
   }));
-  return function getTalleres(_x62, _x63) {
-    return _ref38.apply(this, arguments);
+  return function getTalleres(_x67, _x68) {
+    return _ref42.apply(this, arguments);
+  };
+}();
+
+// --- Requerimiento 001 (puntos 6 y 7) ---------------------------------------
+// Dias por defecto del plan gratis cuando el documento del plan no trae vigencia.
+var PLAN_GRATIS_DIAS_POR_DEFECTO = 5;
+var MS_POR_DIA = 24 * 60 * 60 * 1000;
+
+// Punto 7: al aprobar el comercio, todos sus servicios pasan a estatus true.
+var activarServiciosDelTaller = /*#__PURE__*/function () {
+  var _ref43 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee26(tallerId) {
+    var snap, docs, encendidos, _loop2, i;
+    return _regeneratorRuntime().wrap(function _callee26$(_context28) {
+      while (1) switch (_context28.prev = _context28.next) {
+        case 0:
+          _context28.next = 2;
+          return db.collection("Servicios").where("uid_taller", "==", tallerId).get();
+        case 2:
+          snap = _context28.sent;
+          if (!snap.empty) {
+            _context28.next = 5;
+            break;
+          }
+          return _context28.abrupt("return", {
+            total: 0,
+            encendidos: 0
+          });
+        case 5:
+          docs = snap.docs;
+          encendidos = 0;
+          _loop2 = /*#__PURE__*/_regeneratorRuntime().mark(function _loop2() {
+            var batch;
+            return _regeneratorRuntime().wrap(function _loop2$(_context27) {
+              while (1) switch (_context27.prev = _context27.next) {
+                case 0:
+                  batch = db.batch();
+                  docs.slice(i, i + 400).forEach(function (d) {
+                    if ((d.data() || {}).estatus !== true) encendidos += 1;
+                    batch.update(d.ref, {
+                      estatus: true,
+                      lastActive: true
+                    });
+                  });
+                  _context27.next = 4;
+                  return batch.commit();
+                case 4:
+                case "end":
+                  return _context27.stop();
+              }
+            }, _loop2);
+          });
+          i = 0;
+        case 9:
+          if (!(i < docs.length)) {
+            _context28.next = 14;
+            break;
+          }
+          return _context28.delegateYield(_loop2(), "t0", 11);
+        case 11:
+          i += 400;
+          _context28.next = 9;
+          break;
+        case 14:
+          return _context28.abrupt("return", {
+            total: docs.length,
+            encendidos: encendidos
+          });
+        case 15:
+        case "end":
+          return _context28.stop();
+      }
+    }, _callee26);
+  }));
+  return function activarServiciosDelTaller(_x69) {
+    return _ref43.apply(this, arguments);
+  };
+}();
+
+// Punto 6: los dias del plan no corren hasta que el negocio este aprobado.
+// AsociarPlan deja la suscripcion con pendiente_inicio true y sin fechas;
+// aqui se arranca el reloj.
+var arrancarVigenciaPlan = /*#__PURE__*/function () {
+  var _ref44 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee27(tallerId) {
+    var userRef, userSnap, sub, dias, inicio, fin, pendientes, batch;
+    return _regeneratorRuntime().wrap(function _callee27$(_context29) {
+      while (1) switch (_context29.prev = _context29.next) {
+        case 0:
+          userRef = db.collection("Usuarios").doc(tallerId);
+          _context29.next = 3;
+          return userRef.get();
+        case 3:
+          userSnap = _context29.sent;
+          if (userSnap.exists) {
+            _context29.next = 6;
+            break;
+          }
+          return _context29.abrupt("return", {
+            arrancado: false,
+            motivo: "usuario_inexistente"
+          });
+        case 6:
+          sub = (userSnap.data() || {}).subscripcion_actual;
+          if (sub) {
+            _context29.next = 9;
+            break;
+          }
+          return _context29.abrupt("return", {
+            arrancado: false,
+            motivo: "sin_suscripcion"
+          });
+        case 9:
+          if (!(sub.fecha_inicio && sub.pendiente_inicio !== true)) {
+            _context29.next = 11;
+            break;
+          }
+          return _context29.abrupt("return", {
+            arrancado: false,
+            motivo: "ya_iniciada"
+          });
+        case 11:
+          dias = parseInt(sub.vigencia, 10) || PLAN_GRATIS_DIAS_POR_DEFECTO;
+          inicio = admin.firestore.Timestamp.now();
+          fin = admin.firestore.Timestamp.fromMillis(inicio.toMillis() + dias * MS_POR_DIA);
+          _context29.next = 16;
+          return userRef.update({
+            "subscripcion_actual.fecha_inicio": inicio,
+            "subscripcion_actual.fecha_fin": fin,
+            "subscripcion_actual.pendiente_inicio": false
+          });
+        case 16:
+          _context29.next = 18;
+          return db.collection("Subscripciones").where("taller_uid", "==", tallerId).where("pendiente_inicio", "==", true).get();
+        case 18:
+          pendientes = _context29.sent;
+          if (pendientes.empty) {
+            _context29.next = 24;
+            break;
+          }
+          batch = db.batch();
+          pendientes.docs.forEach(function (d) {
+            batch.update(d.ref, {
+              fecha_inicio: inicio,
+              fecha_fin: fin,
+              pendiente_inicio: false
+            });
+          });
+          _context29.next = 24;
+          return batch.commit();
+        case 24:
+          return _context29.abrupt("return", {
+            arrancado: true,
+            dias: dias
+          });
+        case 25:
+        case "end":
+          return _context29.stop();
+      }
+    }, _callee27);
+  }));
+  return function arrancarVigenciaPlan(_x70) {
+    return _ref44.apply(this, arguments);
+  };
+}();
+
+// Se ejecuta una sola vez, cuando el certificador aprueba el comercio.
+var activarComercioTrasAprobacion = /*#__PURE__*/function () {
+  var _ref45 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee28(uid) {
+    var tallerId, servicios, plan;
+    return _regeneratorRuntime().wrap(function _callee28$(_context30) {
+      while (1) switch (_context30.prev = _context30.next) {
+        case 0:
+          tallerId = String(uid || "").trim();
+          if (tallerId) {
+            _context30.next = 3;
+            break;
+          }
+          return _context30.abrupt("return");
+        case 3:
+          _context30.prev = 3;
+          _context30.next = 6;
+          return activarServiciosDelTaller(tallerId);
+        case 6:
+          servicios = _context30.sent;
+          _context30.next = 9;
+          return arrancarVigenciaPlan(tallerId);
+        case 9:
+          plan = _context30.sent;
+          console.log("activarComercioTrasAprobacion", tallerId, servicios, plan);
+          _context30.next = 16;
+          break;
+        case 13:
+          _context30.prev = 13;
+          _context30.t0 = _context30["catch"](3);
+          // No debe tumbar la aprobacion del taller.
+          console.error("activarComercioTrasAprobacion:", _context30.t0 && _context30.t0.message);
+        case 16:
+        case "end":
+          return _context30.stop();
+      }
+    }, _callee28, null, [[3, 13]]);
+  }));
+  return function activarComercioTrasAprobacion(_x71) {
+    return _ref45.apply(this, arguments);
   };
 }();
 var actualizarStatusUsuario = /*#__PURE__*/function () {
-  var _ref39 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee24(req, res) {
-    var _req$body6, _uid, nuevoStatus, certificador_nombre, certificador_key, motivoRechazo, updateData;
-    return _regeneratorRuntime().wrap(function _callee24$(_context25) {
-      while (1) switch (_context25.prev = _context25.next) {
+  var _ref46 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee29(req, res) {
+    var _req$body7, _uid, nuevoStatus, certificador_nombre, certificador_key, motivoRechazo, updateData;
+    return _regeneratorRuntime().wrap(function _callee29$(_context31) {
+      while (1) switch (_context31.prev = _context31.next) {
         case 0:
-          _context25.prev = 0;
+          _context31.prev = 0;
           // Obtener el UID y el nuevo estado desde el cuerpo de la solicitud
-          _req$body6 = req.body, _uid = _req$body6.uid, nuevoStatus = _req$body6.nuevoStatus, certificador_nombre = _req$body6.certificador_nombre, certificador_key = _req$body6.certificador_key, motivoRechazo = _req$body6.motivoRechazo; // Verificar que se haya proporcionado un UID y un nuevo estado
+          _req$body7 = req.body, _uid = _req$body7.uid, nuevoStatus = _req$body7.nuevoStatus, certificador_nombre = _req$body7.certificador_nombre, certificador_key = _req$body7.certificador_key, motivoRechazo = _req$body7.motivoRechazo; // Verificar que se haya proporcionado un UID y un nuevo estado
           if (!(!_uid || !nuevoStatus)) {
-            _context25.next = 4;
+            _context31.next = 4;
             break;
           }
-          return _context25.abrupt("return", res.status(400).send({
+          return _context31.abrupt("return", res.status(400).send({
             message: "El UID y el nuevo estado son requeridos"
           }));
         case 4:
@@ -2504,39 +2919,46 @@ var actualizarStatusUsuario = /*#__PURE__*/function () {
           }
 
           // Actualizar el campo 'status' en el documento del usuario
-          _context25.next = 8;
+          _context31.next = 8;
           return db.collection("Usuarios").doc(_uid).update(updateData);
         case 8:
-          return _context25.abrupt("return", res.status(200).send({
+          if (!(nuevoStatus === "Aprobado")) {
+            _context31.next = 11;
+            break;
+          }
+          _context31.next = 11;
+          return activarComercioTrasAprobacion(_uid);
+        case 11:
+          return _context31.abrupt("return", res.status(200).send({
             message: "El estado del usuario ha sido actualizado exitosamente"
           }));
-        case 11:
-          _context25.prev = 11;
-          _context25.t0 = _context25["catch"](0);
-          console.error("Error al actualizar el estado del usuario:", _context25.t0);
-          return _context25.abrupt("return", res.status(500).send({
+        case 14:
+          _context31.prev = 14;
+          _context31.t0 = _context31["catch"](0);
+          console.error("Error al actualizar el estado del usuario:", _context31.t0);
+          return _context31.abrupt("return", res.status(500).send({
             message: "Error al actualizar el estado del usuario",
-            error: _context25.t0.message // Incluir detalles para depuración
+            error: _context31.t0.message // Incluir detalles para depuración
           }));
-        case 15:
+        case 18:
         case "end":
-          return _context25.stop();
+          return _context31.stop();
       }
-    }, _callee24, null, [[0, 11]]);
+    }, _callee29, null, [[0, 14]]);
   }));
-  return function actualizarStatusUsuario(_x64, _x65) {
-    return _ref39.apply(this, arguments);
+  return function actualizarStatusUsuario(_x72, _x73) {
+    return _ref46.apply(this, arguments);
   };
 }();
 var UpdateTaller = /*#__PURE__*/function () {
-  var _ref40 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee25(req, res) {
-    var _req$body7, _uid2, nombre, rif, phone, email, Direccion, RegComercial, Caracteristicas, Tarifa, Experiencia, LinkFacebook, LinkInstagram, LinkTiktok, Garantia, seguro, agenteAutorizado, updatedUserInfo;
-    return _regeneratorRuntime().wrap(function _callee25$(_context26) {
-      while (1) switch (_context26.prev = _context26.next) {
+  var _ref47 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee30(req, res) {
+    var _req$body8, _uid2, nombre, rif, phone, email, Direccion, RegComercial, Caracteristicas, Tarifa, Experiencia, LinkFacebook, LinkInstagram, LinkTiktok, Garantia, seguro, agenteAutorizado, updatedUserInfo;
+    return _regeneratorRuntime().wrap(function _callee30$(_context32) {
+      while (1) switch (_context32.prev = _context32.next) {
         case 0:
-          _context26.prev = 0;
+          _context32.prev = 0;
           // Recibir los datos del cliente desde el cuerpo de la solicitud
-          _req$body7 = req.body, _uid2 = _req$body7.uid, nombre = _req$body7.nombre, rif = _req$body7.rif, phone = _req$body7.phone, email = _req$body7.email, Direccion = _req$body7.Direccion, RegComercial = _req$body7.RegComercial, Caracteristicas = _req$body7.Caracteristicas, Tarifa = _req$body7.Tarifa, Experiencia = _req$body7.Experiencia, LinkFacebook = _req$body7.LinkFacebook, LinkInstagram = _req$body7.LinkInstagram, LinkTiktok = _req$body7.LinkTiktok, Garantia = _req$body7.Garantia, seguro = _req$body7.seguro, agenteAutorizado = _req$body7.agenteAutorizado; // Crear el objeto con los datos que se actualizarán en la colección "Usuarios"
+          _req$body8 = req.body, _uid2 = _req$body8.uid, nombre = _req$body8.nombre, rif = _req$body8.rif, phone = _req$body8.phone, email = _req$body8.email, Direccion = _req$body8.Direccion, RegComercial = _req$body8.RegComercial, Caracteristicas = _req$body8.Caracteristicas, Tarifa = _req$body8.Tarifa, Experiencia = _req$body8.Experiencia, LinkFacebook = _req$body8.LinkFacebook, LinkInstagram = _req$body8.LinkInstagram, LinkTiktok = _req$body8.LinkTiktok, Garantia = _req$body8.Garantia, seguro = _req$body8.seguro, agenteAutorizado = _req$body8.agenteAutorizado; // Crear el objeto con los datos que se actualizarán en la colección "Usuarios"
           updatedUserInfo = {
             uid: _uid2,
             nombre: nombre == undefined ? "" : nombre,
@@ -2556,7 +2978,7 @@ var UpdateTaller = /*#__PURE__*/function () {
             seguro: seguro == undefined ? "" : seguro,
             agenteAutorizado: agenteAutorizado == undefined ? false : agenteAutorizado
           }; // Actualizar el documento en la colección "Usuarios" con el UID proporcionado
-          _context26.next = 5;
+          _context32.next = 5;
           return db.collection("Usuarios").doc(_uid2).update(updatedUserInfo);
         case 5:
           // Responder con un mensaje de éxito
@@ -2564,37 +2986,37 @@ var UpdateTaller = /*#__PURE__*/function () {
             message: "Usuario actualizado con éxito",
             uid: _uid2
           });
-          _context26.next = 12;
+          _context32.next = 12;
           break;
         case 8:
-          _context26.prev = 8;
-          _context26.t0 = _context26["catch"](0);
-          console.error("Error al actualizar el usuario:", _context26.t0);
+          _context32.prev = 8;
+          _context32.t0 = _context32["catch"](0);
+          console.error("Error al actualizar el usuario:", _context32.t0);
 
           // En caso de error, responder con el mensaje correspondiente
           res.status(500).send({
             message: "Error al actualizar el usuario",
-            error: _context26.t0.message
+            error: _context32.t0.message
           });
         case 12:
         case "end":
-          return _context26.stop();
+          return _context32.stop();
       }
-    }, _callee25, null, [[0, 8]]);
+    }, _callee30, null, [[0, 8]]);
   }));
-  return function UpdateTaller(_x66, _x67) {
-    return _ref40.apply(this, arguments);
+  return function UpdateTaller(_x74, _x75) {
+    return _ref47.apply(this, arguments);
   };
 }();
 var UpdateClient = /*#__PURE__*/function () {
-  var _ref41 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee26(req, res) {
-    var _req$body8, _uid3, Nombre, cedula, phone, email, _base, _imageTodelete, estado, updatedUserInfo, getLastImageIndex, processImage, deleteOldImage;
-    return _regeneratorRuntime().wrap(function _callee26$(_context27) {
-      while (1) switch (_context27.prev = _context27.next) {
+  var _ref48 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee31(req, res) {
+    var _req$body9, _uid3, Nombre, cedula, phone, email, _base, _imageTodelete, estado, updatedUserInfo, getLastImageIndex, processImage, deleteOldImage;
+    return _regeneratorRuntime().wrap(function _callee31$(_context33) {
+      while (1) switch (_context33.prev = _context33.next) {
         case 0:
           try {
             // Recibir los datos del cliente desde el cuerpo de la solicitud
-            _req$body8 = req.body, _uid3 = _req$body8.uid, Nombre = _req$body8.Nombre, cedula = _req$body8.cedula, phone = _req$body8.phone, email = _req$body8.email, _base = _req$body8.base64, _imageTodelete = _req$body8.imageTodelete, estado = _req$body8.estado; // Crear el objeto que se actualizará en la colección "Usuarios"
+            _req$body9 = req.body, _uid3 = _req$body9.uid, Nombre = _req$body9.Nombre, cedula = _req$body9.cedula, phone = _req$body9.phone, email = _req$body9.email, _base = _req$body9.base64, _imageTodelete = _req$body9.imageTodelete, estado = _req$body9.estado; // Crear el objeto que se actualizará en la colección "Usuarios"
             updatedUserInfo = {
               nombre: Nombre,
               cedula: cedula,
@@ -2609,9 +3031,9 @@ var UpdateClient = /*#__PURE__*/function () {
                 var prefix = "profileImages/".concat(_uid3);
                 bucket.getFiles({
                   prefix: prefix
-                }).then(function (_ref42) {
-                  var _ref43 = _slicedToArray(_ref42, 1),
-                    files = _ref43[0];
+                }).then(function (_ref49) {
+                  var _ref50 = _slicedToArray(_ref49, 1),
+                    files = _ref50[0];
                   var maxIndex = 0;
                   files.forEach(function (file) {
                     var match = file.name.match(/(\d+)\.jpg$/);
@@ -2706,36 +3128,36 @@ var UpdateClient = /*#__PURE__*/function () {
           }
         case 1:
         case "end":
-          return _context27.stop();
+          return _context33.stop();
       }
-    }, _callee26);
+    }, _callee31);
   }));
-  return function UpdateClient(_x68, _x69) {
-    return _ref41.apply(this, arguments);
+  return function UpdateClient(_x76, _x77) {
+    return _ref48.apply(this, arguments);
   };
 }();
 var getServicesByTalleruid = /*#__PURE__*/function () {
-  var _ref44 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee27(req, res) {
+  var _ref51 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee32(req, res) {
     var uid_taller, servicesSnapshot, services;
-    return _regeneratorRuntime().wrap(function _callee27$(_context28) {
-      while (1) switch (_context28.prev = _context28.next) {
+    return _regeneratorRuntime().wrap(function _callee32$(_context34) {
+      while (1) switch (_context34.prev = _context34.next) {
         case 0:
-          _context28.prev = 0;
+          _context34.prev = 0;
           // Obtener el UID_TALLER desde el cuerpo de la solicitud
           uid_taller = req.body.uid_taller;
           console.log(uid_taller);
 
           // Buscar en la colección "Servicios" los documentos donde uid_taller coincide
-          _context28.next = 5;
+          _context34.next = 5;
           return db.collection("Servicios").where("uid_taller", "==", uid_taller).get();
         case 5:
-          servicesSnapshot = _context28.sent;
+          servicesSnapshot = _context34.sent;
           if (!servicesSnapshot.empty) {
-            _context28.next = 9;
+            _context34.next = 9;
             break;
           }
           console.log("No se encontraron servicios para el UID_TALLER proporcionado");
-          return _context28.abrupt("return", res.status(404).send({
+          return _context34.abrupt("return", res.status(404).send({
             message: "No se encontraron servicios para el UID_TALLER proporcionado"
           }));
         case 9:
@@ -2745,47 +3167,47 @@ var getServicesByTalleruid = /*#__PURE__*/function () {
               id: doc.id
             }, doc.data());
           }); // Enviar los servicios encontrados
-          return _context28.abrupt("return", res.status(200).send({
+          return _context34.abrupt("return", res.status(200).send({
             message: "Servicios encontrados",
             services: services
           }));
         case 13:
-          _context28.prev = 13;
-          _context28.t0 = _context28["catch"](0);
-          console.error("Error al obtener los servicios por UID_TALLER:", _context28.t0);
+          _context34.prev = 13;
+          _context34.t0 = _context34["catch"](0);
+          console.error("Error al obtener los servicios por UID_TALLER:", _context34.t0);
           res.status(500).send("Error al obtener los servicios");
         case 17:
         case "end":
-          return _context28.stop();
+          return _context34.stop();
       }
-    }, _callee27, null, [[0, 13]]);
+    }, _callee32, null, [[0, 13]]);
   }));
-  return function getServicesByTalleruid(_x70, _x71) {
-    return _ref44.apply(this, arguments);
+  return function getServicesByTalleruid(_x78, _x79) {
+    return _ref51.apply(this, arguments);
   };
 }();
 var getServiceByUid = /*#__PURE__*/function () {
-  var _ref45 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee28(req, res) {
+  var _ref52 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee33(req, res) {
     var _uid4, serviceSnapshot, serviceData;
-    return _regeneratorRuntime().wrap(function _callee28$(_context29) {
-      while (1) switch (_context29.prev = _context29.next) {
+    return _regeneratorRuntime().wrap(function _callee33$(_context35) {
+      while (1) switch (_context35.prev = _context35.next) {
         case 0:
-          _context29.prev = 0;
+          _context35.prev = 0;
           // Obtener el UID del servicio desde el cuerpo de la solicitud
           _uid4 = req.body.uid;
           console.log("UID del servicio:", _uid4);
 
           // Buscar el documento en la colección "Servicios" donde el campo "uid" coincide
-          _context29.next = 5;
+          _context35.next = 5;
           return db.collection("Servicios").doc(_uid4).get();
         case 5:
-          serviceSnapshot = _context29.sent;
+          serviceSnapshot = _context35.sent;
           if (serviceSnapshot.exists) {
-            _context29.next = 9;
+            _context35.next = 9;
             break;
           }
           console.log("No se encontró el servicio con el UID proporcionado");
-          return _context29.abrupt("return", res.status(404).send({
+          return _context35.abrupt("return", res.status(404).send({
             message: "No se encontró el servicio con el UID proporcionado"
           }));
         case 9:
@@ -2793,56 +3215,56 @@ var getServiceByUid = /*#__PURE__*/function () {
           serviceData = _objectSpread({
             id: serviceSnapshot.id
           }, serviceSnapshot.data()); // Enviar el servicio encontrado
-          return _context29.abrupt("return", res.status(200).send({
+          return _context35.abrupt("return", res.status(200).send({
             message: "Servicio encontrado",
             service: serviceData
           }));
         case 13:
-          _context29.prev = 13;
-          _context29.t0 = _context29["catch"](0);
-          console.error("Error al obtener el servicio por UID:", _context29.t0);
+          _context35.prev = 13;
+          _context35.t0 = _context35["catch"](0);
+          console.error("Error al obtener el servicio por UID:", _context35.t0);
           res.status(500).send("Error al obtener el servicio");
         case 17:
         case "end":
-          return _context29.stop();
+          return _context35.stop();
       }
-    }, _callee28, null, [[0, 13]]);
+    }, _callee33, null, [[0, 13]]);
   }));
-  return function getServiceByUid(_x72, _x73) {
-    return _ref45.apply(this, arguments);
+  return function getServiceByUid(_x80, _x81) {
+    return _ref52.apply(this, arguments);
   };
 }();
 var getServicesByTallerUidTrue = /*#__PURE__*/function () {
-  var _ref46 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee29(req, res) {
-    var _ref47, _uid5, serviceSnapshot, services;
-    return _regeneratorRuntime().wrap(function _callee29$(_context30) {
-      while (1) switch (_context30.prev = _context30.next) {
+  var _ref53 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee34(req, res) {
+    var _ref54, _uid5, serviceSnapshot, services;
+    return _regeneratorRuntime().wrap(function _callee34$(_context36) {
+      while (1) switch (_context36.prev = _context36.next) {
         case 0:
-          _context30.prev = 0;
+          _context36.prev = 0;
           // Obtener el UID del taller desde el cuerpo de la solicitud
-          _ref47 = req.body || {}, _uid5 = _ref47.uid;
+          _ref54 = req.body || {}, _uid5 = _ref54.uid;
           console.log("UID del taller:", _uid5);
           if (!(!_uid5 || typeof _uid5 !== "string" || _uid5.trim() === "")) {
-            _context30.next = 5;
+            _context36.next = 5;
             break;
           }
-          return _context30.abrupt("return", res.status(400).send({
+          return _context36.abrupt("return", res.status(400).send({
             message: "El campo uid es requerido."
           }));
         case 5:
           console.log("UID del servicio:", _uid5);
 
           // Buscar los servicios del taller
-          _context30.next = 8;
+          _context36.next = 8;
           return db.collection("Servicios").where("uid_taller", "==", _uid5.trim()).where("estatus", "==", true).get();
         case 8:
-          serviceSnapshot = _context30.sent;
+          serviceSnapshot = _context36.sent;
           if (!serviceSnapshot.empty) {
-            _context30.next = 12;
+            _context36.next = 12;
             break;
           }
           console.log("No se encontraron servicios para el UID proporcionado");
-          return _context30.abrupt("return", res.status(404).send({
+          return _context36.abrupt("return", res.status(404).send({
             message: "No se encontraron servicios para el UID proporcionado"
           }));
         case 12:
@@ -2852,42 +3274,42 @@ var getServicesByTallerUidTrue = /*#__PURE__*/function () {
               id: doc.id
             }, doc.data());
           }); // Enviar los servicios encontrados
-          return _context30.abrupt("return", res.status(200).send({
+          return _context36.abrupt("return", res.status(200).send({
             message: "Servicios encontrados",
             services: services
           }));
         case 16:
-          _context30.prev = 16;
-          _context30.t0 = _context30["catch"](0);
-          console.error("Error al obtener el servicio por UID:", _context30.t0);
+          _context36.prev = 16;
+          _context36.t0 = _context36["catch"](0);
+          console.error("Error al obtener el servicio por UID:", _context36.t0);
           res.status(500).send("Error al obtener el servicio");
         case 20:
         case "end":
-          return _context30.stop();
+          return _context36.stop();
       }
-    }, _callee29, null, [[0, 16]]);
+    }, _callee34, null, [[0, 16]]);
   }));
-  return function getServicesByTallerUidTrue(_x74, _x75) {
-    return _ref46.apply(this, arguments);
+  return function getServicesByTallerUidTrue(_x82, _x83) {
+    return _ref53.apply(this, arguments);
   };
 }();
 var getActiveCategories = /*#__PURE__*/function () {
-  var _ref48 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee30(req, res) {
+  var _ref55 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee35(req, res) {
     var categoriesSnapshot, categories;
-    return _regeneratorRuntime().wrap(function _callee30$(_context31) {
-      while (1) switch (_context31.prev = _context31.next) {
+    return _regeneratorRuntime().wrap(function _callee35$(_context37) {
+      while (1) switch (_context37.prev = _context37.next) {
         case 0:
-          _context31.prev = 0;
-          _context31.next = 3;
+          _context37.prev = 0;
+          _context37.next = 3;
           return db.collection("Categorias").where("estatus", "==", true).get();
         case 3:
-          categoriesSnapshot = _context31.sent;
+          categoriesSnapshot = _context37.sent;
           if (!categoriesSnapshot.empty) {
-            _context31.next = 7;
+            _context37.next = 7;
             break;
           }
           console.log("No se encontraron categorías activas");
-          return _context31.abrupt("return", res.status(404).send({
+          return _context37.abrupt("return", res.status(404).send({
             message: "No se encontraron categorías activas"
           }));
         case 7:
@@ -2897,48 +3319,48 @@ var getActiveCategories = /*#__PURE__*/function () {
               id: doc.id
             }, doc.data());
           }); // Enviar las categorías activas encontradas
-          return _context31.abrupt("return", res.status(200).send({
+          return _context37.abrupt("return", res.status(200).send({
             message: "Categorías activas encontradas",
             categories: categories
           }));
         case 11:
-          _context31.prev = 11;
-          _context31.t0 = _context31["catch"](0);
-          console.error("Error al obtener las categorías activas:", _context31.t0);
+          _context37.prev = 11;
+          _context37.t0 = _context37["catch"](0);
+          console.error("Error al obtener las categorías activas:", _context37.t0);
           res.status(500).send("Error al obtener las categorías activas");
         case 15:
         case "end":
-          return _context31.stop();
+          return _context37.stop();
       }
-    }, _callee30, null, [[0, 11]]);
+    }, _callee35, null, [[0, 11]]);
   }));
-  return function getActiveCategories(_x76, _x77) {
-    return _ref48.apply(this, arguments);
+  return function getActiveCategories(_x84, _x85) {
+    return _ref55.apply(this, arguments);
   };
 }();
 var getSubcategoriesByCategoryUid = /*#__PURE__*/function () {
-  var _ref49 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee31(req, res) {
+  var _ref56 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee36(req, res) {
     var uid_categoria, subcategoriesSnapshot, subcategories;
-    return _regeneratorRuntime().wrap(function _callee31$(_context32) {
-      while (1) switch (_context32.prev = _context32.next) {
+    return _regeneratorRuntime().wrap(function _callee36$(_context38) {
+      while (1) switch (_context38.prev = _context38.next) {
         case 0:
-          _context32.prev = 0;
+          _context38.prev = 0;
           // Obtener el UID de la categoría desde el cuerpo de la solicitud
           uid_categoria = req.body.uid_categoria;
           console.log("UID de la categor\xEDa: ".concat(uid_categoria));
 
           // Referencia a la subcolección "Subcategoría" dentro del documento de la categoría especificada
-          _context32.next = 5;
+          _context38.next = 5;
           return db.collection("Categorias").doc(uid_categoria).collection("Subcategorias").where("estatus", "==", true) // Filtro para obtener solo subcategorías activas
           .get();
         case 5:
-          subcategoriesSnapshot = _context32.sent;
+          subcategoriesSnapshot = _context38.sent;
           if (!subcategoriesSnapshot.empty) {
-            _context32.next = 9;
+            _context38.next = 9;
             break;
           }
           console.log("No se encontraron subcategorías para la categoría proporcionada");
-          return _context32.abrupt("return", res.status(404).send({
+          return _context38.abrupt("return", res.status(404).send({
             message: "No se encontraron subcategorías para la categoría proporcionada"
           }));
         case 9:
@@ -2948,23 +3370,23 @@ var getSubcategoriesByCategoryUid = /*#__PURE__*/function () {
               id: doc.id
             }, doc.data());
           }); // Enviar las subcategorías encontradas
-          return _context32.abrupt("return", res.status(200).send({
+          return _context38.abrupt("return", res.status(200).send({
             message: "Subcategorías encontradas",
             subcategories: subcategories
           }));
         case 13:
-          _context32.prev = 13;
-          _context32.t0 = _context32["catch"](0);
-          console.error("Error al obtener las subcategorías por UID de categoría:", _context32.t0);
+          _context38.prev = 13;
+          _context38.t0 = _context38["catch"](0);
+          console.error("Error al obtener las subcategorías por UID de categoría:", _context38.t0);
           res.status(500).send("Error al obtener las subcategorías");
         case 17:
         case "end":
-          return _context32.stop();
+          return _context38.stop();
       }
-    }, _callee31, null, [[0, 13]]);
+    }, _callee36, null, [[0, 13]]);
   }));
-  return function getSubcategoriesByCategoryUid(_x78, _x79) {
-    return _ref49.apply(this, arguments);
+  return function getSubcategoriesByCategoryUid(_x86, _x87) {
+    return _ref56.apply(this, arguments);
   };
 }();
 
@@ -3217,15 +3639,94 @@ var getSubcategoriesByCategoryUid = /*#__PURE__*/function () {
 //   }
 // };
 
-var saveOrUpdateService = /*#__PURE__*/function () {
-  var _ref50 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee34(req, res) {
-    var _req$body9, id, categoria, descripcion, estatus, garantia, nombre_servicio, precio, subcategoria, taller, uid_categoria, uid_servicio, uid_subcategoria, uid_taller, puntuacion, publicOrigin, images, edit, serviceData, getLastImageIndex, uploadImages, deleteOldImages, serviceRef, serviceSnapshot, userId, userRef, userDoc, userData, cantidadServicios, imageUrls, _userId, _userRef, _userDoc, _userData, _cantidadServicios, _imageUrls, newServiceRef, _userId2, _userRef2, _userDoc2, _userData2, _cantidadServicios2, _imageUrls2, _userId3, _userRef3, _userDoc3, _userData3, _cantidadServicios3, _imageUrls3;
-    return _regeneratorRuntime().wrap(function _callee34$(_context35) {
-      while (1) switch (_context35.prev = _context35.next) {
+/**
+ * Asocia la categoría de un servicio al negocio (Usuarios/{uid}) si aún no la tiene.
+ * Deduplica por uid y por nombre (sin acentos/mayúsculas). No lanza errores:
+ * si algo falla solo lo registra, para no interrumpir el guardado del servicio.
+ */
+var ensureCategoriaAsociadaAlNegocio = /*#__PURE__*/function () {
+  var _ref57 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee37(uidTaller, uidCategoria, nombreCategoria) {
+    var tallerId, catUid, catNombre, userRef, snap, data, existentes, normalizar, yaPorUid, yaPorNombre, categorias, categoriasUids;
+    return _regeneratorRuntime().wrap(function _callee37$(_context39) {
+      while (1) switch (_context39.prev = _context39.next) {
         case 0:
-          _context35.prev = 0;
+          _context39.prev = 0;
+          tallerId = String(uidTaller || "").trim();
+          catUid = String(uidCategoria || "").trim();
+          catNombre = String(nombreCategoria || "").trim();
+          if (!(!tallerId || !catUid || !catNombre)) {
+            _context39.next = 6;
+            break;
+          }
+          return _context39.abrupt("return");
+        case 6:
+          userRef = db.collection("Usuarios").doc(tallerId);
+          _context39.next = 9;
+          return userRef.get();
+        case 9:
+          snap = _context39.sent;
+          if (snap.exists) {
+            _context39.next = 12;
+            break;
+          }
+          return _context39.abrupt("return");
+        case 12:
+          data = snap.data() || {};
+          existentes = Array.isArray(data.categorias) ? data.categorias : [];
+          normalizar = function normalizar(s) {
+            return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+          };
+          yaPorUid = existentes.some(function (c) {
+            return String((c === null || c === void 0 ? void 0 : c.uid) || "").trim() === catUid;
+          });
+          yaPorNombre = existentes.some(function (c) {
+            return normalizar(c === null || c === void 0 ? void 0 : c.nombre) === normalizar(catNombre);
+          });
+          if (!(yaPorUid || yaPorNombre)) {
+            _context39.next = 19;
+            break;
+          }
+          return _context39.abrupt("return");
+        case 19:
+          // el negocio ya tiene esa categoría
+          categorias = [].concat(_toConsumableArray(existentes), [{
+            uid: catUid,
+            nombre: catNombre
+          }]);
+          categoriasUids = Array.from(new Set(categorias.map(function (c) {
+            return String((c === null || c === void 0 ? void 0 : c.uid) || "").trim();
+          }).filter(Boolean)));
+          _context39.next = 23;
+          return userRef.update({
+            categorias: categorias,
+            categoriasUids: categoriasUids
+          });
+        case 23:
+          _context39.next = 28;
+          break;
+        case 25:
+          _context39.prev = 25;
+          _context39.t0 = _context39["catch"](0);
+          console.warn("ensureCategoriaAsociadaAlNegocio:", _context39.t0 === null || _context39.t0 === void 0 ? void 0 : _context39.t0.message);
+        case 28:
+        case "end":
+          return _context39.stop();
+      }
+    }, _callee37, null, [[0, 25]]);
+  }));
+  return function ensureCategoriaAsociadaAlNegocio(_x88, _x89, _x90) {
+    return _ref57.apply(this, arguments);
+  };
+}();
+var saveOrUpdateService = /*#__PURE__*/function () {
+  var _ref58 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee40(req, res) {
+    var _req$body10, id, categoria, descripcion, estatus, garantia, nombre_servicio, precio, subcategoria, taller, uid_categoria, uid_servicio, uid_subcategoria, uid_taller, puntuacion, publicOrigin, images, edit, serviceData, getLastImageIndex, uploadImages, deleteOldImages, serviceRef, serviceSnapshot, userId, userRef, userDoc, userData, cantidadServicios, imageUrls, _userId, _userRef, _userDoc, _userData, _cantidadServicios, _imageUrls, newServiceRef, _userId2, _userRef2, _userDoc2, _userData2, _cantidadServicios2, _imageUrls2, _userId3, _userRef3, _userDoc3, _userData3, _cantidadServicios3, _imageUrls3;
+    return _regeneratorRuntime().wrap(function _callee40$(_context42) {
+      while (1) switch (_context42.prev = _context42.next) {
+        case 0:
+          _context42.prev = 0;
           // Obtener los datos del servicio desde el cuerpo de la solicitud
-          _req$body9 = req.body, id = _req$body9.id, categoria = _req$body9.categoria, descripcion = _req$body9.descripcion, estatus = _req$body9.estatus, garantia = _req$body9.garantia, nombre_servicio = _req$body9.nombre_servicio, precio = _req$body9.precio, subcategoria = _req$body9.subcategoria, taller = _req$body9.taller, uid_categoria = _req$body9.uid_categoria, uid_servicio = _req$body9.uid_servicio, uid_subcategoria = _req$body9.uid_subcategoria, uid_taller = _req$body9.uid_taller, puntuacion = _req$body9.puntuacion, publicOrigin = _req$body9.publicOrigin, images = _req$body9.images, edit = _req$body9.edit;
+          _req$body10 = req.body, id = _req$body10.id, categoria = _req$body10.categoria, descripcion = _req$body10.descripcion, estatus = _req$body10.estatus, garantia = _req$body10.garantia, nombre_servicio = _req$body10.nombre_servicio, precio = _req$body10.precio, subcategoria = _req$body10.subcategoria, taller = _req$body10.taller, uid_categoria = _req$body10.uid_categoria, uid_servicio = _req$body10.uid_servicio, uid_subcategoria = _req$body10.uid_subcategoria, uid_taller = _req$body10.uid_taller, puntuacion = _req$body10.puntuacion, publicOrigin = _req$body10.publicOrigin, images = _req$body10.images, edit = _req$body10.edit;
           console.log("Datos del servicio:", req.body);
           serviceData = {
             categoria: categoria,
@@ -3248,9 +3749,9 @@ var saveOrUpdateService = /*#__PURE__*/function () {
               var prefix = "service_images/".concat(id);
               bucket.getFiles({
                 prefix: prefix
-              }).then(function (_ref51) {
-                var _ref52 = _slicedToArray(_ref51, 1),
-                  files = _ref52[0];
+              }).then(function (_ref59) {
+                var _ref60 = _slicedToArray(_ref59, 1),
+                  files = _ref60[0];
                 var maxIndex = 0;
                 files.forEach(function (file) {
                   var match = file.name.match(/_(\d+)\.jpg$/);
@@ -3268,27 +3769,27 @@ var saveOrUpdateService = /*#__PURE__*/function () {
             });
           };
           uploadImages = /*#__PURE__*/function () {
-            var _ref53 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee32(id, images) {
+            var _ref61 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee38(id, images) {
               var imageUrls, i, _base2, index, newFileName, buffer, file, imageUrl;
-              return _regeneratorRuntime().wrap(function _callee32$(_context33) {
-                while (1) switch (_context33.prev = _context33.next) {
+              return _regeneratorRuntime().wrap(function _callee38$(_context40) {
+                while (1) switch (_context40.prev = _context40.next) {
                   case 0:
                     imageUrls = [];
                     i = 0;
                   case 2:
                     if (!(i < (images === null || images === void 0 ? void 0 : images.length))) {
-                      _context33.next = 17;
+                      _context40.next = 17;
                       break;
                     }
                     _base2 = images[i];
-                    _context33.next = 6;
+                    _context40.next = 6;
                     return getLastImageIndex(id);
                   case 6:
-                    index = _context33.sent;
+                    index = _context40.sent;
                     newFileName = "service_images/".concat(id, "_").concat(index + 1, ".jpg");
                     buffer = Buffer.from(_base2, 'base64');
                     file = bucket.file(newFileName);
-                    _context33.next = 12;
+                    _context40.next = 12;
                     return file.save(buffer, {
                       metadata: {
                         contentType: 'image/jpeg'
@@ -3301,364 +3802,489 @@ var saveOrUpdateService = /*#__PURE__*/function () {
                     imageUrls.push(imageUrl);
                   case 14:
                     i++;
-                    _context33.next = 2;
+                    _context40.next = 2;
                     break;
                   case 17:
-                    return _context33.abrupt("return", imageUrls);
+                    return _context40.abrupt("return", imageUrls);
                   case 18:
                   case "end":
-                    return _context33.stop();
+                    return _context40.stop();
                 }
-              }, _callee32);
+              }, _callee38);
             }));
-            return function uploadImages(_x82, _x83) {
-              return _ref53.apply(this, arguments);
+            return function uploadImages(_x93, _x94) {
+              return _ref61.apply(this, arguments);
             };
           }();
           deleteOldImages = /*#__PURE__*/function () {
-            var _ref54 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee33(id) {
+            var _ref62 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee39(id) {
               var prefix, _yield$bucket$getFile, _yield$bucket$getFile2, files, _iterator2, _step2, file;
-              return _regeneratorRuntime().wrap(function _callee33$(_context34) {
-                while (1) switch (_context34.prev = _context34.next) {
+              return _regeneratorRuntime().wrap(function _callee39$(_context41) {
+                while (1) switch (_context41.prev = _context41.next) {
                   case 0:
                     prefix = "service_images/".concat(id);
-                    _context34.next = 3;
+                    _context41.next = 3;
                     return bucket.getFiles({
                       prefix: prefix
                     });
                   case 3:
-                    _yield$bucket$getFile = _context34.sent;
+                    _yield$bucket$getFile = _context41.sent;
                     _yield$bucket$getFile2 = _slicedToArray(_yield$bucket$getFile, 1);
                     files = _yield$bucket$getFile2[0];
                     _iterator2 = _createForOfIteratorHelper(files);
-                    _context34.prev = 7;
+                    _context41.prev = 7;
                     _iterator2.s();
                   case 9:
                     if ((_step2 = _iterator2.n()).done) {
-                      _context34.next = 15;
+                      _context41.next = 15;
                       break;
                     }
                     file = _step2.value;
-                    _context34.next = 13;
+                    _context41.next = 13;
                     return file["delete"]();
                   case 13:
-                    _context34.next = 9;
+                    _context41.next = 9;
                     break;
                   case 15:
-                    _context34.next = 20;
+                    _context41.next = 20;
                     break;
                   case 17:
-                    _context34.prev = 17;
-                    _context34.t0 = _context34["catch"](7);
-                    _iterator2.e(_context34.t0);
+                    _context41.prev = 17;
+                    _context41.t0 = _context41["catch"](7);
+                    _iterator2.e(_context41.t0);
                   case 20:
-                    _context34.prev = 20;
+                    _context41.prev = 20;
                     _iterator2.f();
-                    return _context34.finish(20);
+                    return _context41.finish(20);
                   case 23:
                   case "end":
-                    return _context34.stop();
+                    return _context41.stop();
                 }
-              }, _callee33, null, [[7, 17, 20, 23]]);
+              }, _callee39, null, [[7, 17, 20, 23]]);
             }));
-            return function deleteOldImages(_x84) {
-              return _ref54.apply(this, arguments);
+            return function deleteOldImages(_x95) {
+              return _ref62.apply(this, arguments);
             };
-          }(); // Si `id` tiene un valor, editar el documento en la colección "Servicios"
+          }(); // Asociar la categoría del servicio al negocio si aún no la tiene
+          _context42.next = 10;
+          return ensureCategoriaAsociadaAlNegocio(uid_taller, uid_categoria, categoria);
+        case 10:
           if (!id) {
-            _context35.next = 67;
+            _context42.next = 69;
             break;
           }
           serviceRef = db.collection("Servicios").doc(id);
-          _context35.next = 12;
+          _context42.next = 14;
           return serviceRef.get();
-        case 12:
-          serviceSnapshot = _context35.sent;
+        case 14:
+          serviceSnapshot = _context42.sent;
           if (serviceSnapshot.exists) {
-            _context35.next = 15;
+            _context42.next = 17;
             break;
           }
-          return _context35.abrupt("return", res.status(404).send({
+          return _context42.abrupt("return", res.status(404).send({
             message: "No se encontró el servicio con el ID proporcionado para actualizar"
           }));
-        case 15:
-          _context35.next = 17;
-          return serviceRef.update(serviceData);
         case 17:
+          _context42.next = 19;
+          return serviceRef.update(serviceData);
+        case 19:
           console.log("Servicio actualizado:", id);
           if (!serviceData.estatus) {
-            _context35.next = 43;
+            _context42.next = 45;
             break;
           }
           if (publicOrigin) {
-            _context35.next = 31;
+            _context42.next = 33;
             break;
           }
           userId = uid_taller;
           userRef = db.collection("Usuarios").doc(userId);
-          _context35.next = 24;
+          _context42.next = 26;
           return userRef.get();
-        case 24:
-          userDoc = _context35.sent;
+        case 26:
+          userDoc = _context42.sent;
           if (!userDoc.exists) {
-            _context35.next = 31;
+            _context42.next = 33;
             break;
           }
           userData = userDoc.data();
           cantidadServicios = parseInt(userData.subscripcion_actual.cantidad_servicios, 10) || 0;
           cantidadServicios -= 1;
-          _context35.next = 31;
+          _context42.next = 33;
           return userRef.update({
             "subscripcion_actual.cantidad_servicios": cantidadServicios.toString()
           });
-        case 31:
+        case 33:
           if (!edit) {
-            _context35.next = 34;
+            _context42.next = 36;
             break;
           }
-          _context35.next = 34;
+          _context42.next = 36;
           return deleteOldImages(id);
-        case 34:
-          _context35.next = 36;
-          return uploadImages(id, images);
         case 36:
-          imageUrls = _context35.sent;
+          _context42.next = 38;
+          return uploadImages(id, images);
+        case 38:
+          imageUrls = _context42.sent;
           serviceData.service_image = imageUrls;
-          _context35.next = 40;
+          _context42.next = 42;
           return serviceRef.update(serviceData);
-        case 40:
-          return _context35.abrupt("return", res.status(200).send({
+        case 42:
+          return _context42.abrupt("return", res.status(200).send({
             message: "Servicio actualizado exitosamente",
             service: _objectSpread({
               id: id
             }, serviceData)
           }));
-        case 43:
+        case 45:
           if (!publicOrigin) {
-            _context35.next = 55;
+            _context42.next = 57;
             break;
           }
           _userId = uid_taller;
           _userRef = db.collection("Usuarios").doc(_userId);
-          _context35.next = 48;
+          _context42.next = 50;
           return _userRef.get();
-        case 48:
-          _userDoc = _context35.sent;
+        case 50:
+          _userDoc = _context42.sent;
           if (!_userDoc.exists) {
-            _context35.next = 55;
+            _context42.next = 57;
             break;
           }
           _userData = _userDoc.data();
           _cantidadServicios = parseInt(_userData.subscripcion_actual.cantidad_servicios, 10) || 0;
           _cantidadServicios += 1;
-          _context35.next = 55;
+          _context42.next = 57;
           return _userRef.update({
             "subscripcion_actual.cantidad_servicios": _cantidadServicios.toString()
           });
-        case 55:
+        case 57:
           if (!edit) {
-            _context35.next = 58;
+            _context42.next = 60;
             break;
           }
-          _context35.next = 58;
+          _context42.next = 60;
           return deleteOldImages(id);
-        case 58:
-          _context35.next = 60;
-          return uploadImages(id, images);
         case 60:
-          _imageUrls = _context35.sent;
+          _context42.next = 62;
+          return uploadImages(id, images);
+        case 62:
+          _imageUrls = _context42.sent;
           serviceData.service_image = _imageUrls;
-          _context35.next = 64;
+          _context42.next = 66;
           return serviceRef.update(serviceData);
-        case 64:
-          return _context35.abrupt("return", res.status(200).send({
+        case 66:
+          return _context42.abrupt("return", res.status(200).send({
             message: "Servicio actualizado exitosamente",
             service: _objectSpread({
               id: id
             }, serviceData)
           }));
-        case 65:
-          _context35.next = 114;
-          break;
         case 67:
-          _context35.next = 69;
-          return db.collection("Servicios").add(serviceData);
+          _context42.next = 116;
+          break;
         case 69:
-          newServiceRef = _context35.sent;
+          _context42.next = 71;
+          return db.collection("Servicios").add(serviceData);
+        case 71:
+          newServiceRef = _context42.sent;
           console.log("Servicio creado con ID:", newServiceRef.id);
           if (!serviceData.estatus) {
-            _context35.next = 94;
+            _context42.next = 96;
             break;
           }
           if (publicOrigin) {
-            _context35.next = 84;
+            _context42.next = 86;
             break;
           }
           _userId2 = uid_taller;
           _userRef2 = db.collection("Usuarios").doc(_userId2);
-          _context35.next = 77;
+          _context42.next = 79;
           return _userRef2.get();
-        case 77:
-          _userDoc2 = _context35.sent;
+        case 79:
+          _userDoc2 = _context42.sent;
           if (!_userDoc2.exists) {
-            _context35.next = 84;
+            _context42.next = 86;
             break;
           }
           _userData2 = _userDoc2.data();
           _cantidadServicios2 = parseInt(_userData2.subscripcion_actual.cantidad_servicios, 10) || 0;
           _cantidadServicios2 -= 1;
-          _context35.next = 84;
+          _context42.next = 86;
           return _userRef2.update({
             "subscripcion_actual.cantidad_servicios": _cantidadServicios2.toString()
           });
-        case 84:
+        case 86:
           serviceData.id = newServiceRef.id;
-          _context35.next = 87;
+          _context42.next = 89;
           return uploadImages(newServiceRef.id, images);
-        case 87:
-          _imageUrls2 = _context35.sent;
+        case 89:
+          _imageUrls2 = _context42.sent;
           serviceData.service_image = _imageUrls2;
-          _context35.next = 91;
+          _context42.next = 93;
           return newServiceRef.update(serviceData);
-        case 91:
-          return _context35.abrupt("return", res.status(201).send({
+        case 93:
+          return _context42.abrupt("return", res.status(201).send({
             message: "Servicio creado exitosamente",
             service: _objectSpread({
               id: newServiceRef.id
             }, serviceData)
           }));
-        case 94:
+        case 96:
           if (!publicOrigin) {
-            _context35.next = 106;
+            _context42.next = 108;
             break;
           }
           _userId3 = uid_taller;
           _userRef3 = db.collection("Usuarios").doc(_userId3);
-          _context35.next = 99;
+          _context42.next = 101;
           return _userRef3.get();
-        case 99:
-          _userDoc3 = _context35.sent;
+        case 101:
+          _userDoc3 = _context42.sent;
           if (!_userDoc3.exists) {
-            _context35.next = 106;
+            _context42.next = 108;
             break;
           }
           _userData3 = _userDoc3.data();
           _cantidadServicios3 = parseInt(_userData3.subscripcion_actual.cantidad_servicios, 10) || 0;
           _cantidadServicios3 += 1;
-          _context35.next = 106;
+          _context42.next = 108;
           return _userRef3.update({
             "subscripcion_actual.cantidad_servicios": _cantidadServicios3.toString()
           });
-        case 106:
+        case 108:
           serviceData.id = newServiceRef.id;
-          _context35.next = 109;
+          _context42.next = 111;
           return uploadImages(newServiceRef.id, images);
-        case 109:
-          _imageUrls3 = _context35.sent;
+        case 111:
+          _imageUrls3 = _context42.sent;
           serviceData.service_image = _imageUrls3;
-          _context35.next = 113;
+          _context42.next = 115;
           return newServiceRef.update(serviceData);
-        case 113:
-          return _context35.abrupt("return", res.status(201).send({
+        case 115:
+          return _context42.abrupt("return", res.status(201).send({
             message: "Servicio creado exitosamente",
             service: _objectSpread({
               id: newServiceRef.id
             }, serviceData)
           }));
-        case 114:
-          _context35.next = 120;
-          break;
         case 116:
-          _context35.prev = 116;
-          _context35.t0 = _context35["catch"](0);
-          console.error("Error al guardar o actualizar el servicio:", _context35.t0);
-          res.status(500).send(_context35.t0);
-        case 120:
+          _context42.next = 122;
+          break;
+        case 118:
+          _context42.prev = 118;
+          _context42.t0 = _context42["catch"](0);
+          console.error("Error al guardar o actualizar el servicio:", _context42.t0);
+          res.status(500).send(_context42.t0);
+        case 122:
         case "end":
-          return _context35.stop();
+          return _context42.stop();
       }
-    }, _callee34, null, [[0, 116]]);
+    }, _callee40, null, [[0, 118]]);
   }));
-  return function saveOrUpdateService(_x80, _x81) {
-    return _ref50.apply(this, arguments);
+  return function saveOrUpdateService(_x91, _x92) {
+    return _ref58.apply(this, arguments);
+  };
+}();
+
+// Elimina un servicio de la colección. Si el servicio está activo (publicado),
+// primero libera un cupo de publicación (cantidad_servicios += 1), exactamente
+// igual que al despublicarlo en el edit, para no descuadrar el contador del plan.
+var deleteService = /*#__PURE__*/function () {
+  var _ref63 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee41(req, res) {
+    var _req$body11, id, uid_taller, serviceRef, snap, serviceData, ownerUid, userRef, userDoc, _userData$subscripcio, userData, cantidadServicios, _yield$bucket$getFile3, _yield$bucket$getFile4, files, _iterator3, _step3, file;
+    return _regeneratorRuntime().wrap(function _callee41$(_context43) {
+      while (1) switch (_context43.prev = _context43.next) {
+        case 0:
+          _context43.prev = 0;
+          _req$body11 = req.body, id = _req$body11.id, uid_taller = _req$body11.uid_taller;
+          if (id) {
+            _context43.next = 4;
+            break;
+          }
+          return _context43.abrupt("return", res.status(400).send({
+            message: "El id del servicio es obligatorio."
+          }));
+        case 4:
+          serviceRef = db.collection("Servicios").doc(id);
+          _context43.next = 7;
+          return serviceRef.get();
+        case 7:
+          snap = _context43.sent;
+          if (snap.exists) {
+            _context43.next = 10;
+            break;
+          }
+          return _context43.abrupt("return", res.status(404).send({
+            message: "No se encontró el servicio a eliminar."
+          }));
+        case 10:
+          serviceData = snap.data();
+          ownerUid = uid_taller || serviceData.uid_taller; // Servicio activo → liberar cupo (mismo ajuste que despublicar en el edit).
+          if (!(serviceData.estatus === true && ownerUid)) {
+            _context43.next = 23;
+            break;
+          }
+          userRef = db.collection("Usuarios").doc(ownerUid);
+          _context43.next = 16;
+          return userRef.get();
+        case 16:
+          userDoc = _context43.sent;
+          if (!userDoc.exists) {
+            _context43.next = 23;
+            break;
+          }
+          userData = userDoc.data();
+          cantidadServicios = parseInt(userData === null || userData === void 0 || (_userData$subscripcio = userData.subscripcion_actual) === null || _userData$subscripcio === void 0 ? void 0 : _userData$subscripcio.cantidad_servicios, 10) || 0;
+          cantidadServicios += 1;
+          _context43.next = 23;
+          return userRef.update({
+            "subscripcion_actual.cantidad_servicios": cantidadServicios.toString()
+          });
+        case 23:
+          _context43.prev = 23;
+          _context43.next = 26;
+          return bucket.getFiles({
+            prefix: "service_images/".concat(id)
+          });
+        case 26:
+          _yield$bucket$getFile3 = _context43.sent;
+          _yield$bucket$getFile4 = _slicedToArray(_yield$bucket$getFile3, 1);
+          files = _yield$bucket$getFile4[0];
+          _iterator3 = _createForOfIteratorHelper(files);
+          _context43.prev = 30;
+          _iterator3.s();
+        case 32:
+          if ((_step3 = _iterator3.n()).done) {
+            _context43.next = 38;
+            break;
+          }
+          file = _step3.value;
+          _context43.next = 36;
+          return file["delete"]();
+        case 36:
+          _context43.next = 32;
+          break;
+        case 38:
+          _context43.next = 43;
+          break;
+        case 40:
+          _context43.prev = 40;
+          _context43.t0 = _context43["catch"](30);
+          _iterator3.e(_context43.t0);
+        case 43:
+          _context43.prev = 43;
+          _iterator3.f();
+          return _context43.finish(43);
+        case 46:
+          _context43.next = 51;
+          break;
+        case 48:
+          _context43.prev = 48;
+          _context43.t1 = _context43["catch"](23);
+          console.log("No se pudieron borrar todas las imágenes del servicio:", _context43.t1 === null || _context43.t1 === void 0 ? void 0 : _context43.t1.message);
+        case 51:
+          _context43.next = 53;
+          return serviceRef["delete"]();
+        case 53:
+          return _context43.abrupt("return", res.status(200).send({
+            message: "Servicio eliminado exitosamente"
+          }));
+        case 56:
+          _context43.prev = 56;
+          _context43.t2 = _context43["catch"](0);
+          console.error("Error al eliminar el servicio:", _context43.t2);
+          return _context43.abrupt("return", res.status(500).send({
+            message: "Error al eliminar el servicio",
+            error: _context43.t2.message
+          }));
+        case 60:
+        case "end":
+          return _context43.stop();
+      }
+    }, _callee41, null, [[0, 56], [23, 48], [30, 40, 43, 46]]);
+  }));
+  return function deleteService(_x96, _x97) {
+    return _ref63.apply(this, arguments);
   };
 }();
 var getPlanes = /*#__PURE__*/function () {
-  var _ref55 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee35(req, res) {
+  var _ref64 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee42(req, res) {
     var result, planes;
-    return _regeneratorRuntime().wrap(function _callee35$(_context36) {
-      while (1) switch (_context36.prev = _context36.next) {
+    return _regeneratorRuntime().wrap(function _callee42$(_context44) {
+      while (1) switch (_context44.prev = _context44.next) {
         case 0:
-          _context36.prev = 0;
-          _context36.next = 3;
+          _context44.prev = 0;
+          _context44.next = 3;
           return db.collection("Planes").where("status", "==", "Activo") // Filtrar documentos por status "Activo"
           .get();
         case 3:
-          result = _context36.sent;
+          result = _context44.sent;
           if (!result.empty) {
-            _context36.next = 6;
+            _context44.next = 6;
             break;
           }
-          return _context36.abrupt("return", res.status(404).send('No se encontraron planes con el estado "Activo"'));
+          return _context44.abrupt("return", res.status(404).send('No se encontraron planes con el estado "Activo"'));
         case 6:
           planes = result.docs.map(function (doc) {
             return doc.data();
           });
           res.send(planes);
-          _context36.next = 14;
+          _context44.next = 14;
           break;
         case 10:
-          _context36.prev = 10;
-          _context36.t0 = _context36["catch"](0);
-          console.error("Error al obtener planes:", _context36.t0);
+          _context44.prev = 10;
+          _context44.t0 = _context44["catch"](0);
+          console.error("Error al obtener planes:", _context44.t0);
           res.status(500).send("Error al obtener planes");
         case 14:
         case "end":
-          return _context36.stop();
+          return _context44.stop();
       }
-    }, _callee35, null, [[0, 10]]);
+    }, _callee42, null, [[0, 10]]);
   }));
-  return function getPlanes(_x85, _x86) {
-    return _ref55.apply(this, arguments);
+  return function getPlanes(_x98, _x99) {
+    return _ref64.apply(this, arguments);
   };
 }();
 var getMetodosPago = /*#__PURE__*/function () {
-  var _ref56 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee36(req, res) {
+  var _ref65 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee43(req, res) {
     var result, planes;
-    return _regeneratorRuntime().wrap(function _callee36$(_context37) {
-      while (1) switch (_context37.prev = _context37.next) {
+    return _regeneratorRuntime().wrap(function _callee43$(_context45) {
+      while (1) switch (_context45.prev = _context45.next) {
         case 0:
-          _context37.prev = 0;
-          _context37.next = 3;
+          _context45.prev = 0;
+          _context45.next = 3;
           return db.collection("MetodosPago").where("status", "==", true) // Filtrar documentos por status "Activo"
           .get();
         case 3:
-          result = _context37.sent;
+          result = _context45.sent;
           if (!result.empty) {
-            _context37.next = 6;
+            _context45.next = 6;
             break;
           }
-          return _context37.abrupt("return", res.status(404).send('No se encontraron los metodos con el estado "true"'));
+          return _context45.abrupt("return", res.status(404).send('No se encontraron los metodos con el estado "true"'));
         case 6:
           planes = result.docs.map(function (doc) {
             return doc.data();
           });
           res.send(planes);
-          _context37.next = 14;
+          _context45.next = 14;
           break;
         case 10:
-          _context37.prev = 10;
-          _context37.t0 = _context37["catch"](0);
-          console.error("Error al obtener metodos:", _context37.t0);
+          _context45.prev = 10;
+          _context45.t0 = _context45["catch"](0);
+          console.error("Error al obtener metodos:", _context45.t0);
           res.status(500).send("Error al obtener metodos");
         case 14:
         case "end":
-          return _context37.stop();
+          return _context45.stop();
       }
-    }, _callee36, null, [[0, 10]]);
+    }, _callee43, null, [[0, 10]]);
   }));
-  return function getMetodosPago(_x87, _x88) {
-    return _ref56.apply(this, arguments);
+  return function getMetodosPago(_x100, _x101) {
+    return _ref65.apply(this, arguments);
   };
 }();
 
@@ -3745,19 +4371,46 @@ var getLatLngTallerSimple = function getLatLngTallerSimple(t) {
   };
 };
 var fetchServiciosByCategoriaId = /*#__PURE__*/function () {
-  var _ref57 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee37(categoriaId) {
-    return _regeneratorRuntime().wrap(function _callee37$(_context38) {
-      while (1) switch (_context38.prev = _context38.next) {
+  var _ref66 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee44(categoriaId) {
+    return _regeneratorRuntime().wrap(function _callee44$(_context46) {
+      while (1) switch (_context46.prev = _context46.next) {
         case 0:
-          return _context38.abrupt("return", db.collection("Servicios").where("uid_categoria", "==", categoriaId).get());
+          return _context46.abrupt("return", db.collection("Servicios").where("uid_categoria", "==", categoriaId).get());
         case 1:
         case "end":
-          return _context38.stop();
+          return _context46.stop();
       }
-    }, _callee37);
+    }, _callee44);
   }));
-  return function fetchServiciosByCategoriaId(_x89) {
-    return _ref57.apply(this, arguments);
+  return function fetchServiciosByCategoriaId(_x102) {
+    return _ref66.apply(this, arguments);
+  };
+}();
+
+/** Talleres que tienen la categoría en su campo `categoriasUids` (array flat). */
+var fetchTalleresByCategoria = /*#__PURE__*/function () {
+  var _ref67 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee45(categoriaId) {
+    var snapshot;
+    return _regeneratorRuntime().wrap(function _callee45$(_context47) {
+      while (1) switch (_context47.prev = _context47.next) {
+        case 0:
+          _context47.next = 2;
+          return db.collection("Usuarios").where("typeUser", "==", "Taller").where("status", "==", "Aprobado").where("subscripcion_actual.status", "==", "Aprobado").where("categoriasUids", "array-contains", categoriaId).get();
+        case 2:
+          snapshot = _context47.sent;
+          return _context47.abrupt("return", snapshot.docs.map(function (d) {
+            return _objectSpread({
+              uid_taller: d.id
+            }, d.data());
+          }));
+        case 4:
+        case "end":
+          return _context47.stop();
+      }
+    }, _callee45);
+  }));
+  return function fetchTalleresByCategoria(_x103) {
+    return _ref67.apply(this, arguments);
   };
 }();
 var getUniqueUidTalleres = function getUniqueUidTalleres(serviciosSnapshot) {
@@ -3772,10 +4425,10 @@ var getUniqueUidTalleres = function getUniqueUidTalleres(serviciosSnapshot) {
   return Array.from(uidTalleres);
 };
 var fetchUsuariosByUids = /*#__PURE__*/function () {
-  var _ref58 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee38(uids) {
+  var _ref68 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee46(uids) {
     var IN_LIMIT, talleres, uidsList, i, chunk, snapshot;
-    return _regeneratorRuntime().wrap(function _callee38$(_context39) {
-      while (1) switch (_context39.prev = _context39.next) {
+    return _regeneratorRuntime().wrap(function _callee46$(_context48) {
+      while (1) switch (_context48.prev = _context48.next) {
         case 0:
           IN_LIMIT = 10; // Firestore 'in' limit
           talleres = [];
@@ -3783,14 +4436,14 @@ var fetchUsuariosByUids = /*#__PURE__*/function () {
           i = 0;
         case 4:
           if (!(i < uidsList.length)) {
-            _context39.next = 13;
+            _context48.next = 13;
             break;
           }
           chunk = uidsList.slice(i, i + IN_LIMIT);
-          _context39.next = 8;
+          _context48.next = 8;
           return db.collection("Usuarios").where(admin.firestore.FieldPath.documentId(), "in", chunk).where("typeUser", "==", "Taller").where("status", "==", "Aprobado").where("subscripcion_actual.status", "==", "Aprobado").get();
         case 8:
-          snapshot = _context39.sent;
+          snapshot = _context48.sent;
           snapshot.docs.forEach(function (d) {
             talleres.push(_objectSpread({
               uid_taller: d.id
@@ -3798,18 +4451,18 @@ var fetchUsuariosByUids = /*#__PURE__*/function () {
           });
         case 10:
           i += IN_LIMIT;
-          _context39.next = 4;
+          _context48.next = 4;
           break;
         case 13:
-          return _context39.abrupt("return", talleres);
+          return _context48.abrupt("return", talleres);
         case 14:
         case "end":
-          return _context39.stop();
+          return _context48.stop();
       }
-    }, _callee38);
+    }, _callee46);
   }));
-  return function fetchUsuariosByUids(_x90) {
-    return _ref58.apply(this, arguments);
+  return function fetchUsuariosByUids(_x104) {
+    return _ref68.apply(this, arguments);
   };
 }();
 
@@ -3848,18 +4501,18 @@ var filterTalleresCercanos = function filterTalleresCercanos(talleres, userLat, 
   }).slice(0, limit);
 };
 var saveSolicitud = /*#__PURE__*/function () {
-  var _ref59 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee39(req, res) {
-    var _ref60, nombreSolicitud, vehiculo, categoriaId, descripcion, urgencia, fotos, nombre_usuario, uid_usuario, phone_usuario, latitude, longitude, uid_taller, solicitudData, solicitudRef, solicitudId, userLat, userLng, idTallerDirigido, RADIO_KM_NOTIFICACION, talleresCercanos, talleresParaNotificar, tallerSnap, tallerUnico, d, serviciosSnapshot, uidTalleresUnicos, talleres, talleresConToken, imageUrls, i, _base3, path, buffer, file, url;
-    return _regeneratorRuntime().wrap(function _callee39$(_context40) {
-      while (1) switch (_context40.prev = _context40.next) {
+  var _ref69 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee47(req, res) {
+    var _ref70, nombreSolicitud, vehiculo, categoriaId, descripcion, urgencia, fotos, nombre_usuario, uid_usuario, phone_usuario, latitude, longitude, uid_taller, solicitudData, solicitudRef, solicitudId, userLat, userLng, idTallerDirigido, RADIO_KM_NOTIFICACION, talleresCercanos, talleresParaNotificar, tallerSnap, tallerUnico, d, _yield$Promise$all, _yield$Promise$all2, serviciosSnapshot, talleresPorCategoria, uidTalleresUnicos, talleresPorServicio, vistos, talleresUnidos, _i2, _arr, t, id, talleresConToken, imageUrls, i, _base3, path, buffer, file, url;
+    return _regeneratorRuntime().wrap(function _callee47$(_context49) {
+      while (1) switch (_context49.prev = _context49.next) {
         case 0:
-          _context40.prev = 0;
-          _ref60 = req.body || {}, nombreSolicitud = _ref60.nombreSolicitud, vehiculo = _ref60.vehiculo, categoriaId = _ref60.categoriaId, descripcion = _ref60.descripcion, urgencia = _ref60.urgencia, fotos = _ref60.fotos, nombre_usuario = _ref60.nombre_usuario, uid_usuario = _ref60.uid_usuario, phone_usuario = _ref60.phone_usuario, latitude = _ref60.latitude, longitude = _ref60.longitude, uid_taller = _ref60.uid_taller;
+          _context49.prev = 0;
+          _ref70 = req.body || {}, nombreSolicitud = _ref70.nombreSolicitud, vehiculo = _ref70.vehiculo, categoriaId = _ref70.categoriaId, descripcion = _ref70.descripcion, urgencia = _ref70.urgencia, fotos = _ref70.fotos, nombre_usuario = _ref70.nombre_usuario, uid_usuario = _ref70.uid_usuario, phone_usuario = _ref70.phone_usuario, latitude = _ref70.latitude, longitude = _ref70.longitude, uid_taller = _ref70.uid_taller;
           if (!(!nombreSolicitud || !vehiculo || !vehiculo.id || !categoriaId)) {
-            _context40.next = 4;
+            _context49.next = 4;
             break;
           }
-          return _context40.abrupt("return", res.status(400).json({
+          return _context49.abrupt("return", res.status(400).json({
             error: "nombreSolicitud, vehiculo (con id) y categoriaId son requeridos."
           }));
         case 4:
@@ -3879,23 +4532,23 @@ var saveSolicitud = /*#__PURE__*/function () {
             fecha_solicitud: admin.firestore.Timestamp.now(),
             uid_taller: uid_taller || ""
           };
-          _context40.next = 7;
+          _context49.next = 7;
           return db.collection("Solicitudes").add(solicitudData);
         case 7:
-          solicitudRef = _context40.sent;
+          solicitudRef = _context49.sent;
           solicitudId = solicitudRef.id;
           userLat = parseCoordScalar(latitude);
           userLng = parseCoordScalar(longitude);
           idTallerDirigido = uid_taller != null && String(uid_taller).trim() !== "" ? String(uid_taller).trim() : null;
           RADIO_KM_NOTIFICACION = 10;
           if (!idTallerDirigido) {
-            _context40.next = 23;
+            _context49.next = 23;
             break;
           }
-          _context40.next = 16;
+          _context49.next = 16;
           return db.collection("Usuarios").doc(idTallerDirigido).get();
         case 16:
-          tallerSnap = _context40.sent;
+          tallerSnap = _context49.sent;
           tallerUnico = null;
           if (tallerSnap.exists) {
             d = tallerSnap.data() || {};
@@ -3907,27 +4560,41 @@ var saveSolicitud = /*#__PURE__*/function () {
           }
           talleresCercanos = tallerUnico ? [tallerUnico] : [];
           talleresParaNotificar = talleresCercanos;
-          _context40.next = 32;
+          _context49.next = 38;
           break;
         case 23:
-          _context40.next = 25;
-          return fetchServiciosByCategoriaId(categoriaId);
+          _context49.next = 25;
+          return Promise.all([fetchServiciosByCategoriaId(categoriaId), fetchTalleresByCategoria(categoriaId)]);
         case 25:
-          serviciosSnapshot = _context40.sent;
+          _yield$Promise$all = _context49.sent;
+          _yield$Promise$all2 = _slicedToArray(_yield$Promise$all, 2);
+          serviciosSnapshot = _yield$Promise$all2[0];
+          talleresPorCategoria = _yield$Promise$all2[1];
           uidTalleresUnicos = getUniqueUidTalleres(serviciosSnapshot);
-          _context40.next = 29;
+          _context49.next = 32;
           return fetchUsuariosByUids(uidTalleresUnicos);
-        case 29:
-          talleres = _context40.sent;
-          talleresCercanos = filterTalleresCercanos(talleres, userLat, userLng, RADIO_KM_NOTIFICACION, 10);
+        case 32:
+          talleresPorServicio = _context49.sent;
+          // Merge: talleres encontrados por servicio + por categoría del perfil (sin duplicados)
+          vistos = new Set();
+          talleresUnidos = [];
+          for (_i2 = 0, _arr = [].concat(_toConsumableArray(talleresPorServicio), _toConsumableArray(talleresPorCategoria)); _i2 < _arr.length; _i2++) {
+            t = _arr[_i2];
+            id = t.uid_taller;
+            if (id && !vistos.has(id)) {
+              vistos.add(id);
+              talleresUnidos.push(t);
+            }
+          }
+          talleresCercanos = filterTalleresCercanos(talleresUnidos, userLat, userLng, RADIO_KM_NOTIFICACION, 10);
           talleresParaNotificar = talleresCercanos.filter(function (t) {
             return Number.isFinite(t.kmDistance) && t.kmDistance <= RADIO_KM_NOTIFICACION;
           });
-        case 32:
+        case 38:
           talleresConToken = talleresParaNotificar.filter(function (t) {
             return t.token && typeof t.token === "string" && t.token.trim() !== "";
           });
-          _context40.next = 35;
+          _context49.next = 41;
           return Promise.allSettled(talleresConToken.map(function (taller) {
             var reqNotif = {
               body: {
@@ -3946,95 +4613,95 @@ var saveSolicitud = /*#__PURE__*/function () {
             };
             return sendNotification(reqNotif, resNotif);
           }));
-        case 35:
+        case 41:
           imageUrls = [];
           if (!(Array.isArray(fotos) && fotos.length > 0)) {
-            _context40.next = 52;
+            _context49.next = 58;
             break;
           }
           i = 0;
-        case 38:
+        case 44:
           if (!(i < fotos.length)) {
-            _context40.next = 52;
+            _context49.next = 58;
             break;
           }
           _base3 = fotos[i];
           if (!(!_base3 || typeof _base3 !== "string" || !_base3.trim())) {
-            _context40.next = 42;
+            _context49.next = 48;
             break;
           }
-          return _context40.abrupt("continue", 49);
-        case 42:
+          return _context49.abrupt("continue", 55);
+        case 48:
           path = "Solicitudes/".concat(solicitudId, "/").concat(i + 1, ".jpg");
           buffer = Buffer.from(_base3, "base64");
           file = bucket.file(path);
-          _context40.next = 47;
+          _context49.next = 53;
           return uploadImage(file, buffer);
-        case 47:
+        case 53:
           url = "https://storage.googleapis.com/".concat(bucket.name, "/").concat(path);
           imageUrls.push(url);
-        case 49:
+        case 55:
           i++;
-          _context40.next = 38;
+          _context49.next = 44;
           break;
-        case 52:
+        case 58:
           if (!(imageUrls.length > 0)) {
-            _context40.next = 55;
+            _context49.next = 61;
             break;
           }
-          _context40.next = 55;
+          _context49.next = 61;
           return solicitudRef.update({
             solicitud_images: imageUrls
           });
-        case 55:
-          return _context40.abrupt("return", res.status(201).json({
+        case 61:
+          return _context49.abrupt("return", res.status(201).json({
             message: "Solicitud creada correctamente.",
             id: solicitudId,
             solicitud_images: imageUrls,
             talleres: talleresCercanos
           }));
-        case 58:
-          _context40.prev = 58;
-          _context40.t0 = _context40["catch"](0);
-          console.error("Error al guardar solicitud:", _context40.t0);
-          return _context40.abrupt("return", res.status(500).json({
-            error: "Error al guardar solicitud: ".concat(_context40.t0.message)
+        case 64:
+          _context49.prev = 64;
+          _context49.t0 = _context49["catch"](0);
+          console.error("Error al guardar solicitud:", _context49.t0);
+          return _context49.abrupt("return", res.status(500).json({
+            error: "Error al guardar solicitud: ".concat(_context49.t0.message)
           }));
-        case 62:
+        case 68:
         case "end":
-          return _context40.stop();
+          return _context49.stop();
       }
-    }, _callee39, null, [[0, 58]]);
+    }, _callee47, null, [[0, 64]]);
   }));
-  return function saveSolicitud(_x91, _x92) {
-    return _ref59.apply(this, arguments);
+  return function saveSolicitud(_x105, _x106) {
+    return _ref69.apply(this, arguments);
   };
 }();
 var getSolicitudesByUsuario = /*#__PURE__*/function () {
-  var _ref61 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee40(req, res) {
-    var _ref62, uid_usuario, solo_ultima, status, snapshot, solicitudes;
-    return _regeneratorRuntime().wrap(function _callee40$(_context41) {
-      while (1) switch (_context41.prev = _context41.next) {
+  var _ref71 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee48(req, res) {
+    var _ref72, uid_usuario, solo_ultima, status, snapshot, solicitudes;
+    return _regeneratorRuntime().wrap(function _callee48$(_context50) {
+      while (1) switch (_context50.prev = _context50.next) {
         case 0:
-          _context41.prev = 0;
-          _ref62 = req.body || {}, uid_usuario = _ref62.uid_usuario, solo_ultima = _ref62.solo_ultima, status = _ref62.status;
+          _context50.prev = 0;
+          _ref72 = req.body || {}, uid_usuario = _ref72.uid_usuario, solo_ultima = _ref72.solo_ultima, status = _ref72.status;
           if (!(!uid_usuario || typeof uid_usuario !== "string" || uid_usuario.trim() === "")) {
-            _context41.next = 4;
+            _context50.next = 4;
             break;
           }
-          return _context41.abrupt("return", res.status(400).json({
+          return _context50.abrupt("return", res.status(400).json({
             error: "uid_usuario es requerido."
           }));
         case 4:
-          _context41.next = 6;
+          _context50.next = 6;
           return db.collection("Solicitudes").where("uid_usuario", "==", uid_usuario.trim()).where("status", "==", status.trim()).get();
         case 6:
-          snapshot = _context41.sent;
+          snapshot = _context50.sent;
           if (!snapshot.empty) {
-            _context41.next = 9;
+            _context50.next = 9;
             break;
           }
-          return _context41.abrupt("return", res.status(200).json(solo_ultima ? null : []));
+          return _context50.abrupt("return", res.status(200).json(solo_ultima ? null : []));
         case 9:
           solicitudes = snapshot.docs.map(function (doc) {
             return _objectSpread({
@@ -4042,7 +4709,7 @@ var getSolicitudesByUsuario = /*#__PURE__*/function () {
             }, doc.data());
           }); // Si el flag viene en true, devolver solo la solicitud más nueva (por fecha_solicitud)
           if (!solo_ultima) {
-            _context41.next = 13;
+            _context50.next = 13;
             break;
           }
           solicitudes.sort(function (a, b) {
@@ -4051,24 +4718,24 @@ var getSolicitudesByUsuario = /*#__PURE__*/function () {
             var fb = (_b$fecha_solicitud = b.fecha_solicitud) !== null && _b$fecha_solicitud !== void 0 && _b$fecha_solicitud.toMillis ? b.fecha_solicitud.toMillis() : 0;
             return fb - fa; // más reciente primero
           });
-          return _context41.abrupt("return", res.status(200).json(solicitudes[0] || null));
+          return _context50.abrupt("return", res.status(200).json(solicitudes[0] || null));
         case 13:
-          return _context41.abrupt("return", res.status(200).json(solicitudes));
+          return _context50.abrupt("return", res.status(200).json(solicitudes));
         case 16:
-          _context41.prev = 16;
-          _context41.t0 = _context41["catch"](0);
-          console.error("Error al obtener solicitudes por usuario:", _context41.t0);
-          return _context41.abrupt("return", res.status(500).json({
-            error: "Error al obtener solicitudes: ".concat(_context41.t0.message)
+          _context50.prev = 16;
+          _context50.t0 = _context50["catch"](0);
+          console.error("Error al obtener solicitudes por usuario:", _context50.t0);
+          return _context50.abrupt("return", res.status(500).json({
+            error: "Error al obtener solicitudes: ".concat(_context50.t0.message)
           }));
         case 20:
         case "end":
-          return _context41.stop();
+          return _context50.stop();
       }
-    }, _callee40, null, [[0, 16]]);
+    }, _callee48, null, [[0, 16]]);
   }));
-  return function getSolicitudesByUsuario(_x93, _x94) {
-    return _ref61.apply(this, arguments);
+  return function getSolicitudesByUsuario(_x107, _x108) {
+    return _ref71.apply(this, arguments);
   };
 }();
 
@@ -4077,30 +4744,30 @@ var getSolicitudesByUsuario = /*#__PURE__*/function () {
  * (coincidencia por `uid_solicitud` = id del documento en Solicitudes). Respuesta: array únicamente.
  */
 var getSolicitudesByUsuarioAndStatus = /*#__PURE__*/function () {
-  var _ref63 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee41(req, res) {
-    var _ref64, status, uid_taller, snapshot, solicitudIds, idsConPropuesta, IN_LIMIT, i, chunk, propSnap, solicitudes, uidTallerTrim, servSnap, categoriasTaller;
-    return _regeneratorRuntime().wrap(function _callee41$(_context42) {
-      while (1) switch (_context42.prev = _context42.next) {
+  var _ref73 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee49(req, res) {
+    var _ref74, status, uid_taller, snapshot, solicitudIds, idsConPropuesta, IN_LIMIT, i, chunk, propSnap, solicitudes, uidTallerTrim, servSnap, categoriasTaller;
+    return _regeneratorRuntime().wrap(function _callee49$(_context51) {
+      while (1) switch (_context51.prev = _context51.next) {
         case 0:
-          _context42.prev = 0;
-          _ref64 = req.body || {}, status = _ref64.status, uid_taller = _ref64.uid_taller;
+          _context51.prev = 0;
+          _ref74 = req.body || {}, status = _ref74.status, uid_taller = _ref74.uid_taller;
           if (!(!status || typeof status !== "string" || status.trim() === "")) {
-            _context42.next = 4;
+            _context51.next = 4;
             break;
           }
-          return _context42.abrupt("return", res.status(400).json({
+          return _context51.abrupt("return", res.status(400).json({
             error: "status es requerido."
           }));
         case 4:
-          _context42.next = 6;
+          _context51.next = 6;
           return db.collection("Solicitudes").where("status", "==", status.trim()).get();
         case 6:
-          snapshot = _context42.sent;
+          snapshot = _context51.sent;
           if (!snapshot.empty) {
-            _context42.next = 9;
+            _context51.next = 9;
             break;
           }
-          return _context42.abrupt("return", res.status(200).json([]));
+          return _context51.abrupt("return", res.status(200).json([]));
         case 9:
           solicitudIds = snapshot.docs.map(function (d) {
             return String(d.id).trim();
@@ -4110,16 +4777,16 @@ var getSolicitudesByUsuarioAndStatus = /*#__PURE__*/function () {
           i = 0;
         case 13:
           if (!(i < solicitudIds.length)) {
-            _context42.next = 22;
+            _context51.next = 22;
             break;
           }
           chunk = solicitudIds.slice(i, i + IN_LIMIT).map(function (id) {
             return String(id).trim();
           });
-          _context42.next = 17;
+          _context51.next = 17;
           return db.collection("Propuestas").where("uid_solicitud", "in", chunk).get();
         case 17:
-          propSnap = _context42.sent;
+          propSnap = _context51.sent;
           propSnap.docs.forEach(function (doc) {
             var raw = (doc.data() || {}).uid_solicitud;
             var uidSol = raw == null ? "" : String(raw).trim();
@@ -4129,7 +4796,7 @@ var getSolicitudesByUsuarioAndStatus = /*#__PURE__*/function () {
           });
         case 19:
           i += IN_LIMIT;
-          _context42.next = 13;
+          _context51.next = 13;
           break;
         case 22:
           solicitudes = snapshot.docs.map(function (doc) {
@@ -4140,7 +4807,7 @@ var getSolicitudesByUsuarioAndStatus = /*#__PURE__*/function () {
             return !idsConPropuesta.has(String(s.id).trim());
           });
           if (!(uid_taller !== undefined && uid_taller !== null && uid_taller !== "")) {
-            _context42.next = 32;
+            _context51.next = 32;
             break;
           }
           uidTallerTrim = String(uid_taller).trim();
@@ -4150,10 +4817,10 @@ var getSolicitudesByUsuarioAndStatus = /*#__PURE__*/function () {
             if (vacio) return true;
             return String(st).trim() === uidTallerTrim;
           });
-          _context42.next = 28;
+          _context51.next = 28;
           return db.collection("Servicios").where("uid_taller", "==", uidTallerTrim).where("estatus", "==", true).get();
         case 28:
-          servSnap = _context42.sent;
+          servSnap = _context51.sent;
           categoriasTaller = new Set();
           servSnap.docs.forEach(function (doc) {
             var d = doc.data() || {};
@@ -4175,97 +4842,97 @@ var getSolicitudesByUsuarioAndStatus = /*#__PURE__*/function () {
             });
           }
         case 32:
-          return _context42.abrupt("return", res.status(200).json(solicitudes));
+          return _context51.abrupt("return", res.status(200).json(solicitudes));
         case 35:
-          _context42.prev = 35;
-          _context42.t0 = _context42["catch"](0);
-          console.error("Error al obtener solicitudes por status:", _context42.t0);
-          return _context42.abrupt("return", res.status(500).json({
-            error: "Error al obtener solicitudes: ".concat(_context42.t0.message)
+          _context51.prev = 35;
+          _context51.t0 = _context51["catch"](0);
+          console.error("Error al obtener solicitudes por status:", _context51.t0);
+          return _context51.abrupt("return", res.status(500).json({
+            error: "Error al obtener solicitudes: ".concat(_context51.t0.message)
           }));
         case 39:
         case "end":
-          return _context42.stop();
+          return _context51.stop();
       }
-    }, _callee41, null, [[0, 35]]);
+    }, _callee49, null, [[0, 35]]);
   }));
-  return function getSolicitudesByUsuarioAndStatus(_x95, _x96) {
-    return _ref63.apply(this, arguments);
+  return function getSolicitudesByUsuarioAndStatus(_x109, _x110) {
+    return _ref73.apply(this, arguments);
   };
 }();
 var getSolicitudByServicioUid = /*#__PURE__*/function () {
-  var _ref65 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee42(req, res) {
-    var _ref66, uid_servicio, docRef, docSnap, solicitud;
-    return _regeneratorRuntime().wrap(function _callee42$(_context43) {
-      while (1) switch (_context43.prev = _context43.next) {
+  var _ref75 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee50(req, res) {
+    var _ref76, uid_servicio, docRef, docSnap, solicitud;
+    return _regeneratorRuntime().wrap(function _callee50$(_context52) {
+      while (1) switch (_context52.prev = _context52.next) {
         case 0:
-          _context43.prev = 0;
-          _ref66 = req.body || {}, uid_servicio = _ref66.uid_servicio;
+          _context52.prev = 0;
+          _ref76 = req.body || {}, uid_servicio = _ref76.uid_servicio;
           if (!(!uid_servicio || typeof uid_servicio !== "string" || uid_servicio.trim() === "")) {
-            _context43.next = 4;
+            _context52.next = 4;
             break;
           }
-          return _context43.abrupt("return", res.status(400).json({
+          return _context52.abrupt("return", res.status(400).json({
             error: "uid_servicio es requerido."
           }));
         case 4:
           docRef = db.collection("Solicitudes").doc(uid_servicio.trim());
-          _context43.next = 7;
+          _context52.next = 7;
           return docRef.get();
         case 7:
-          docSnap = _context43.sent;
+          docSnap = _context52.sent;
           if (docSnap.exists) {
-            _context43.next = 10;
+            _context52.next = 10;
             break;
           }
-          return _context43.abrupt("return", res.status(200).json(null));
+          return _context52.abrupt("return", res.status(200).json(null));
         case 10:
           solicitud = _objectSpread({
             id: docSnap.id
           }, docSnap.data());
-          return _context43.abrupt("return", res.status(200).json(solicitud));
+          return _context52.abrupt("return", res.status(200).json(solicitud));
         case 14:
-          _context43.prev = 14;
-          _context43.t0 = _context43["catch"](0);
-          console.error("Error al obtener solicitud por uid_servicio:", _context43.t0);
-          return _context43.abrupt("return", res.status(500).json({
-            error: "Error al obtener solicitud por uid_servicio: ".concat(_context43.t0.message)
+          _context52.prev = 14;
+          _context52.t0 = _context52["catch"](0);
+          console.error("Error al obtener solicitud por uid_servicio:", _context52.t0);
+          return _context52.abrupt("return", res.status(500).json({
+            error: "Error al obtener solicitud por uid_servicio: ".concat(_context52.t0.message)
           }));
         case 18:
         case "end":
-          return _context43.stop();
+          return _context52.stop();
       }
-    }, _callee42, null, [[0, 14]]);
+    }, _callee50, null, [[0, 14]]);
   }));
-  return function getSolicitudByServicioUid(_x97, _x98) {
-    return _ref65.apply(this, arguments);
+  return function getSolicitudByServicioUid(_x111, _x112) {
+    return _ref75.apply(this, arguments);
   };
 }();
 var getPropuestasBySolicitud = /*#__PURE__*/function () {
-  var _ref67 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee43(req, res) {
-    var _ref68, uid_solicitud, propuestasSnapshot, propuestas;
-    return _regeneratorRuntime().wrap(function _callee43$(_context44) {
-      while (1) switch (_context44.prev = _context44.next) {
+  var _ref77 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee51(req, res) {
+    var _ref78, uid_solicitud, propuestasSnapshot, propuestas;
+    return _regeneratorRuntime().wrap(function _callee51$(_context53) {
+      while (1) switch (_context53.prev = _context53.next) {
         case 0:
-          _context44.prev = 0;
-          _ref68 = req.body || {}, uid_solicitud = _ref68.uid_solicitud;
+          _context53.prev = 0;
+          _ref78 = req.body || {}, uid_solicitud = _ref78.uid_solicitud;
           if (!(!uid_solicitud || typeof uid_solicitud !== "string" || uid_solicitud.trim() === "")) {
-            _context44.next = 4;
+            _context53.next = 4;
             break;
           }
-          return _context44.abrupt("return", res.status(400).json({
+          return _context53.abrupt("return", res.status(400).json({
             error: "uid_solicitud es requerido."
           }));
         case 4:
-          _context44.next = 6;
+          _context53.next = 6;
           return db.collection("Propuestas").where("uid_solicitud", "==", uid_solicitud.trim()).get();
         case 6:
-          propuestasSnapshot = _context44.sent;
+          propuestasSnapshot = _context53.sent;
           if (!propuestasSnapshot.empty) {
-            _context44.next = 9;
+            _context53.next = 9;
             break;
           }
-          return _context44.abrupt("return", res.status(200).json([]));
+          return _context53.abrupt("return", res.status(200).json([]));
         case 9:
           propuestas = propuestasSnapshot.docs.map(function (doc) {
             var data = doc.data();
@@ -4275,122 +4942,122 @@ var getPropuestasBySolicitud = /*#__PURE__*/function () {
               id: doc.id
             }, rest);
           });
-          return _context44.abrupt("return", res.status(200).json(propuestas));
+          return _context53.abrupt("return", res.status(200).json(propuestas));
         case 13:
-          _context44.prev = 13;
-          _context44.t0 = _context44["catch"](0);
-          console.error("Error al obtener propuestas por solicitud:", _context44.t0);
-          return _context44.abrupt("return", res.status(500).json({
-            error: "Error al obtener propuestas: ".concat(_context44.t0.message)
+          _context53.prev = 13;
+          _context53.t0 = _context53["catch"](0);
+          console.error("Error al obtener propuestas por solicitud:", _context53.t0);
+          return _context53.abrupt("return", res.status(500).json({
+            error: "Error al obtener propuestas: ".concat(_context53.t0.message)
           }));
         case 17:
         case "end":
-          return _context44.stop();
+          return _context53.stop();
       }
-    }, _callee43, null, [[0, 13]]);
+    }, _callee51, null, [[0, 13]]);
   }));
-  return function getPropuestasBySolicitud(_x99, _x100) {
-    return _ref67.apply(this, arguments);
+  return function getPropuestasBySolicitud(_x113, _x114) {
+    return _ref77.apply(this, arguments);
   };
 }();
 var getUsuarioTokenBySolicitudUid = /*#__PURE__*/function () {
-  var _ref69 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee44(uid_solicitud) {
+  var _ref79 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee52(uid_solicitud) {
     var solicitudSnap, solicitudData, uidUsuario, usuarioSnap, usuarioData, token;
-    return _regeneratorRuntime().wrap(function _callee44$(_context45) {
-      while (1) switch (_context45.prev = _context45.next) {
+    return _regeneratorRuntime().wrap(function _callee52$(_context54) {
+      while (1) switch (_context54.prev = _context54.next) {
         case 0:
           if (!(!uid_solicitud || typeof uid_solicitud !== "string" || !uid_solicitud.trim())) {
-            _context45.next = 2;
+            _context54.next = 2;
             break;
           }
-          return _context45.abrupt("return", null);
+          return _context54.abrupt("return", null);
         case 2:
-          _context45.next = 4;
+          _context54.next = 4;
           return db.collection("Solicitudes").doc(uid_solicitud.trim()).get();
         case 4:
-          solicitudSnap = _context45.sent;
+          solicitudSnap = _context54.sent;
           if (solicitudSnap.exists) {
-            _context45.next = 7;
+            _context54.next = 7;
             break;
           }
-          return _context45.abrupt("return", null);
+          return _context54.abrupt("return", null);
         case 7:
           solicitudData = solicitudSnap.data() || {};
           uidUsuario = solicitudData.uid_usuario;
           if (!(!uidUsuario || typeof uidUsuario !== "string" || !uidUsuario.trim())) {
-            _context45.next = 11;
+            _context54.next = 11;
             break;
           }
-          return _context45.abrupt("return", null);
+          return _context54.abrupt("return", null);
         case 11:
-          _context45.next = 13;
+          _context54.next = 13;
           return db.collection("Usuarios").doc(uidUsuario.trim()).get();
         case 13:
-          usuarioSnap = _context45.sent;
+          usuarioSnap = _context54.sent;
           if (usuarioSnap.exists) {
-            _context45.next = 16;
+            _context54.next = 16;
             break;
           }
-          return _context45.abrupt("return", null);
+          return _context54.abrupt("return", null);
         case 16:
           usuarioData = usuarioSnap.data() || {};
           token = usuarioData.token;
           if (!(!token || typeof token !== "string" || !token.trim())) {
-            _context45.next = 20;
+            _context54.next = 20;
             break;
           }
-          return _context45.abrupt("return", null);
+          return _context54.abrupt("return", null);
         case 20:
-          return _context45.abrupt("return", token.trim());
+          return _context54.abrupt("return", token.trim());
         case 21:
         case "end":
-          return _context45.stop();
+          return _context54.stop();
       }
-    }, _callee44);
+    }, _callee52);
   }));
-  return function getUsuarioTokenBySolicitudUid(_x101) {
-    return _ref69.apply(this, arguments);
+  return function getUsuarioTokenBySolicitudUid(_x115) {
+    return _ref79.apply(this, arguments);
   };
 }();
 var getUsuarioTokenByUid = /*#__PURE__*/function () {
-  var _ref70 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee45(uid) {
+  var _ref80 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee53(uid) {
     var usuarioSnap, usuarioData, token;
-    return _regeneratorRuntime().wrap(function _callee45$(_context46) {
-      while (1) switch (_context46.prev = _context46.next) {
+    return _regeneratorRuntime().wrap(function _callee53$(_context55) {
+      while (1) switch (_context55.prev = _context55.next) {
         case 0:
           if (!(!uid || typeof uid !== "string" || !uid.trim())) {
-            _context46.next = 2;
+            _context55.next = 2;
             break;
           }
-          return _context46.abrupt("return", null);
+          return _context55.abrupt("return", null);
         case 2:
-          _context46.next = 4;
+          _context55.next = 4;
           return db.collection("Usuarios").doc(uid.trim()).get();
         case 4:
-          usuarioSnap = _context46.sent;
+          usuarioSnap = _context55.sent;
           if (usuarioSnap.exists) {
-            _context46.next = 7;
+            _context55.next = 7;
             break;
           }
-          return _context46.abrupt("return", null);
+          return _context55.abrupt("return", null);
         case 7:
           usuarioData = usuarioSnap.data() || {};
           token = usuarioData.token;
           if (!(!token || typeof token !== "string" || !token.trim())) {
-            _context46.next = 11;
+            _context55.next = 11;
             break;
           }
-          return _context46.abrupt("return", null);
+          return _context55.abrupt("return", null);
         case 11:
-          return _context46.abrupt("return", token.trim());
+          return _context55.abrupt("return", token.trim());
         case 12:
         case "end":
-          return _context46.stop();
+          return _context55.stop();
       }
-    }, _callee45);
+    }, _callee53);
   }));
-  return function getUsuarioTokenByUid(_x102) {
-    return _ref70.apply(this, arguments);
+  return function getUsuarioTokenByUid(_x116) {
+    return _ref80.apply(this, arguments);
   };
 }();
 
@@ -4415,27 +5082,27 @@ var getNotificationPayloadForPropuestaStatus = function getNotificationPayloadFo
   return null;
 };
 var notifyUsuarioByPropuestaStatus = /*#__PURE__*/function () {
-  var _ref71 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee46(uid_solicitud, statusValue, propuestaId) {
+  var _ref81 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee54(uid_solicitud, statusValue, propuestaId) {
     var notification, token, reqNotif, resNotif;
-    return _regeneratorRuntime().wrap(function _callee46$(_context47) {
-      while (1) switch (_context47.prev = _context47.next) {
+    return _regeneratorRuntime().wrap(function _callee54$(_context56) {
+      while (1) switch (_context56.prev = _context56.next) {
         case 0:
           notification = getNotificationPayloadForPropuestaStatus(statusValue);
           if (notification) {
-            _context47.next = 3;
+            _context56.next = 3;
             break;
           }
-          return _context47.abrupt("return");
+          return _context56.abrupt("return");
         case 3:
-          _context47.next = 5;
+          _context56.next = 5;
           return getUsuarioTokenBySolicitudUid(uid_solicitud);
         case 5:
-          token = _context47.sent;
+          token = _context56.sent;
           if (token) {
-            _context47.next = 8;
+            _context56.next = 8;
             break;
           }
-          return _context47.abrupt("return");
+          return _context56.abrupt("return");
         case 8:
           reqNotif = {
             body: {
@@ -4452,42 +5119,42 @@ var notifyUsuarioByPropuestaStatus = /*#__PURE__*/function () {
               };
             }
           };
-          _context47.next = 12;
+          _context56.next = 12;
           return sendNotification(reqNotif, resNotif);
         case 12:
         case "end":
-          return _context47.stop();
+          return _context56.stop();
       }
-    }, _callee46);
+    }, _callee54);
   }));
-  return function notifyUsuarioByPropuestaStatus(_x103, _x104, _x105) {
-    return _ref71.apply(this, arguments);
+  return function notifyUsuarioByPropuestaStatus(_x117, _x118, _x119) {
+    return _ref81.apply(this, arguments);
   };
 }();
 var notifyTallerPropuestaAceptada = /*#__PURE__*/function () {
-  var _ref72 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee47(uid_taller) {
-    var _ref73,
-      _ref73$esInspeccion,
+  var _ref82 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee55(uid_taller) {
+    var _ref83,
+      _ref83$esInspeccion,
       esInspeccion,
       token,
       title,
       body,
       reqNotif,
       resNotif,
-      _args48 = arguments;
-    return _regeneratorRuntime().wrap(function _callee47$(_context48) {
-      while (1) switch (_context48.prev = _context48.next) {
+      _args57 = arguments;
+    return _regeneratorRuntime().wrap(function _callee55$(_context57) {
+      while (1) switch (_context57.prev = _context57.next) {
         case 0:
-          _ref73 = _args48.length > 1 && _args48[1] !== undefined ? _args48[1] : {}, _ref73$esInspeccion = _ref73.esInspeccion, esInspeccion = _ref73$esInspeccion === void 0 ? false : _ref73$esInspeccion;
-          _context48.next = 3;
+          _ref83 = _args57.length > 1 && _args57[1] !== undefined ? _args57[1] : {}, _ref83$esInspeccion = _ref83.esInspeccion, esInspeccion = _ref83$esInspeccion === void 0 ? false : _ref83$esInspeccion;
+          _context57.next = 3;
           return getUsuarioTokenByUid(uid_taller);
         case 3:
-          token = _context48.sent;
+          token = _context57.sent;
           if (token) {
-            _context48.next = 6;
+            _context57.next = 6;
             break;
           }
-          return _context48.abrupt("return");
+          return _context57.abrupt("return");
         case 6:
           title = esInspeccion ? "Inspección aceptada" : "Tu propuesta fue aceptada";
           body = esInspeccion ? "El usuario aceptó la inspección de su vehículo. Coordiná la visita cuando puedas." : "Excelente noticia. El usuario acepto tu propuesta y pronto se pondra en contacto contigo.";
@@ -4506,109 +5173,109 @@ var notifyTallerPropuestaAceptada = /*#__PURE__*/function () {
               };
             }
           };
-          _context48.next = 12;
+          _context57.next = 12;
           return sendNotification(reqNotif, resNotif);
         case 12:
         case "end":
-          return _context48.stop();
+          return _context57.stop();
       }
-    }, _callee47);
+    }, _callee55);
   }));
-  return function notifyTallerPropuestaAceptada(_x106) {
-    return _ref72.apply(this, arguments);
+  return function notifyTallerPropuestaAceptada(_x120) {
+    return _ref82.apply(this, arguments);
   };
 }();
 var savePropuesta = /*#__PURE__*/function () {
-  var _ref74 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee48(req, res) {
+  var _ref84 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee56(req, res) {
     var body, docRef;
-    return _regeneratorRuntime().wrap(function _callee48$(_context49) {
-      while (1) switch (_context49.prev = _context49.next) {
+    return _regeneratorRuntime().wrap(function _callee56$(_context58) {
+      while (1) switch (_context58.prev = _context58.next) {
         case 0:
-          _context49.prev = 0;
+          _context58.prev = 0;
           body = req.body || {};
           body.fecha_propuesta = admin.firestore.Timestamp.now();
-          _context49.next = 5;
+          _context58.next = 5;
           return db.collection("Propuestas").add(body);
         case 5:
-          docRef = _context49.sent;
-          _context49.next = 8;
+          docRef = _context58.sent;
+          _context58.next = 8;
           return docRef.update({
             id: docRef.id
           });
         case 8:
-          _context49.next = 10;
+          _context58.next = 10;
           return notifyUsuarioByPropuestaStatus(body.uid_solicitud, body.status, docRef.id);
         case 10:
-          return _context49.abrupt("return", res.status(201).json({
+          return _context58.abrupt("return", res.status(201).json({
             message: "Propuesta creada correctamente.",
             id: docRef.id
           }));
         case 13:
-          _context49.prev = 13;
-          _context49.t0 = _context49["catch"](0);
-          console.error("Error al guardar propuesta:", _context49.t0);
-          return _context49.abrupt("return", res.status(500).json({
-            error: "Error al guardar propuesta: ".concat(_context49.t0.message)
+          _context58.prev = 13;
+          _context58.t0 = _context58["catch"](0);
+          console.error("Error al guardar propuesta:", _context58.t0);
+          return _context58.abrupt("return", res.status(500).json({
+            error: "Error al guardar propuesta: ".concat(_context58.t0.message)
           }));
         case 17:
         case "end":
-          return _context49.stop();
+          return _context58.stop();
       }
-    }, _callee48, null, [[0, 13]]);
+    }, _callee56, null, [[0, 13]]);
   }));
-  return function savePropuesta(_x107, _x108) {
-    return _ref74.apply(this, arguments);
+  return function savePropuesta(_x121, _x122) {
+    return _ref84.apply(this, arguments);
   };
 }();
 var updateSolicitudStatus = /*#__PURE__*/function () {
-  var _ref75 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee49(req, res) {
+  var _ref85 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee57(req, res) {
     var body, uid_solicitud, status, solicitudRef, solicitudSnap, propuestasSnapshot, batch;
-    return _regeneratorRuntime().wrap(function _callee49$(_context50) {
-      while (1) switch (_context50.prev = _context50.next) {
+    return _regeneratorRuntime().wrap(function _callee57$(_context59) {
+      while (1) switch (_context59.prev = _context59.next) {
         case 0:
-          _context50.prev = 0;
+          _context59.prev = 0;
           body = req.body || {};
           uid_solicitud = body.uid_solicitud, status = body.status;
           if (!(!uid_solicitud || typeof uid_solicitud !== "string" || uid_solicitud.trim() === "")) {
-            _context50.next = 5;
+            _context59.next = 5;
             break;
           }
-          return _context50.abrupt("return", res.status(400).json({
+          return _context59.abrupt("return", res.status(400).json({
             error: "uid_solicitud es requerido."
           }));
         case 5:
           if (!(!status || typeof status !== "string" || status.trim() === "")) {
-            _context50.next = 7;
+            _context59.next = 7;
             break;
           }
-          return _context50.abrupt("return", res.status(400).json({
+          return _context59.abrupt("return", res.status(400).json({
             error: "status es requerido."
           }));
         case 7:
           solicitudRef = db.collection("Solicitudes").doc(uid_solicitud.trim());
-          _context50.next = 10;
+          _context59.next = 10;
           return solicitudRef.get();
         case 10:
-          solicitudSnap = _context50.sent;
+          solicitudSnap = _context59.sent;
           if (solicitudSnap.exists) {
-            _context50.next = 13;
+            _context59.next = 13;
             break;
           }
-          return _context50.abrupt("return", res.status(404).json({
+          return _context59.abrupt("return", res.status(404).json({
             error: "Solicitud no encontrada."
           }));
         case 13:
-          _context50.next = 15;
+          _context59.next = 15;
           return solicitudRef.update({
             status: status.trim()
           });
         case 15:
-          _context50.next = 17;
+          _context59.next = 17;
           return db.collection("Propuestas").where("uid_solicitud", "==", uid_solicitud.trim()).get();
         case 17:
-          propuestasSnapshot = _context50.sent;
+          propuestasSnapshot = _context59.sent;
           if (propuestasSnapshot.empty) {
-            _context50.next = 23;
+            _context59.next = 23;
             break;
           }
           batch = db.batch();
@@ -4618,66 +5285,66 @@ var updateSolicitudStatus = /*#__PURE__*/function () {
               fecha_rechazada: admin.firestore.Timestamp.now()
             });
           });
-          _context50.next = 23;
+          _context59.next = 23;
           return batch.commit();
         case 23:
-          return _context50.abrupt("return", res.status(200).json({
+          return _context59.abrupt("return", res.status(200).json({
             message: "Status de la solicitud actualizado correctamente.",
             id: uid_solicitud.trim(),
             status: status.trim()
           }));
         case 26:
-          _context50.prev = 26;
-          _context50.t0 = _context50["catch"](0);
-          console.error("Error al actualizar status de la solicitud:", _context50.t0);
-          return _context50.abrupt("return", res.status(500).json({
-            error: "Error al actualizar solicitud: ".concat(_context50.t0.message)
+          _context59.prev = 26;
+          _context59.t0 = _context59["catch"](0);
+          console.error("Error al actualizar status de la solicitud:", _context59.t0);
+          return _context59.abrupt("return", res.status(500).json({
+            error: "Error al actualizar solicitud: ".concat(_context59.t0.message)
           }));
         case 30:
         case "end":
-          return _context50.stop();
+          return _context59.stop();
       }
-    }, _callee49, null, [[0, 26]]);
+    }, _callee57, null, [[0, 26]]);
   }));
-  return function updateSolicitudStatus(_x109, _x110) {
-    return _ref75.apply(this, arguments);
+  return function updateSolicitudStatus(_x123, _x124) {
+    return _ref85.apply(this, arguments);
   };
 }();
 var updatePropuesta = /*#__PURE__*/function () {
-  var _ref76 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee50(req, res) {
-    var body, uid_propuesta, status, propuestaRef, propuestaSnap, propuestaData, statusLower, updatePropuestaData, uid_solicitud, uid_taller, solicitudRef, solicitudSnap, solicitudUpdate, tipoPropuestaNorm, esCotizado, esInspeccion, _propuestaData$nombre, _propuestaData$uid_ta, _propuestaData$coment, _propuestaData$fecha_, _propuestaData$precio, _propuestaData$tiempo, _propuestaData$nombre2, _propuestaData$uid_ta2, _propuestaData$coment2, _propuestaData$fecha_2, _i2, _Object$keys2, key;
-    return _regeneratorRuntime().wrap(function _callee50$(_context51) {
-      while (1) switch (_context51.prev = _context51.next) {
+  var _ref86 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee58(req, res) {
+    var body, uid_propuesta, status, propuestaRef, propuestaSnap, propuestaData, statusLower, updatePropuestaData, uid_solicitud, uid_taller, solicitudRef, solicitudSnap, solicitudUpdate, tipoPropuestaNorm, esCotizado, esInspeccion, _propuestaData$nombre, _propuestaData$uid_ta, _propuestaData$coment, _propuestaData$fecha_, _propuestaData$precio, _propuestaData$tiempo, _propuestaData$nombre2, _propuestaData$uid_ta2, _propuestaData$coment2, _propuestaData$fecha_2, _i3, _Object$keys2, key;
+    return _regeneratorRuntime().wrap(function _callee58$(_context60) {
+      while (1) switch (_context60.prev = _context60.next) {
         case 0:
-          _context51.prev = 0;
+          _context60.prev = 0;
           body = req.body || {};
           uid_propuesta = body.uid_propuesta, status = body.status;
           if (!(!uid_propuesta || typeof uid_propuesta !== "string" || uid_propuesta.trim() === "")) {
-            _context51.next = 5;
+            _context60.next = 5;
             break;
           }
-          return _context51.abrupt("return", res.status(400).json({
+          return _context60.abrupt("return", res.status(400).json({
             error: "uid_propuesta es requerido."
           }));
         case 5:
           if (!(!status || typeof status !== "string" || status.trim() === "")) {
-            _context51.next = 7;
+            _context60.next = 7;
             break;
           }
-          return _context51.abrupt("return", res.status(400).json({
+          return _context60.abrupt("return", res.status(400).json({
             error: "status es requerido."
           }));
         case 7:
           propuestaRef = db.collection("Propuestas").doc(uid_propuesta.trim());
-          _context51.next = 10;
+          _context60.next = 10;
           return propuestaRef.get();
         case 10:
-          propuestaSnap = _context51.sent;
+          propuestaSnap = _context60.sent;
           if (propuestaSnap.exists) {
-            _context51.next = 13;
+            _context60.next = 13;
             break;
           }
-          return _context51.abrupt("return", res.status(404).json({
+          return _context60.abrupt("return", res.status(404).json({
             error: "Propuesta no encontrada."
           }));
         case 13:
@@ -4691,33 +5358,33 @@ var updatePropuesta = /*#__PURE__*/function () {
           } else if (statusLower === "rechazada") {
             updatePropuestaData.fecha_rechazada = admin.firestore.Timestamp.now();
           }
-          _context51.next = 19;
+          _context60.next = 19;
           return propuestaRef.update(updatePropuestaData);
         case 19:
           if (!(statusLower === "aceptada")) {
-            _context51.next = 42;
+            _context60.next = 42;
             break;
           }
           uid_solicitud = propuestaData.uid_solicitud;
           uid_taller = propuestaData.uid_taller;
           if (!(!uid_solicitud || typeof uid_solicitud !== "string" || !uid_solicitud.trim())) {
-            _context51.next = 24;
+            _context60.next = 24;
             break;
           }
-          return _context51.abrupt("return", res.status(400).json({
+          return _context60.abrupt("return", res.status(400).json({
             error: "La propuesta no tiene uid_solicitud; no se puede actualizar la solicitud."
           }));
         case 24:
           solicitudRef = db.collection("Solicitudes").doc(uid_solicitud.trim());
-          _context51.next = 27;
+          _context60.next = 27;
           return solicitudRef.get();
         case 27:
-          solicitudSnap = _context51.sent;
+          solicitudSnap = _context60.sent;
           if (solicitudSnap.exists) {
-            _context51.next = 30;
+            _context60.next = 30;
             break;
           }
-          return _context51.abrupt("return", res.status(404).json({
+          return _context60.abrupt("return", res.status(404).json({
             error: "Solicitud no encontrada."
           }));
         case 30:
@@ -4740,39 +5407,39 @@ var updatePropuesta = /*#__PURE__*/function () {
           }
           solicitudUpdate.status = esInspeccion ? "Inspección aceptada" : "Aceptada";
           solicitudUpdate.uid_taller = uid_taller != null ? uid_taller : "";
-          for (_i2 = 0, _Object$keys2 = Object.keys(body); _i2 < _Object$keys2.length; _i2++) {
-            key = _Object$keys2[_i2];
+          for (_i3 = 0, _Object$keys2 = Object.keys(body); _i3 < _Object$keys2.length; _i3++) {
+            key = _Object$keys2[_i3];
             if (key !== "uid_propuesta" && key !== "status") {
               solicitudUpdate[key] = body[key];
             }
           }
-          _context51.next = 40;
+          _context60.next = 40;
           return solicitudRef.update(solicitudUpdate);
         case 40:
-          _context51.next = 42;
+          _context60.next = 42;
           return notifyTallerPropuestaAceptada(uid_taller, {
             esInspeccion: esInspeccion
           });
         case 42:
-          return _context51.abrupt("return", res.status(200).json({
+          return _context60.abrupt("return", res.status(200).json({
             message: "Propuesta actualizada correctamente.",
             id: uid_propuesta.trim()
           }));
         case 45:
-          _context51.prev = 45;
-          _context51.t0 = _context51["catch"](0);
-          console.error("Error al actualizar propuesta:", _context51.t0);
-          return _context51.abrupt("return", res.status(500).json({
-            error: "Error al actualizar propuesta: ".concat(_context51.t0.message)
+          _context60.prev = 45;
+          _context60.t0 = _context60["catch"](0);
+          console.error("Error al actualizar propuesta:", _context60.t0);
+          return _context60.abrupt("return", res.status(500).json({
+            error: "Error al actualizar propuesta: ".concat(_context60.t0.message)
           }));
         case 49:
         case "end":
-          return _context51.stop();
+          return _context60.stop();
       }
-    }, _callee50, null, [[0, 45]]);
+    }, _callee58, null, [[0, 45]]);
   }));
-  return function updatePropuesta(_x111, _x112) {
-    return _ref76.apply(this, arguments);
+  return function updatePropuesta(_x125, _x126) {
+    return _ref86.apply(this, arguments);
   };
 }();
 var MS_TRES_DIAS = 3 * 24 * 60 * 60 * 1000;
@@ -4788,42 +5455,42 @@ var SOLICITUD_STATUS_CANCELADA_JOB = "Cancelado";
  *     activas en Cotizado/Inspección → Cancelada.
  */
 var jobRechazarPropuestasFechaPropuestaMayor3Dias = /*#__PURE__*/function () {
-  var _ref77 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee51() {
-    var limite, tsVencido, BATCH, snap, actualizadosPropuestas, batch, ops, _iterator3, _step3, doc, data, fp, propActivasSnap, solicitudesConPropuestaActiva, solicSnap, actualizadosSolicitudes, batchSol, opsSol, _iterator4, _step4, _doc;
-    return _regeneratorRuntime().wrap(function _callee51$(_context52) {
-      while (1) switch (_context52.prev = _context52.next) {
+  var _ref87 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee59() {
+    var limite, tsVencido, BATCH, snap, actualizadosPropuestas, batch, ops, _iterator4, _step4, doc, data, fp, propActivasSnap, solicitudesConPropuestaActiva, solicSnap, actualizadosSolicitudes, batchSol, opsSol, _iterator5, _step5, _doc;
+    return _regeneratorRuntime().wrap(function _callee59$(_context61) {
+      while (1) switch (_context61.prev = _context61.next) {
         case 0:
-          _context52.prev = 0;
+          _context61.prev = 0;
           limite = admin.firestore.Timestamp.fromMillis(Date.now() - MS_TRES_DIAS);
           tsVencido = admin.firestore.Timestamp.now();
           BATCH = 500;
-          _context52.next = 6;
+          _context61.next = 6;
           return db.collection("Propuestas").where("fecha_propuesta", "<", limite).where("status", "in", STATUS_PROPUESTA_PENDIENTE_JOB).get();
         case 6:
-          snap = _context52.sent;
+          snap = _context61.sent;
           actualizadosPropuestas = 0;
           if (snap.empty) {
-            _context52.next = 41;
+            _context61.next = 41;
             break;
           }
           batch = db.batch();
           ops = 0;
-          _iterator3 = _createForOfIteratorHelper(snap.docs);
-          _context52.prev = 12;
-          _iterator3.s();
+          _iterator4 = _createForOfIteratorHelper(snap.docs);
+          _context61.prev = 12;
+          _iterator4.s();
         case 14:
-          if ((_step3 = _iterator3.n()).done) {
-            _context52.next = 30;
+          if ((_step4 = _iterator4.n()).done) {
+            _context61.next = 30;
             break;
           }
-          doc = _step3.value;
+          doc = _step4.value;
           data = doc.data() || {};
           fp = data.fecha_propuesta;
           if (!(!fp || typeof fp.toMillis !== "function")) {
-            _context52.next = 20;
+            _context61.next = 20;
             break;
           }
-          return _context52.abrupt("continue", 28);
+          return _context61.abrupt("continue", 28);
         case 20:
           batch.update(doc.ref, {
             status: "Rechazada",
@@ -4832,43 +5499,43 @@ var jobRechazarPropuestasFechaPropuestaMayor3Dias = /*#__PURE__*/function () {
           ops += 1;
           actualizadosPropuestas += 1;
           if (!(ops >= BATCH)) {
-            _context52.next = 28;
+            _context61.next = 28;
             break;
           }
-          _context52.next = 26;
+          _context61.next = 26;
           return batch.commit();
         case 26:
           batch = db.batch();
           ops = 0;
         case 28:
-          _context52.next = 14;
+          _context61.next = 14;
           break;
         case 30:
-          _context52.next = 35;
+          _context61.next = 35;
           break;
         case 32:
-          _context52.prev = 32;
-          _context52.t0 = _context52["catch"](12);
-          _iterator3.e(_context52.t0);
+          _context61.prev = 32;
+          _context61.t0 = _context61["catch"](12);
+          _iterator4.e(_context61.t0);
         case 35:
-          _context52.prev = 35;
-          _iterator3.f();
-          return _context52.finish(35);
+          _context61.prev = 35;
+          _iterator4.f();
+          return _context61.finish(35);
         case 38:
           if (!(ops > 0)) {
-            _context52.next = 41;
+            _context61.next = 41;
             break;
           }
-          _context52.next = 41;
+          _context61.next = 41;
           return batch.commit();
         case 41:
           if (actualizadosPropuestas > 0) {
             console.log("jobRechazarPropuestasFechaPropuestaMayor3Dias: ".concat(actualizadosPropuestas, " propuesta(s) \u2192 Rechazada (>3 d\xEDas)."));
           }
-          _context52.next = 44;
+          _context61.next = 44;
           return db.collection("Propuestas").where("status", "in", STATUS_PROPUESTA_PENDIENTE_JOB).get();
         case 44:
-          propActivasSnap = _context52.sent;
+          propActivasSnap = _context61.sent;
           solicitudesConPropuestaActiva = new Set();
           propActivasSnap.docs.forEach(function (doc) {
             var u = (doc.data() || {}).uid_solicitud;
@@ -4876,31 +5543,31 @@ var jobRechazarPropuestasFechaPropuestaMayor3Dias = /*#__PURE__*/function () {
               solicitudesConPropuestaActiva.add(String(u).trim());
             }
           });
-          _context52.next = 49;
+          _context61.next = 49;
           return db.collection("Solicitudes").where("status", "==", SOLICITUD_STATUS_EN_ESPERA).where("fecha_solicitud", "<", limite).get();
         case 49:
-          solicSnap = _context52.sent;
+          solicSnap = _context61.sent;
           actualizadosSolicitudes = 0;
           if (solicSnap.empty) {
-            _context52.next = 82;
+            _context61.next = 82;
             break;
           }
           batchSol = db.batch();
           opsSol = 0;
-          _iterator4 = _createForOfIteratorHelper(solicSnap.docs);
-          _context52.prev = 55;
-          _iterator4.s();
+          _iterator5 = _createForOfIteratorHelper(solicSnap.docs);
+          _context61.prev = 55;
+          _iterator5.s();
         case 57:
-          if ((_step4 = _iterator4.n()).done) {
-            _context52.next = 71;
+          if ((_step5 = _iterator5.n()).done) {
+            _context61.next = 71;
             break;
           }
-          _doc = _step4.value;
+          _doc = _step5.value;
           if (!solicitudesConPropuestaActiva.has(_doc.id)) {
-            _context52.next = 61;
+            _context61.next = 61;
             break;
           }
-          return _context52.abrupt("continue", 69);
+          return _context61.abrupt("continue", 69);
         case 61:
           batchSol.update(_doc.ref, {
             status: SOLICITUD_STATUS_CANCELADA_JOB,
@@ -4909,131 +5576,131 @@ var jobRechazarPropuestasFechaPropuestaMayor3Dias = /*#__PURE__*/function () {
           opsSol += 1;
           actualizadosSolicitudes += 1;
           if (!(opsSol >= BATCH)) {
-            _context52.next = 69;
+            _context61.next = 69;
             break;
           }
-          _context52.next = 67;
+          _context61.next = 67;
           return batchSol.commit();
         case 67:
           batchSol = db.batch();
           opsSol = 0;
         case 69:
-          _context52.next = 57;
+          _context61.next = 57;
           break;
         case 71:
-          _context52.next = 76;
+          _context61.next = 76;
           break;
         case 73:
-          _context52.prev = 73;
-          _context52.t1 = _context52["catch"](55);
-          _iterator4.e(_context52.t1);
+          _context61.prev = 73;
+          _context61.t1 = _context61["catch"](55);
+          _iterator5.e(_context61.t1);
         case 76:
-          _context52.prev = 76;
-          _iterator4.f();
-          return _context52.finish(76);
+          _context61.prev = 76;
+          _iterator5.f();
+          return _context61.finish(76);
         case 79:
           if (!(opsSol > 0)) {
-            _context52.next = 82;
+            _context61.next = 82;
             break;
           }
-          _context52.next = 82;
+          _context61.next = 82;
           return batchSol.commit();
         case 82:
           if (actualizadosSolicitudes > 0) {
             console.log("jobRechazarPropuestasFechaPropuestaMayor3Dias: ".concat(actualizadosSolicitudes, " solicitud(es) \u2192 ").concat(SOLICITUD_STATUS_CANCELADA_JOB, " (>3 d\xEDas, sin propuesta Cotizado/Inspecci\xF3n)."));
           }
-          _context52.next = 88;
+          _context61.next = 88;
           break;
         case 85:
-          _context52.prev = 85;
-          _context52.t2 = _context52["catch"](0);
-          console.error("Error en jobRechazarPropuestasFechaPropuestaMayor3Dias:", _context52.t2);
+          _context61.prev = 85;
+          _context61.t2 = _context61["catch"](0);
+          console.error("Error en jobRechazarPropuestasFechaPropuestaMayor3Dias:", _context61.t2);
         case 88:
         case "end":
-          return _context52.stop();
+          return _context61.stop();
       }
-    }, _callee51, null, [[0, 85], [12, 32, 35, 38], [55, 73, 76, 79]]);
+    }, _callee59, null, [[0, 85], [12, 32, 35, 38], [55, 73, 76, 79]]);
   }));
   return function jobRechazarPropuestasFechaPropuestaMayor3Dias() {
-    return _ref77.apply(this, arguments);
+    return _ref87.apply(this, arguments);
   };
 }();
 var getPropuestasByStatus = /*#__PURE__*/function () {
-  var _ref78 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee52(req, res) {
-    var _ref79, status, uid_taller, snapshot, propuestas;
-    return _regeneratorRuntime().wrap(function _callee52$(_context53) {
-      while (1) switch (_context53.prev = _context53.next) {
+  var _ref88 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee60(req, res) {
+    var _ref89, status, uid_taller, snapshot, propuestas;
+    return _regeneratorRuntime().wrap(function _callee60$(_context62) {
+      while (1) switch (_context62.prev = _context62.next) {
         case 0:
-          _context53.prev = 0;
-          _ref79 = req.body || {}, status = _ref79.status, uid_taller = _ref79.uid_taller;
+          _context62.prev = 0;
+          _ref89 = req.body || {}, status = _ref89.status, uid_taller = _ref89.uid_taller;
           if (!(!status || typeof status !== "string" || status.trim() === "")) {
-            _context53.next = 4;
+            _context62.next = 4;
             break;
           }
-          return _context53.abrupt("return", res.status(400).json({
+          return _context62.abrupt("return", res.status(400).json({
             error: "status es requerido."
           }));
         case 4:
           if (!(!uid_taller || typeof uid_taller !== "string" || uid_taller.trim() === "")) {
-            _context53.next = 6;
+            _context62.next = 6;
             break;
           }
-          return _context53.abrupt("return", res.status(400).json({
+          return _context62.abrupt("return", res.status(400).json({
             error: "uid_taller es requerido."
           }));
         case 6:
-          _context53.next = 8;
+          _context62.next = 8;
           return db.collection("Propuestas").where("status", "==", status.trim()).where("uid_taller", "==", uid_taller.trim()).get();
         case 8:
-          snapshot = _context53.sent;
+          snapshot = _context62.sent;
           if (!snapshot.empty) {
-            _context53.next = 11;
+            _context62.next = 11;
             break;
           }
-          return _context53.abrupt("return", res.status(200).json([]));
+          return _context62.abrupt("return", res.status(200).json([]));
         case 11:
           propuestas = snapshot.docs.map(function (doc) {
             return _objectSpread({
               id: doc.id
             }, doc.data());
           });
-          return _context53.abrupt("return", res.status(200).json(propuestas));
+          return _context62.abrupt("return", res.status(200).json(propuestas));
         case 15:
-          _context53.prev = 15;
-          _context53.t0 = _context53["catch"](0);
-          console.error("Error al obtener propuestas por status:", _context53.t0);
-          return _context53.abrupt("return", res.status(500).json({
-            error: "Error al obtener propuestas: ".concat(_context53.t0.message)
+          _context62.prev = 15;
+          _context62.t0 = _context62["catch"](0);
+          console.error("Error al obtener propuestas por status:", _context62.t0);
+          return _context62.abrupt("return", res.status(500).json({
+            error: "Error al obtener propuestas: ".concat(_context62.t0.message)
           }));
         case 19:
         case "end":
-          return _context53.stop();
+          return _context62.stop();
       }
-    }, _callee52, null, [[0, 15]]);
+    }, _callee60, null, [[0, 15]]);
   }));
-  return function getPropuestasByStatus(_x113, _x114) {
-    return _ref78.apply(this, arguments);
+  return function getPropuestasByStatus(_x127, _x128) {
+    return _ref88.apply(this, arguments);
   };
 }();
 var ReportarPagoData = /*#__PURE__*/function () {
-  var _ref80 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee53(req, res) {
-    var _req$body10, uid, emailZelle, cod_ref, bancoTranfe, identificacion, telefono, amount, paymentMethod, nombre, vigencia, cant_services, date, montoPago, SelectedBanco, SelectedBancoDestino, nombre_taller, base64, userId, timestamp, imageUrl, newFileName, buffer, file, subscripcionData, subscripcionRef, subscripcionId, serviciosSnapshot, batch;
-    return _regeneratorRuntime().wrap(function _callee53$(_context54) {
-      while (1) switch (_context54.prev = _context54.next) {
+  var _ref90 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee61(req, res) {
+    var _req$body12, uid, emailZelle, cod_ref, bancoTranfe, identificacion, telefono, amount, paymentMethod, nombre, vigencia, cant_services, date, montoPago, SelectedBanco, SelectedBancoDestino, nombre_taller, base64, userId, timestamp, imageUrl, newFileName, buffer, file, subscripcionData, subscripcionRef, subscripcionId, serviciosSnapshot, batch;
+    return _regeneratorRuntime().wrap(function _callee61$(_context63) {
+      while (1) switch (_context63.prev = _context63.next) {
         case 0:
-          _req$body10 = req.body, uid = _req$body10.uid, emailZelle = _req$body10.emailZelle, cod_ref = _req$body10.cod_ref, bancoTranfe = _req$body10.bancoTranfe, identificacion = _req$body10.identificacion, telefono = _req$body10.telefono, amount = _req$body10.amount, paymentMethod = _req$body10.paymentMethod, nombre = _req$body10.nombre, vigencia = _req$body10.vigencia, cant_services = _req$body10.cant_services, date = _req$body10.date, montoPago = _req$body10.montoPago, SelectedBanco = _req$body10.SelectedBanco, SelectedBancoDestino = _req$body10.SelectedBancoDestino, nombre_taller = _req$body10.nombre_taller, base64 = _req$body10.base64;
-          _context54.prev = 1;
+          _req$body12 = req.body, uid = _req$body12.uid, emailZelle = _req$body12.emailZelle, cod_ref = _req$body12.cod_ref, bancoTranfe = _req$body12.bancoTranfe, identificacion = _req$body12.identificacion, telefono = _req$body12.telefono, amount = _req$body12.amount, paymentMethod = _req$body12.paymentMethod, nombre = _req$body12.nombre, vigencia = _req$body12.vigencia, cant_services = _req$body12.cant_services, date = _req$body12.date, montoPago = _req$body12.montoPago, SelectedBanco = _req$body12.SelectedBanco, SelectedBancoDestino = _req$body12.SelectedBancoDestino, nombre_taller = _req$body12.nombre_taller, base64 = _req$body12.base64;
+          _context63.prev = 1;
           userId = uid;
           timestamp = new Date().toISOString(); // Generar la fecha y hora actuales
           imageUrl = '';
           if (!(base64 && base64.trim() !== '')) {
-            _context54.next = 12;
+            _context63.next = 12;
             break;
           }
           newFileName = "paymentcommitment/".concat(paymentMethod, "_").concat(userId, "_").concat(timestamp, ".jpg");
           buffer = Buffer.from(base64, 'base64');
           file = bucket.file(newFileName); // Subir la nueva imagen usando la función `uploadImage`
-          _context54.next = 11;
+          _context63.next = 11;
           return uploadImage(file, buffer);
         case 11:
           imageUrl = "https://storage.googleapis.com/".concat(bucket.name, "/").concat(newFileName);
@@ -5061,72 +5728,72 @@ var ReportarPagoData = /*#__PURE__*/function () {
             fecha_fin: vigencia ? admin.firestore.Timestamp.fromMillis(Date.now() + parseInt(vigencia) * 24 * 60 * 60 * 1000) : "",
             nombre_taller: nombre_taller == undefined ? "" : nombre_taller
           }; // Guardar en la colección Subscripciones
-          _context54.next = 15;
+          _context63.next = 15;
           return db.collection('Subscripciones').add(subscripcionData);
         case 15:
-          subscripcionRef = _context54.sent;
+          subscripcionRef = _context63.sent;
           subscripcionId = subscripcionRef.id; // Guardar en el campo subscripcion_actual del documento en la colección Usuarios
-          _context54.next = 19;
+          _context63.next = 19;
           return db.collection('Usuarios').doc(userId).update({
             subscripcion_actual: subscripcionData
           });
         case 19:
-          _context54.next = 21;
+          _context63.next = 21;
           return db.collection('Servicios').where('uid_taller', '==', userId).get();
         case 21:
-          serviciosSnapshot = _context54.sent;
+          serviciosSnapshot = _context63.sent;
           batch = db.batch();
           serviciosSnapshot.forEach(function (doc) {
             batch.update(doc.ref, {
               estatus: false
             });
           });
-          _context54.next = 26;
+          _context63.next = 26;
           return batch.commit();
         case 26:
-          return _context54.abrupt("return", res.status(201).send({
+          return _context63.abrupt("return", res.status(201).send({
             message: "Suscripción guardada con éxito."
           }));
         case 29:
-          _context54.prev = 29;
-          _context54.t0 = _context54["catch"](1);
-          console.error("Error al guardar la suscripción:", _context54.t0);
+          _context63.prev = 29;
+          _context63.t0 = _context63["catch"](1);
+          console.error("Error al guardar la suscripción:", _context63.t0);
           res.status(500).send("Error al guardar la suscripción");
         case 33:
         case "end":
-          return _context54.stop();
+          return _context63.stop();
       }
-    }, _callee53, null, [[1, 29]]);
+    }, _callee61, null, [[1, 29]]);
   }));
-  return function ReportarPagoData(_x115, _x116) {
-    return _ref80.apply(this, arguments);
+  return function ReportarPagoData(_x129, _x130) {
+    return _ref90.apply(this, arguments);
   };
 }();
 var AsociarPlan = /*#__PURE__*/function () {
-  var _ref81 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee54(req, res) {
-    var _req$body11, uid, plan_uid, userId, timestamp, planRef, planData, userRef, userData, subscripcionData, subscripcionRef, subscripcionId, _planRef, _planData;
-    return _regeneratorRuntime().wrap(function _callee54$(_context55) {
-      while (1) switch (_context55.prev = _context55.next) {
+  var _ref91 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee62(req, res) {
+    var _req$body13, uid, plan_uid, userId, timestamp, planRef, planData, userRef, userData, subscripcionData, subscripcionRef, subscripcionId, _planRef, _planData;
+    return _regeneratorRuntime().wrap(function _callee62$(_context64) {
+      while (1) switch (_context64.prev = _context64.next) {
         case 0:
-          _req$body11 = req.body, uid = _req$body11.uid, plan_uid = _req$body11.plan_uid;
-          _context55.prev = 1;
+          _req$body13 = req.body, uid = _req$body13.uid, plan_uid = _req$body13.plan_uid;
+          _context64.prev = 1;
           userId = uid;
           timestamp = new Date().toISOString(); // Generar la fecha y hora actuales
           console.log("plan_uid", plan_uid);
           console.log("userId", userId);
           if (!(plan_uid == 'gratis')) {
-            _context55.next = 27;
+            _context64.next = 27;
             break;
           }
-          _context55.next = 9;
+          _context64.next = 9;
           return db.collection("Planes").doc('IPbc9VN1kmvIwrZHzNpd').get();
         case 9:
-          planRef = _context55.sent;
+          planRef = _context64.sent;
           planData = planRef.data();
-          _context55.next = 13;
+          _context64.next = 13;
           return db.collection("Usuarios").doc(userId).get();
         case 13:
-          userRef = _context55.sent;
+          userRef = _context64.sent;
           userData = userRef.data();
           subscripcionData = {
             cantidad_servicios: planData.cantidad_servicios == undefined ? "" : planData.cantidad_servicios,
@@ -5147,68 +5814,74 @@ var AsociarPlan = /*#__PURE__*/function () {
             status: "Aprobado",
             taller_uid: userId == undefined ? "" : userId,
             vigencia: planData.vigencia == undefined ? "" : planData.vigencia,
-            fecha_inicio: admin.firestore.Timestamp.now(),
-            fecha_fin: planData.vigencia ? admin.firestore.Timestamp.fromMillis(Date.now() + parseInt(planData.vigencia) * 24 * 60 * 60 * 1000) : "",
+            // Requerimiento 001 punto 6: los dias del plan gratis NO arrancan al
+            // registrarse. Quedan pendientes hasta que el certificador apruebe el
+            // comercio (ver activarComercioTrasAprobacion).
+            fecha_inicio: null,
+            fecha_fin: null,
+            pendiente_inicio: true,
             nombre_taller: userData.nombre == undefined ? "" : userData.nombre
           }; // Guardar en la colección Subscripciones
           console.log(subscripcionData);
-          _context55.next = 19;
+          _context64.next = 19;
           return db.collection('Subscripciones').add(subscripcionData);
         case 19:
-          subscripcionRef = _context55.sent;
+          subscripcionRef = _context64.sent;
           subscripcionId = subscripcionRef.id;
           console.log(subscripcionId);
 
           // Guardar en el campo subscripcion_actual del documento en la colección Usuarios
-          _context55.next = 24;
+          _context64.next = 24;
           return db.collection('Usuarios').doc(userId).update({
-            subscripcion_actual: subscripcionData
+            subscripcion_actual: _objectSpread(_objectSpread({}, subscripcionData), {}, {
+              uid: subscripcionId
+            })
           });
         case 24:
-          return _context55.abrupt("return", res.status(201).send({
+          return _context64.abrupt("return", res.status(201).send({
             message: "Suscripción guardada con éxito."
           }));
         case 27:
-          _context55.next = 29;
+          _context64.next = 29;
           return db.collection("Planes").doc(plan_uid).get();
         case 29:
-          _planRef = _context55.sent;
+          _planRef = _context64.sent;
           _planData = _planRef.data();
           console.log(_planData);
         case 32:
-          _context55.next = 38;
+          _context64.next = 38;
           break;
         case 34:
-          _context55.prev = 34;
-          _context55.t0 = _context55["catch"](1);
-          console.error("Error al asociar el plan:", _context55.t0);
+          _context64.prev = 34;
+          _context64.t0 = _context64["catch"](1);
+          console.error("Error al asociar el plan:", _context64.t0);
           res.status(500).send("Error al asociar el plan");
         case 38:
         case "end":
-          return _context55.stop();
+          return _context64.stop();
       }
-    }, _callee54, null, [[1, 34]]);
+    }, _callee62, null, [[1, 34]]);
   }));
-  return function AsociarPlan(_x117, _x118) {
-    return _ref81.apply(this, arguments);
+  return function AsociarPlan(_x131, _x132) {
+    return _ref91.apply(this, arguments);
   };
 }();
 var getPlanesActivos3Days = /*#__PURE__*/function () {
-  var _ref82 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee56() {
+  var _ref92 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee64() {
     var result, usuarios, fechaActual, fechaEn3Dias, usuariosEn3Dias;
-    return _regeneratorRuntime().wrap(function _callee56$(_context57) {
-      while (1) switch (_context57.prev = _context57.next) {
+    return _regeneratorRuntime().wrap(function _callee64$(_context66) {
+      while (1) switch (_context66.prev = _context66.next) {
         case 0:
-          _context57.prev = 0;
-          _context57.next = 3;
+          _context66.prev = 0;
+          _context66.next = 3;
           return db.collection("Usuarios").where("subscripcion_actual.status", "==", "Aprobado").get();
         case 3:
-          result = _context57.sent;
+          result = _context66.sent;
           if (!result.empty) {
-            _context57.next = 6;
+            _context66.next = 6;
             break;
           }
-          return _context57.abrupt("return", console.log("No se encontraron usuarios"));
+          return _context66.abrupt("return", console.log("No se encontraron usuarios"));
         case 6:
           usuarios = result.docs.map(function (doc) {
             return doc.data();
@@ -5233,18 +5906,18 @@ var getPlanesActivos3Days = /*#__PURE__*/function () {
             return fechaFin >= fechaInicio && fechaFin <= fechaFinComparacion;
           });
           if (!(usuariosEn3Dias.length === 0)) {
-            _context57.next = 13;
+            _context66.next = 13;
             break;
           }
-          return _context57.abrupt("return", console.log("No se encontraron usuarios con subscripción que expire en 3 días"));
+          return _context66.abrupt("return", console.log("No se encontraron usuarios con subscripción que expire en 3 días"));
         case 13:
           // Mostrar los tokens de los usuarios que expiran en 3 días
           console.log("Usuarios con subscripción que expira en 3 días:");
           usuariosEn3Dias.forEach(/*#__PURE__*/function () {
-            var _ref83 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee55(usuario) {
+            var _ref93 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee63(usuario) {
               var fechaFin, hoy, finDia, msPorDia, diasRestantes, titlePlazo, bodyPlazo, message, response;
-              return _regeneratorRuntime().wrap(function _callee55$(_context56) {
-                while (1) switch (_context56.prev = _context56.next) {
+              return _regeneratorRuntime().wrap(function _callee63$(_context65) {
+                while (1) switch (_context65.prev = _context65.next) {
                   case 0:
                     console.log("Token: ".concat(usuario.token));
                     fechaFin = usuario.subscripcion_actual.fecha_fin.toDate();
@@ -5273,61 +5946,61 @@ var getPlanesActivos3Days = /*#__PURE__*/function () {
                       },
                       token: usuario.token
                     };
-                    _context56.prev = 10;
-                    _context56.next = 13;
+                    _context65.prev = 10;
+                    _context65.next = 13;
                     return admin.messaging().send(message);
                   case 13:
-                    response = _context56.sent;
+                    response = _context65.sent;
                     console.log("Successfully sent message:", response);
-                    _context56.next = 20;
+                    _context65.next = 20;
                     break;
                   case 17:
-                    _context56.prev = 17;
-                    _context56.t0 = _context56["catch"](10);
-                    console.error("Error sending message:", _context56.t0);
+                    _context65.prev = 17;
+                    _context65.t0 = _context65["catch"](10);
+                    console.error("Error sending message:", _context65.t0);
                   case 20:
                   case "end":
-                    return _context56.stop();
+                    return _context65.stop();
                 }
-              }, _callee55, null, [[10, 17]]);
+              }, _callee63, null, [[10, 17]]);
             }));
-            return function (_x119) {
-              return _ref83.apply(this, arguments);
+            return function (_x133) {
+              return _ref93.apply(this, arguments);
             };
           }());
-          _context57.next = 21;
+          _context66.next = 21;
           break;
         case 17:
-          _context57.prev = 17;
-          _context57.t0 = _context57["catch"](0);
-          console.error("Error al actualizar usuarios y servicios:", _context57.t0); // Muestra el error en la consola del servidor
-          console.log("Error al actualizar usuarios y servicios: ".concat(_context57.t0.message)); // Muestra el mensaje del error
+          _context66.prev = 17;
+          _context66.t0 = _context66["catch"](0);
+          console.error("Error al actualizar usuarios y servicios:", _context66.t0); // Muestra el error en la consola del servidor
+          console.log("Error al actualizar usuarios y servicios: ".concat(_context66.t0.message)); // Muestra el mensaje del error
         case 21:
         case "end":
-          return _context57.stop();
+          return _context66.stop();
       }
-    }, _callee56, null, [[0, 17]]);
+    }, _callee64, null, [[0, 17]]);
   }));
   return function getPlanesActivos3Days() {
-    return _ref82.apply(this, arguments);
+    return _ref92.apply(this, arguments);
   };
 }();
 var getPlanesActivos = /*#__PURE__*/function () {
-  var _ref84 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee57() {
-    var result, usuarios, fechaActual, usuariosFiltrados, _iterator5, _step5, _loop2;
-    return _regeneratorRuntime().wrap(function _callee57$(_context59) {
-      while (1) switch (_context59.prev = _context59.next) {
+  var _ref94 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee65() {
+    var result, usuarios, fechaActual, usuariosFiltrados, _iterator6, _step6, _loop3;
+    return _regeneratorRuntime().wrap(function _callee65$(_context68) {
+      while (1) switch (_context68.prev = _context68.next) {
         case 0:
-          _context59.prev = 0;
-          _context59.next = 3;
+          _context68.prev = 0;
+          _context68.next = 3;
           return db.collection("Usuarios").where("subscripcion_actual.status", "==", "Aprobado").get();
         case 3:
-          result = _context59.sent;
+          result = _context68.sent;
           if (!result.empty) {
-            _context59.next = 6;
+            _context68.next = 6;
             break;
           }
-          return _context59.abrupt("return", console.log("No se encontraron usuarios"));
+          return _context68.abrupt("return", console.log("No se encontraron usuarios"));
         case 6:
           usuarios = result.docs.map(function (doc) {
             return doc.data();
@@ -5346,102 +6019,108 @@ var getPlanesActivos = /*#__PURE__*/function () {
             return fechaActual < fechaInicio || fechaActual > fechaFin;
           });
           if (!(usuariosFiltrados.length === 0)) {
-            _context59.next = 11;
+            _context68.next = 11;
             break;
           }
-          return _context59.abrupt("return", console.log("No se encontraron usuarios con subscripción fuera de vigencia"));
+          return _context68.abrupt("return", console.log("No se encontraron usuarios con subscripción fuera de vigencia"));
         case 11:
           // Actualizar subscripcion_actual.cantidad_servicios a 0 y estatus a false en "Servicios"
-          _iterator5 = _createForOfIteratorHelper(usuariosFiltrados);
-          _context59.prev = 12;
-          _loop2 = /*#__PURE__*/_regeneratorRuntime().mark(function _loop2() {
+          _iterator6 = _createForOfIteratorHelper(usuariosFiltrados);
+          _context68.prev = 12;
+          _loop3 = /*#__PURE__*/_regeneratorRuntime().mark(function _loop3() {
             var usuario, userRef, serviciosSnapshot, batch;
-            return _regeneratorRuntime().wrap(function _loop2$(_context58) {
-              while (1) switch (_context58.prev = _context58.next) {
+            return _regeneratorRuntime().wrap(function _loop3$(_context67) {
+              while (1) switch (_context67.prev = _context67.next) {
                 case 0:
-                  usuario = _step5.value;
+                  usuario = _step6.value;
                   userRef = db.collection("Usuarios").doc(usuario.uid);
-                  _context58.next = 4;
+                  _context67.next = 4;
                   return userRef.update({
                     "subscripcion_actual.cantidad_servicios": 0,
                     "subscripcion_actual.status": 'Vencido'
                   });
                 case 4:
-                  _context58.next = 6;
+                  _context67.next = 6;
                   return db.collection("Servicios").where("uid_taller", "==", usuario.uid).get();
                 case 6:
-                  serviciosSnapshot = _context58.sent;
+                  serviciosSnapshot = _context67.sent;
                   batch = db.batch();
                   serviciosSnapshot.forEach(function (doc) {
                     var servicioRef = db.collection("Servicios").doc(doc.id);
-                    batch.update(servicioRef, {
+                    var estabaActivo = doc.data().estatus === true;
+                    // Solo agrega lastActive a los que estaban activos (true → false)
+                    // Los que ya estaban en false no reciben ese campo
+                    batch.update(servicioRef, estabaActivo ? {
+                      estatus: false,
+                      lastActive: true
+                    } : {
                       estatus: false
                     });
                   });
-                  _context58.next = 11;
+                  _context67.next = 11;
                   return batch.commit();
                 case 11:
                 case "end":
-                  return _context58.stop();
+                  return _context67.stop();
               }
-            }, _loop2);
+            }, _loop3);
           });
-          _iterator5.s();
+          _iterator6.s();
         case 15:
-          if ((_step5 = _iterator5.n()).done) {
-            _context59.next = 19;
+          if ((_step6 = _iterator6.n()).done) {
+            _context68.next = 19;
             break;
           }
-          return _context59.delegateYield(_loop2(), "t0", 17);
+          return _context68.delegateYield(_loop3(), "t0", 17);
         case 17:
-          _context59.next = 15;
+          _context68.next = 15;
           break;
         case 19:
-          _context59.next = 24;
+          _context68.next = 24;
           break;
         case 21:
-          _context59.prev = 21;
-          _context59.t1 = _context59["catch"](12);
-          _iterator5.e(_context59.t1);
+          _context68.prev = 21;
+          _context68.t1 = _context68["catch"](12);
+          _iterator6.e(_context68.t1);
         case 24:
-          _context59.prev = 24;
-          _iterator5.f();
-          return _context59.finish(24);
+          _context68.prev = 24;
+          _iterator6.f();
+          return _context68.finish(24);
         case 27:
           console.log("Usuarios y servicios actualizados correctamente.");
-          _context59.next = 34;
+          _context68.next = 34;
           break;
         case 30:
-          _context59.prev = 30;
-          _context59.t2 = _context59["catch"](0);
-          console.error("Error al actualizar usuarios y servicios:", _context59.t2); // Muestra el error en la consola del servidor
-          console.log("Error al actualizar usuarios y servicios: ".concat(_context59.t2.message)); // Muestra el mensaje del error
+          _context68.prev = 30;
+          _context68.t2 = _context68["catch"](0);
+          console.error("Error al actualizar usuarios y servicios:", _context68.t2); // Muestra el error en la consola del servidor
+          console.log("Error al actualizar usuarios y servicios: ".concat(_context68.t2.message)); // Muestra el mensaje del error
         case 34:
         case "end":
-          return _context59.stop();
+          return _context68.stop();
       }
-    }, _callee57, null, [[0, 30], [12, 21, 24, 27]]);
+    }, _callee65, null, [[0, 30], [12, 21, 24, 27]]);
   }));
   return function getPlanesActivos() {
-    return _ref84.apply(this, arguments);
+    return _ref94.apply(this, arguments);
   };
 }();
 var getPlanesVencidos = /*#__PURE__*/function () {
-  var _ref85 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee58() {
-    var result, usuarios, fechaActual, usuariosFiltrados, _iterator6, _step6, _loop3;
-    return _regeneratorRuntime().wrap(function _callee58$(_context61) {
-      while (1) switch (_context61.prev = _context61.next) {
+  var _ref95 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee66() {
+    var result, usuarios, fechaActual, usuariosFiltrados, _iterator7, _step7, _loop4;
+    return _regeneratorRuntime().wrap(function _callee66$(_context70) {
+      while (1) switch (_context70.prev = _context70.next) {
         case 0:
-          _context61.prev = 0;
-          _context61.next = 3;
+          _context70.prev = 0;
+          _context70.next = 3;
           return db.collection("Usuarios").where("subscripcion_actual.status", "==", "Vencido").get();
         case 3:
-          result = _context61.sent;
+          result = _context70.sent;
           if (!result.empty) {
-            _context61.next = 6;
+            _context70.next = 6;
             break;
           }
-          return _context61.abrupt("return", console.log("No se encontraron usuarios"));
+          return _context70.abrupt("return", console.log("No se encontraron usuarios"));
         case 6:
           usuarios = result.docs.map(function (doc) {
             return doc.data();
@@ -5460,93 +6139,99 @@ var getPlanesVencidos = /*#__PURE__*/function () {
             return fechaActual < fechaInicio || fechaActual > fechaFin;
           });
           if (!(usuariosFiltrados.length === 0)) {
-            _context61.next = 11;
+            _context70.next = 11;
             break;
           }
-          return _context61.abrupt("return", console.log("No se encontraron usuarios con subscripción fuera de vigencia"));
+          return _context70.abrupt("return", console.log("No se encontraron usuarios con subscripción fuera de vigencia"));
         case 11:
           // Actualizar subscripcion_actual.cantidad_servicios a 0 y estatus a false en "Servicios"
-          _iterator6 = _createForOfIteratorHelper(usuariosFiltrados);
-          _context61.prev = 12;
-          _loop3 = /*#__PURE__*/_regeneratorRuntime().mark(function _loop3() {
+          _iterator7 = _createForOfIteratorHelper(usuariosFiltrados);
+          _context70.prev = 12;
+          _loop4 = /*#__PURE__*/_regeneratorRuntime().mark(function _loop4() {
             var usuario, userRef, serviciosSnapshot, batch;
-            return _regeneratorRuntime().wrap(function _loop3$(_context60) {
-              while (1) switch (_context60.prev = _context60.next) {
+            return _regeneratorRuntime().wrap(function _loop4$(_context69) {
+              while (1) switch (_context69.prev = _context69.next) {
                 case 0:
-                  usuario = _step6.value;
+                  usuario = _step7.value;
                   userRef = db.collection("Usuarios").doc(usuario.uid);
-                  _context60.next = 4;
+                  _context69.next = 4;
                   return userRef.update({
                     "subscripcion_actual.cantidad_servicios": 0,
                     "subscripcion_actual.status": 'Vencido'
                   });
                 case 4:
-                  _context60.next = 6;
+                  _context69.next = 6;
                   return db.collection("Servicios").where("uid_taller", "==", usuario.uid).get();
                 case 6:
-                  serviciosSnapshot = _context60.sent;
+                  serviciosSnapshot = _context69.sent;
                   batch = db.batch();
                   serviciosSnapshot.forEach(function (doc) {
                     var servicioRef = db.collection("Servicios").doc(doc.id);
-                    batch.update(servicioRef, {
+                    var estabaActivo = doc.data().estatus === true;
+                    // Solo agrega lastActive a los que estaban activos (true → false)
+                    // Los que ya estaban en false no reciben ese campo
+                    batch.update(servicioRef, estabaActivo ? {
+                      estatus: false,
+                      lastActive: true
+                    } : {
                       estatus: false
                     });
                   });
-                  _context60.next = 11;
+                  _context69.next = 11;
                   return batch.commit();
                 case 11:
                 case "end":
-                  return _context60.stop();
+                  return _context69.stop();
               }
-            }, _loop3);
+            }, _loop4);
           });
-          _iterator6.s();
+          _iterator7.s();
         case 15:
-          if ((_step6 = _iterator6.n()).done) {
-            _context61.next = 19;
+          if ((_step7 = _iterator7.n()).done) {
+            _context70.next = 19;
             break;
           }
-          return _context61.delegateYield(_loop3(), "t0", 17);
+          return _context70.delegateYield(_loop4(), "t0", 17);
         case 17:
-          _context61.next = 15;
+          _context70.next = 15;
           break;
         case 19:
-          _context61.next = 24;
+          _context70.next = 24;
           break;
         case 21:
-          _context61.prev = 21;
-          _context61.t1 = _context61["catch"](12);
-          _iterator6.e(_context61.t1);
+          _context70.prev = 21;
+          _context70.t1 = _context70["catch"](12);
+          _iterator7.e(_context70.t1);
         case 24:
-          _context61.prev = 24;
-          _iterator6.f();
-          return _context61.finish(24);
+          _context70.prev = 24;
+          _iterator7.f();
+          return _context70.finish(24);
         case 27:
           console.log("Usuarios y servicios actualizados correctamente.");
-          _context61.next = 34;
+          _context70.next = 34;
           break;
         case 30:
-          _context61.prev = 30;
-          _context61.t2 = _context61["catch"](0);
-          console.error("Error al actualizar usuarios y servicios:", _context61.t2); // Muestra el error en la consola del servidor
-          console.log("Error al actualizar usuarios y servicios: ".concat(_context61.t2.message)); // Muestra el mensaje del error
+          _context70.prev = 30;
+          _context70.t2 = _context70["catch"](0);
+          console.error("Error al actualizar usuarios y servicios:", _context70.t2); // Muestra el error en la consola del servidor
+          console.log("Error al actualizar usuarios y servicios: ".concat(_context70.t2.message)); // Muestra el mensaje del error
         case 34:
         case "end":
-          return _context61.stop();
+          return _context70.stop();
       }
-    }, _callee58, null, [[0, 30], [12, 21, 24, 27]]);
+    }, _callee66, null, [[0, 30], [12, 21, 24, 27]]);
   }));
   return function getPlanesVencidos() {
-    return _ref85.apply(this, arguments);
+    return _ref95.apply(this, arguments);
   };
 }();
 var sendNotification = /*#__PURE__*/function () {
-  var _ref86 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee59(req, res) {
-    var _req$body12, token, title, body, secretCode, message, response;
-    return _regeneratorRuntime().wrap(function _callee59$(_context62) {
-      while (1) switch (_context62.prev = _context62.next) {
+  var _ref96 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee67(req, res) {
+    var _req$body14, token, title, body, secretCode, message, response;
+    return _regeneratorRuntime().wrap(function _callee67$(_context71) {
+      while (1) switch (_context71.prev = _context71.next) {
         case 0:
-          _req$body12 = req.body, token = _req$body12.token, title = _req$body12.title, body = _req$body12.body, secretCode = _req$body12.secretCode;
+          _req$body14 = req.body, token = _req$body14.token, title = _req$body14.title, body = _req$body14.body, secretCode = _req$body14.secretCode;
           message = {
             notification: {
               title: title,
@@ -5557,63 +6242,63 @@ var sendNotification = /*#__PURE__*/function () {
             },
             token: token
           };
-          _context62.prev = 2;
-          _context62.next = 5;
+          _context71.prev = 2;
+          _context71.next = 5;
           return admin.messaging().send(message);
         case 5:
-          response = _context62.sent;
+          response = _context71.sent;
           console.log("Successfully sent message:", response);
           res.status(200).send({
             message: "Notification sent successfully"
           });
-          _context62.next = 14;
+          _context71.next = 14;
           break;
         case 10:
-          _context62.prev = 10;
-          _context62.t0 = _context62["catch"](2);
-          console.error("Error sending message:", _context62.t0);
+          _context71.prev = 10;
+          _context71.t0 = _context71["catch"](2);
+          console.error("Error sending message:", _context71.t0);
           res.status(500).send({
             message: "Error sending message",
-            error: _context62.t0.message
+            error: _context71.t0.message
           });
         case 14:
         case "end":
-          return _context62.stop();
+          return _context71.stop();
       }
-    }, _callee59, null, [[2, 10]]);
+    }, _callee67, null, [[2, 10]]);
   }));
-  return function sendNotification(_x120, _x121) {
-    return _ref86.apply(this, arguments);
+  return function sendNotification(_x134, _x135) {
+    return _ref96.apply(this, arguments);
   };
 }();
 var updateUsuarioDocumentacionConductor = /*#__PURE__*/function () {
-  var _ref87 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee60(req, res) {
-    var body, _uid6, uidTrim, userRef, userSnap, existing, patch, docFields, _i3, _docFields, _docFields$_i, bodyKey, fileBase, patchResponse, _i4, _Object$keys3, k, v;
-    return _regeneratorRuntime().wrap(function _callee60$(_context63) {
-      while (1) switch (_context63.prev = _context63.next) {
+  var _ref97 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee68(req, res) {
+    var body, _uid6, uidTrim, userRef, userSnap, existing, patch, docFields, _i4, _docFields, _docFields$_i, bodyKey, fileBase, patchResponse, _i5, _Object$keys3, k, v;
+    return _regeneratorRuntime().wrap(function _callee68$(_context72) {
+      while (1) switch (_context72.prev = _context72.next) {
         case 0:
-          _context63.prev = 0;
+          _context72.prev = 0;
           body = req.body || {};
           _uid6 = body.uid;
           if (!(!_uid6 || typeof _uid6 !== "string" || String(_uid6).trim() === "")) {
-            _context63.next = 5;
+            _context72.next = 5;
             break;
           }
-          return _context63.abrupt("return", res.status(400).json({
+          return _context72.abrupt("return", res.status(400).json({
             error: "Se debe proporcionar uid."
           }));
         case 5:
           uidTrim = String(_uid6).trim();
           userRef = db.collection("Usuarios").doc(uidTrim);
-          _context63.next = 9;
+          _context72.next = 9;
           return userRef.get();
         case 9:
-          userSnap = _context63.sent;
+          userSnap = _context72.sent;
           if (userSnap.exists) {
-            _context63.next = 12;
+            _context72.next = 12;
             break;
           }
-          return _context63.abrupt("return", res.status(404).json({
+          return _context72.abrupt("return", res.status(404).json({
             error: "Usuario no encontrado."
           }));
         case 12:
@@ -5632,26 +6317,26 @@ var updateUsuarioDocumentacionConductor = /*#__PURE__*/function () {
             bodyKey: "certificado_medico_reverso_base64",
             fileBase: "certificado_medico_reverso"
           }];
-          _i3 = 0, _docFields = docFields;
+          _i4 = 0, _docFields = docFields;
         case 16:
-          if (!(_i3 < _docFields.length)) {
-            _context63.next = 26;
+          if (!(_i4 < _docFields.length)) {
+            _context72.next = 26;
             break;
           }
-          _docFields$_i = _docFields[_i3], bodyKey = _docFields$_i.bodyKey, fileBase = _docFields$_i.fileBase;
+          _docFields$_i = _docFields[_i4], bodyKey = _docFields$_i.bodyKey, fileBase = _docFields$_i.fileBase;
           if (Object.prototype.hasOwnProperty.call(body, bodyKey)) {
-            _context63.next = 20;
+            _context72.next = 20;
             break;
           }
-          return _context63.abrupt("continue", 23);
+          return _context72.abrupt("continue", 23);
         case 20:
-          _context63.next = 22;
+          _context72.next = 22;
           return usuarioConductorResolveDocField(uidTrim, body[bodyKey], bodyKey, fileBase, existing);
         case 22:
-          patch[bodyKey] = _context63.sent;
+          patch[bodyKey] = _context72.sent;
         case 23:
-          _i3++;
-          _context63.next = 16;
+          _i4++;
+          _context72.next = 16;
           break;
         case 26:
           if (Object.prototype.hasOwnProperty.call(body, "licencia_fecha_vencimiento")) {
@@ -5661,213 +6346,277 @@ var updateUsuarioDocumentacionConductor = /*#__PURE__*/function () {
             patch.certificado_medico_fecha_vencimiento = vehiculoValueToTimestamp(body.certificado_medico_fecha_vencimiento);
           }
           if (!(Object.keys(patch).length === 0)) {
-            _context63.next = 30;
+            _context72.next = 30;
             break;
           }
-          return _context63.abrupt("return", res.status(400).json({
+          return _context72.abrupt("return", res.status(400).json({
             error: "No se enviaron campos para actualizar."
           }));
         case 30:
-          _context63.next = 32;
+          _context72.next = 32;
           return userRef.update(patch);
         case 32:
           patchResponse = _objectSpread({}, patch);
-          for (_i4 = 0, _Object$keys3 = Object.keys(patchResponse); _i4 < _Object$keys3.length; _i4++) {
-            k = _Object$keys3[_i4];
+          for (_i5 = 0, _Object$keys3 = Object.keys(patchResponse); _i5 < _Object$keys3.length; _i5++) {
+            k = _Object$keys3[_i5];
             v = patchResponse[k];
             if (v && typeof v.toDate === "function") {
               patchResponse[k] = v.toDate().toISOString();
             }
           }
-          return _context63.abrupt("return", res.status(200).json(_objectSpread({
+          return _context72.abrupt("return", res.status(200).json(_objectSpread({
             message: "Documentación de conductor actualizada.",
             uid: uidTrim
           }, patchResponse)));
         case 37:
-          _context63.prev = 37;
-          _context63.t0 = _context63["catch"](0);
-          console.error("Error al actualizar documentación de conductor:", _context63.t0);
-          return _context63.abrupt("return", res.status(500).json({
+          _context72.prev = 37;
+          _context72.t0 = _context72["catch"](0);
+          console.error("Error al actualizar documentación de conductor:", _context72.t0);
+          return _context72.abrupt("return", res.status(500).json({
             message: "Error al actualizar documentación de conductor",
-            error: _context63.t0.message
+            error: _context72.t0.message
           }));
         case 41:
         case "end":
-          return _context63.stop();
+          return _context72.stop();
       }
-    }, _callee60, null, [[0, 37]]);
+    }, _callee68, null, [[0, 37]]);
   }));
-  return function updateUsuarioDocumentacionConductor(_x122, _x123) {
-    return _ref87.apply(this, arguments);
+  return function updateUsuarioDocumentacionConductor(_x136, _x137) {
+    return _ref97.apply(this, arguments);
   };
 }();
 var UpdateUsuariosAll = /*#__PURE__*/function () {
-  var _ref88 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee61(req, res) {
-    var _uid7;
-    return _regeneratorRuntime().wrap(function _callee61$(_context64) {
-      while (1) switch (_context64.prev = _context64.next) {
+  var _ref98 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee69(req, res) {
+    var _uid7, updateData, _base4, _imageTodelete2, prefix, _yield$bucket$getFile5, _yield$bucket$getFile6, existing, maxIndex, newFileName, buffer;
+    return _regeneratorRuntime().wrap(function _callee69$(_context73) {
+      while (1) switch (_context73.prev = _context73.next) {
         case 0:
-          _context64.prev = 0;
-          // Recibir los datos del cliente desde el cuerpo de la solicitud
-          _uid7 = req.body.uid; // Actualizar el documento en la colección "Usuarios" con el UID proporcionado
-          _context64.next = 4;
-          return db.collection("Usuarios").doc(_uid7).update(req.body);
-        case 4:
+          _context73.prev = 0;
+          _uid7 = req.body.uid;
+          updateData = _objectSpread({}, req.body);
+          if (Array.isArray(updateData.categorias)) {
+            updateData.categoriasUids = updateData.categorias.map(function (c) {
+              return c && typeof c.uid === "string" ? c.uid.trim() : null;
+            }).filter(Boolean);
+          }
+
+          // Manejo de imagen de perfil: subir base64 a Storage y NO escribirlo en Firestore.
+          _base4 = updateData.base64;
+          _imageTodelete2 = updateData.imageTodelete;
+          delete updateData.base64;
+          delete updateData.imageTodelete;
+          if (!(_base4 && String(_base4).trim() !== "")) {
+            _context73.next = 31;
+            break;
+          }
+          // Índice incremental (mismo patrón que UpdateClient)
+          prefix = "profileImages/".concat(_uid7);
+          _context73.next = 12;
+          return bucket.getFiles({
+            prefix: prefix
+          });
+        case 12:
+          _yield$bucket$getFile5 = _context73.sent;
+          _yield$bucket$getFile6 = _slicedToArray(_yield$bucket$getFile5, 1);
+          existing = _yield$bucket$getFile6[0];
+          maxIndex = 0;
+          existing.forEach(function (file) {
+            var match = file.name.match(/(\d+)\.jpg$/);
+            if (match) {
+              var index = parseInt(match[1], 10);
+              if (index > maxIndex) maxIndex = index;
+            }
+          });
+          newFileName = "profileImages/".concat(_uid7, "_").concat(maxIndex + 1, ".jpg");
+          buffer = Buffer.from(_base4, "base64");
+          _context73.next = 21;
+          return bucket.file(newFileName).save(buffer, {
+            metadata: {
+              contentType: "image/jpeg"
+            },
+            "public": true,
+            validation: "md5"
+          });
+        case 21:
+          updateData.image_perfil = "https://storage.googleapis.com/".concat(bucket.name, "/").concat(newFileName);
+
+          // Borrar imagen anterior (best-effort)
+          if (!(_imageTodelete2 && String(_imageTodelete2).trim() !== "")) {
+            _context73.next = 31;
+            break;
+          }
+          _context73.prev = 23;
+          _context73.next = 26;
+          return bucket.file("profileImages/".concat(_imageTodelete2))["delete"]();
+        case 26:
+          _context73.next = 31;
+          break;
+        case 28:
+          _context73.prev = 28;
+          _context73.t0 = _context73["catch"](23);
+          if (_context73.t0.code !== 404) {
+            console.warn("No se pudo borrar imagen anterior:", _context73.t0.message);
+          }
+        case 31:
+          _context73.next = 33;
+          return db.collection("Usuarios").doc(_uid7).update(updateData);
+        case 33:
           // Responder con un mensaje de éxito
           res.status(200).send({
             message: "Usuario actualizado con éxito",
             uid: _uid7
           });
-          _context64.next = 11;
+          _context73.next = 40;
           break;
-        case 7:
-          _context64.prev = 7;
-          _context64.t0 = _context64["catch"](0);
-          console.error("Error al actualizar el usuario:", _context64.t0);
+        case 36:
+          _context73.prev = 36;
+          _context73.t1 = _context73["catch"](0);
+          console.error("Error al actualizar el usuario:", _context73.t1);
 
           // En caso de error, responder con el mensaje correspondiente
           res.status(500).send({
             message: "Error al actualizar el usuario",
-            error: _context64.t0.message
+            error: _context73.t1.message
           });
-        case 11:
+        case 40:
         case "end":
-          return _context64.stop();
+          return _context73.stop();
       }
-    }, _callee61, null, [[0, 7]]);
+    }, _callee69, null, [[0, 36], [23, 28]]);
   }));
-  return function UpdateUsuariosAll(_x124, _x125) {
-    return _ref88.apply(this, arguments);
+  return function UpdateUsuariosAll(_x138, _x139) {
+    return _ref98.apply(this, arguments);
   };
 }();
 var deleteUserFromAuth = /*#__PURE__*/function () {
-  var _ref89 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee62(req, res) {
+  var _ref99 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee70(req, res) {
     var _uid8;
-    return _regeneratorRuntime().wrap(function _callee62$(_context65) {
-      while (1) switch (_context65.prev = _context65.next) {
+    return _regeneratorRuntime().wrap(function _callee70$(_context74) {
+      while (1) switch (_context74.prev = _context74.next) {
         case 0:
-          _context65.prev = 0;
+          _context74.prev = 0;
           _uid8 = req.body.uid;
           if (_uid8) {
-            _context65.next = 4;
+            _context74.next = 4;
             break;
           }
-          return _context65.abrupt("return", res.status(400).send({
+          return _context74.abrupt("return", res.status(400).send({
             message: "El UID es requerido"
           }));
         case 4:
-          _context65.next = 6;
+          _context74.next = 6;
           return admin.auth().deleteUser(_uid8);
         case 6:
-          _context65.next = 8;
+          _context74.next = 8;
           return db.collection("Usuarios").doc(_uid8)["delete"]();
         case 8:
-          return _context65.abrupt("return", res.status(200).send({
+          return _context74.abrupt("return", res.status(200).send({
             message: "Usuario eliminado exitosamente de Firebase Authentication y Firestore"
           }));
         case 11:
-          _context65.prev = 11;
-          _context65.t0 = _context65["catch"](0);
-          console.error("Error al eliminar al usuario:", _context65.t0);
-          if (!(_context65.t0.code === "auth/user-not-found")) {
-            _context65.next = 18;
+          _context74.prev = 11;
+          _context74.t0 = _context74["catch"](0);
+          console.error("Error al eliminar al usuario:", _context74.t0);
+          if (!(_context74.t0.code === "auth/user-not-found")) {
+            _context74.next = 18;
             break;
           }
-          return _context65.abrupt("return", res.status(404).send({
+          return _context74.abrupt("return", res.status(404).send({
             message: "Usuario no encontrado en Firebase Authentication"
           }));
         case 18:
-          if (!(_context65.t0.code === "not-found")) {
-            _context65.next = 22;
+          if (!(_context74.t0.code === "not-found")) {
+            _context74.next = 22;
             break;
           }
-          return _context65.abrupt("return", res.status(404).send({
+          return _context74.abrupt("return", res.status(404).send({
             message: "Documento no encontrado en Firestore"
           }));
         case 22:
-          return _context65.abrupt("return", res.status(500).send({
+          return _context74.abrupt("return", res.status(500).send({
             message: "Error al eliminar al usuario",
-            error: _context65.t0.message
+            error: _context74.t0.message
           }));
         case 23:
         case "end":
-          return _context65.stop();
+          return _context74.stop();
       }
-    }, _callee62, null, [[0, 11]]);
+    }, _callee70, null, [[0, 11]]);
   }));
-  return function deleteUserFromAuth(_x126, _x127) {
-    return _ref89.apply(this, arguments);
+  return function deleteUserFromAuth(_x140, _x141) {
+    return _ref99.apply(this, arguments);
   };
 }();
 var updateScheduleDate = /*#__PURE__*/function () {
-  var _ref90 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee63(req, res) {
-    var _req$body13, uid, scheduled_visit;
-    return _regeneratorRuntime().wrap(function _callee63$(_context66) {
-      while (1) switch (_context66.prev = _context66.next) {
+  var _ref100 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee71(req, res) {
+    var _req$body15, uid, scheduled_visit;
+    return _regeneratorRuntime().wrap(function _callee71$(_context75) {
+      while (1) switch (_context75.prev = _context75.next) {
         case 0:
-          _req$body13 = req.body, uid = _req$body13.uid, scheduled_visit = _req$body13.scheduled_visit;
-          _context66.next = 3;
+          _req$body15 = req.body, uid = _req$body15.uid, scheduled_visit = _req$body15.scheduled_visit;
+          _context75.next = 3;
           return db.collection("Usuarios").doc(uid).update({
             scheduled_visit: scheduled_visit
           });
         case 3:
-          return _context66.abrupt("return", res.status(200).send({
+          return _context75.abrupt("return", res.status(200).send({
             message: "Fecha de programación actualizada con éxito"
           }));
         case 4:
         case "end":
-          return _context66.stop();
+          return _context75.stop();
       }
-    }, _callee63);
+    }, _callee71);
   }));
-  return function updateScheduleDate(_x128, _x129) {
-    return _ref90.apply(this, arguments);
+  return function updateScheduleDate(_x142, _x143) {
+    return _ref100.apply(this, arguments);
   };
 }();
 var deleteVehiculo = /*#__PURE__*/function () {
-  var _ref91 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee64(req, res) {
-    var _ref92, uiduser, uidvehicle, userId, vehicleId, userRef, vehiculoRef, vehiculoDoc, userSnap, userData, currentNotif, notificacionesVehiculos, storagePath, file, batch;
-    return _regeneratorRuntime().wrap(function _callee64$(_context67) {
-      while (1) switch (_context67.prev = _context67.next) {
+  var _ref101 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee72(req, res) {
+    var _ref102, uiduser, uidvehicle, userId, vehicleId, userRef, vehiculoRef, vehiculoDoc, userSnap, userData, currentNotif, notificacionesVehiculos, storagePath, file, batch;
+    return _regeneratorRuntime().wrap(function _callee72$(_context76) {
+      while (1) switch (_context76.prev = _context76.next) {
         case 0:
-          _context67.prev = 0;
-          _ref92 = req.body || {}, uiduser = _ref92.uiduser, uidvehicle = _ref92.uidvehicle;
+          _context76.prev = 0;
+          _ref102 = req.body || {}, uiduser = _ref102.uiduser, uidvehicle = _ref102.uidvehicle;
           if (!(!uiduser || !uidvehicle)) {
-            _context67.next = 4;
+            _context76.next = 4;
             break;
           }
-          return _context67.abrupt("return", res.status(400).json({
+          return _context76.abrupt("return", res.status(400).json({
             error: "uiduser y uidvehicle son requeridos."
           }));
         case 4:
           userId = String(uiduser).trim();
           vehicleId = String(uidvehicle).trim();
           if (!(!userId || !vehicleId)) {
-            _context67.next = 8;
+            _context76.next = 8;
             break;
           }
-          return _context67.abrupt("return", res.status(400).json({
+          return _context76.abrupt("return", res.status(400).json({
             error: "uiduser y uidvehicle no pueden estar vacíos."
           }));
         case 8:
           userRef = db.collection("Usuarios").doc(userId);
           vehiculoRef = userRef.collection("Vehiculos").doc(vehicleId);
-          _context67.next = 12;
+          _context76.next = 12;
           return vehiculoRef.get();
         case 12:
-          vehiculoDoc = _context67.sent;
+          vehiculoDoc = _context76.sent;
           if (vehiculoDoc.exists) {
-            _context67.next = 15;
+            _context76.next = 15;
             break;
           }
-          return _context67.abrupt("return", res.status(404).json({
+          return _context76.abrupt("return", res.status(404).json({
             error: "Vehículo no encontrado para este usuario."
           }));
         case 15:
-          _context67.next = 17;
+          _context76.next = 17;
           return userRef.get();
         case 17:
-          userSnap = _context67.sent;
+          userSnap = _context76.sent;
           userData = userSnap.data() || {};
           currentNotif = Array.isArray(userData.notificacionesVehiculos) ? userData.notificacionesVehiculos : [];
           notificacionesVehiculos = currentNotif.filter(function (item) {
@@ -5875,16 +6624,16 @@ var deleteVehiculo = /*#__PURE__*/function () {
           });
           storagePath = "vehicles/".concat(userId, "/").concat(vehicleId, "/").concat(vehicleId, ".jpg");
           file = bucket.file(storagePath);
-          _context67.prev = 23;
-          _context67.next = 26;
+          _context76.prev = 23;
+          _context76.next = 26;
           return file["delete"]();
         case 26:
-          _context67.next = 31;
+          _context76.next = 31;
           break;
         case 28:
-          _context67.prev = 28;
-          _context67.t0 = _context67["catch"](23);
-          console.warn("No se pudo eliminar la imagen del vehículo:", _context67.t0.message || _context67.t0);
+          _context76.prev = 28;
+          _context76.t0 = _context76["catch"](23);
+          console.warn("No se pudo eliminar la imagen del vehículo:", _context76.t0.message || _context76.t0);
         case 31:
           batch = db.batch();
           batch["delete"](vehiculoRef);
@@ -5893,126 +6642,126 @@ var deleteVehiculo = /*#__PURE__*/function () {
               notificacionesVehiculos: notificacionesVehiculos
             });
           }
-          _context67.next = 36;
+          _context76.next = 36;
           return batch.commit();
         case 36:
-          return _context67.abrupt("return", res.status(200).json({
+          return _context76.abrupt("return", res.status(200).json({
             message: "Vehículo, su imagen (si existía) y sus notificaciones asociadas fueron eliminados correctamente.",
             uiduser: userId,
             uidvehicle: vehicleId
           }));
         case 39:
-          _context67.prev = 39;
-          _context67.t1 = _context67["catch"](0);
-          console.error("Error al eliminar vehículo:", _context67.t1);
-          return _context67.abrupt("return", res.status(500).json({
-            error: "Error al eliminar veh\xEDculo: ".concat(_context67.t1.message)
+          _context76.prev = 39;
+          _context76.t1 = _context76["catch"](0);
+          console.error("Error al eliminar vehículo:", _context76.t1);
+          return _context76.abrupt("return", res.status(500).json({
+            error: "Error al eliminar veh\xEDculo: ".concat(_context76.t1.message)
           }));
         case 43:
         case "end":
-          return _context67.stop();
+          return _context76.stop();
       }
-    }, _callee64, null, [[0, 39], [23, 28]]);
+    }, _callee72, null, [[0, 39], [23, 28]]);
   }));
-  return function deleteVehiculo(_x130, _x131) {
-    return _ref91.apply(this, arguments);
+  return function deleteVehiculo(_x144, _x145) {
+    return _ref101.apply(this, arguments);
   };
 }();
 var updateVehiculoKm = /*#__PURE__*/function () {
-  var _ref93 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee65(req, res) {
-    var _ref94, uid_user, uid_vehicle, km, kmNum, userId, vehicleId, userRef, userSnap, vehiculoRef, vehiculoSnap;
-    return _regeneratorRuntime().wrap(function _callee65$(_context68) {
-      while (1) switch (_context68.prev = _context68.next) {
+  var _ref103 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee73(req, res) {
+    var _ref104, uid_user, uid_vehicle, km, kmNum, userId, vehicleId, userRef, userSnap, vehiculoRef, vehiculoSnap;
+    return _regeneratorRuntime().wrap(function _callee73$(_context77) {
+      while (1) switch (_context77.prev = _context77.next) {
         case 0:
-          _context68.prev = 0;
-          _ref94 = req.body || {}, uid_user = _ref94.uid_user, uid_vehicle = _ref94.uid_vehicle, km = _ref94.km;
+          _context77.prev = 0;
+          _ref104 = req.body || {}, uid_user = _ref104.uid_user, uid_vehicle = _ref104.uid_vehicle, km = _ref104.km;
           if (!(!uid_user || typeof uid_user !== "string" || uid_user.trim() === "")) {
-            _context68.next = 4;
+            _context77.next = 4;
             break;
           }
-          return _context68.abrupt("return", res.status(400).json({
+          return _context77.abrupt("return", res.status(400).json({
             error: "uid_user es requerido."
           }));
         case 4:
           if (!(!uid_vehicle || typeof uid_vehicle !== "string" || uid_vehicle.trim() === "")) {
-            _context68.next = 6;
+            _context77.next = 6;
             break;
           }
-          return _context68.abrupt("return", res.status(400).json({
+          return _context77.abrupt("return", res.status(400).json({
             error: "uid_vehicle es requerido."
           }));
         case 6:
           if (!(km === undefined || km === null || km === "")) {
-            _context68.next = 8;
+            _context77.next = 8;
             break;
           }
-          return _context68.abrupt("return", res.status(400).json({
+          return _context77.abrupt("return", res.status(400).json({
             error: "km es requerido."
           }));
         case 8:
           kmNum = typeof km === "number" ? km : parseInt(String(km).trim(), 10);
           if (!(!Number.isFinite(kmNum) || kmNum < 0)) {
-            _context68.next = 11;
+            _context77.next = 11;
             break;
           }
-          return _context68.abrupt("return", res.status(400).json({
+          return _context77.abrupt("return", res.status(400).json({
             error: "km debe ser un número entero mayor o igual a 0."
           }));
         case 11:
           userId = uid_user.trim();
           vehicleId = uid_vehicle.trim();
           userRef = db.collection("Usuarios").doc(userId);
-          _context68.next = 16;
+          _context77.next = 16;
           return userRef.get();
         case 16:
-          userSnap = _context68.sent;
+          userSnap = _context77.sent;
           if (userSnap.exists) {
-            _context68.next = 19;
+            _context77.next = 19;
             break;
           }
-          return _context68.abrupt("return", res.status(404).json({
+          return _context77.abrupt("return", res.status(404).json({
             error: "Usuario no encontrado."
           }));
         case 19:
           vehiculoRef = userRef.collection("Vehiculos").doc(vehicleId);
-          _context68.next = 22;
+          _context77.next = 22;
           return vehiculoRef.get();
         case 22:
-          vehiculoSnap = _context68.sent;
+          vehiculoSnap = _context77.sent;
           if (vehiculoSnap.exists) {
-            _context68.next = 25;
+            _context77.next = 25;
             break;
           }
-          return _context68.abrupt("return", res.status(404).json({
+          return _context77.abrupt("return", res.status(404).json({
             error: "Vehículo no encontrado en este usuario."
           }));
         case 25:
-          _context68.next = 27;
+          _context77.next = 27;
           return vehiculoRef.update({
             KM: kmNum
           });
         case 27:
-          return _context68.abrupt("return", res.status(200).json({
+          return _context77.abrupt("return", res.status(200).json({
             message: "Kilometraje del vehículo actualizado.",
             uid_user: userId,
             uid_vehicle: vehicleId,
             KM: kmNum
           }));
         case 30:
-          _context68.prev = 30;
-          _context68.t0 = _context68["catch"](0);
-          console.error("Error al actualizar KM del vehículo:", _context68.t0);
-          return _context68.abrupt("return", res.status(500).json({
-            error: "Error al actualizar KM: ".concat(_context68.t0.message)
+          _context77.prev = 30;
+          _context77.t0 = _context77["catch"](0);
+          console.error("Error al actualizar KM del vehículo:", _context77.t0);
+          return _context77.abrupt("return", res.status(500).json({
+            error: "Error al actualizar KM: ".concat(_context77.t0.message)
           }));
         case 34:
         case "end":
-          return _context68.stop();
+          return _context77.stop();
       }
-    }, _callee65, null, [[0, 30]]);
+    }, _callee73, null, [[0, 30]]);
   }));
-  return function updateVehiculoKm(_x132, _x133) {
-    return _ref93.apply(this, arguments);
+  return function updateVehiculoKm(_x146, _x147) {
+    return _ref103.apply(this, arguments);
   };
 }();
 
@@ -6042,9 +6791,9 @@ var vehiculoCamposNotificacionDesdeDoc = function vehiculoCamposNotificacionDesd
   };
 };
 var nombreUsuarioDesdeDocUsuario = function nombreUsuarioDesdeDocUsuario(u) {
-  var _ref95, _u$nombre;
+  var _ref105, _u$nombre;
   if (!u || _typeof(u) !== "object") return "";
-  var raw = (_ref95 = (_u$nombre = u.nombre) !== null && _u$nombre !== void 0 ? _u$nombre : u.Nombre) !== null && _ref95 !== void 0 ? _ref95 : u.nombre_usuario;
+  var raw = (_ref105 = (_u$nombre = u.nombre) !== null && _u$nombre !== void 0 ? _u$nombre : u.Nombre) !== null && _ref105 !== void 0 ? _ref105 : u.nombre_usuario;
   return vehiculoCoalesceEmpty(raw);
 };
 var startOfDayLocal = function startOfDayLocal(d) {
@@ -6189,18 +6938,18 @@ var mensajeMantenimientoPushPorSecretCode = function mensajeMantenimientoPushPor
   }
 };
 var enviarPushMantenimientoVencido = /*#__PURE__*/function () {
-  var _ref96 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee66(item, title, body) {
+  var _ref106 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee74(item, title, body) {
     var token, reqNotif, resNotif;
-    return _regeneratorRuntime().wrap(function _callee66$(_context69) {
-      while (1) switch (_context69.prev = _context69.next) {
+    return _regeneratorRuntime().wrap(function _callee74$(_context78) {
+      while (1) switch (_context78.prev = _context78.next) {
         case 0:
           token = item.token;
           if (!(!token || typeof token !== "string" || !token.trim())) {
-            _context69.next = 4;
+            _context78.next = 4;
             break;
           }
           console.warn("Mantenimiento vencido: sin token FCM, uiduser=", item.uiduser);
-          return _context69.abrupt("return");
+          return _context78.abrupt("return");
         case 4:
           reqNotif = {
             body: {
@@ -6217,16 +6966,16 @@ var enviarPushMantenimientoVencido = /*#__PURE__*/function () {
               };
             }
           };
-          _context69.next = 8;
+          _context78.next = 8;
           return sendNotification(reqNotif, resNotif);
         case 8:
         case "end":
-          return _context69.stop();
+          return _context78.stop();
       }
-    }, _callee66);
+    }, _callee74);
   }));
-  return function enviarPushMantenimientoVencido(_x134, _x135, _x136) {
-    return _ref96.apply(this, arguments);
+  return function enviarPushMantenimientoVencido(_x148, _x149, _x150) {
+    return _ref106.apply(this, arguments);
   };
 }();
 
@@ -6234,96 +6983,96 @@ var enviarPushMantenimientoVencido = /*#__PURE__*/function () {
  * Por cada notificación activa: token, uiduser, uidvehicle, campos de la notificación y datos del doc Vehiculos.
  */
 var expandNotificacionesVehiculosActivasConVehiculoDocs = /*#__PURE__*/function () {
-  var _ref97 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee68(usuariosConActivas) {
-    var items, cache, getCamposVehiculo, _iterator7, _step7, u, uiduser, token, bloques, _iterator8, _step8, veh, uidvehicle, camposVeh, notifs, _iterator9, _step9, notif;
-    return _regeneratorRuntime().wrap(function _callee68$(_context71) {
-      while (1) switch (_context71.prev = _context71.next) {
+  var _ref107 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee76(usuariosConActivas) {
+    var items, cache, getCamposVehiculo, _iterator8, _step8, u, uiduser, token, bloques, _iterator9, _step9, veh, uidvehicle, camposVeh, notifs, _iterator10, _step10, notif;
+    return _regeneratorRuntime().wrap(function _callee76$(_context80) {
+      while (1) switch (_context80.prev = _context80.next) {
         case 0:
           items = [];
           cache = new Map();
           getCamposVehiculo = /*#__PURE__*/function () {
-            var _ref98 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee67(uiduser, uidvehicle) {
+            var _ref108 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee75(uiduser, uidvehicle) {
               var key, snap, campos;
-              return _regeneratorRuntime().wrap(function _callee67$(_context70) {
-                while (1) switch (_context70.prev = _context70.next) {
+              return _regeneratorRuntime().wrap(function _callee75$(_context79) {
+                while (1) switch (_context79.prev = _context79.next) {
                   case 0:
                     key = "".concat(uiduser, "::").concat(uidvehicle);
                     if (!cache.has(key)) {
-                      _context70.next = 3;
+                      _context79.next = 3;
                       break;
                     }
-                    return _context70.abrupt("return", cache.get(key));
+                    return _context79.abrupt("return", cache.get(key));
                   case 3:
-                    _context70.next = 5;
+                    _context79.next = 5;
                     return db.collection("Usuarios").doc(uiduser).collection("Vehiculos").doc(uidvehicle).get();
                   case 5:
-                    snap = _context70.sent;
+                    snap = _context79.sent;
                     campos = snap.exists ? vehiculoCamposNotificacionDesdeDoc(snap.data()) : vehiculoCamposNotificacionDesdeDoc(null);
                     cache.set(key, campos);
-                    return _context70.abrupt("return", campos);
+                    return _context79.abrupt("return", campos);
                   case 9:
                   case "end":
-                    return _context70.stop();
+                    return _context79.stop();
                 }
-              }, _callee67);
+              }, _callee75);
             }));
-            return function getCamposVehiculo(_x138, _x139) {
-              return _ref98.apply(this, arguments);
+            return function getCamposVehiculo(_x152, _x153) {
+              return _ref108.apply(this, arguments);
             };
           }();
-          _iterator7 = _createForOfIteratorHelper(usuariosConActivas);
-          _context71.prev = 4;
-          _iterator7.s();
+          _iterator8 = _createForOfIteratorHelper(usuariosConActivas);
+          _context80.prev = 4;
+          _iterator8.s();
         case 6:
-          if ((_step7 = _iterator7.n()).done) {
-            _context71.next = 55;
+          if ((_step8 = _iterator8.n()).done) {
+            _context80.next = 55;
             break;
           }
-          u = _step7.value;
+          u = _step8.value;
           uiduser = u.id;
           token = vehiculoCoalesceEmpty(u.token);
           bloques = Array.isArray(u.notificacionesVehiculos) ? u.notificacionesVehiculos : [];
-          _iterator8 = _createForOfIteratorHelper(bloques);
-          _context71.prev = 12;
-          _iterator8.s();
+          _iterator9 = _createForOfIteratorHelper(bloques);
+          _context80.prev = 12;
+          _iterator9.s();
         case 14:
-          if ((_step8 = _iterator8.n()).done) {
-            _context71.next = 45;
+          if ((_step9 = _iterator9.n()).done) {
+            _context80.next = 45;
             break;
           }
-          veh = _step8.value;
+          veh = _step9.value;
           if (!(!veh || _typeof(veh) !== "object")) {
-            _context71.next = 18;
+            _context80.next = 18;
             break;
           }
-          return _context71.abrupt("continue", 43);
+          return _context80.abrupt("continue", 43);
         case 18:
           uidvehicle = veh.uidvehicle != null && String(veh.uidvehicle).trim() !== "" ? String(veh.uidvehicle).trim() : "";
           if (uidvehicle) {
-            _context71.next = 21;
+            _context80.next = 21;
             break;
           }
-          return _context71.abrupt("continue", 43);
+          return _context80.abrupt("continue", 43);
         case 21:
-          _context71.next = 23;
+          _context80.next = 23;
           return getCamposVehiculo(uiduser, uidvehicle);
         case 23:
-          camposVeh = _context71.sent;
+          camposVeh = _context80.sent;
           notifs = Array.isArray(veh.notificaciones) ? veh.notificaciones : [];
-          _iterator9 = _createForOfIteratorHelper(notifs);
-          _context71.prev = 26;
-          _iterator9.s();
+          _iterator10 = _createForOfIteratorHelper(notifs);
+          _context80.prev = 26;
+          _iterator10.s();
         case 28:
-          if ((_step9 = _iterator9.n()).done) {
-            _context71.next = 35;
+          if ((_step10 = _iterator10.n()).done) {
+            _context80.next = 35;
             break;
           }
-          notif = _step9.value;
+          notif = _step10.value;
           if (!(!notif || _typeof(notif) !== "object" || notif.active !== true)) {
-            _context71.next = 32;
+            _context80.next = 32;
             break;
           }
-          return _context71.abrupt("continue", 33);
+          return _context80.abrupt("continue", 33);
         case 32:
           items.push(_objectSpread(_objectSpread({
             token: token,
@@ -6333,57 +7082,57 @@ var expandNotificacionesVehiculosActivasConVehiculoDocs = /*#__PURE__*/function 
             nombre_usuario: nombreUsuarioDesdeDocUsuario(u)
           }, camposVeh));
         case 33:
-          _context71.next = 28;
+          _context80.next = 28;
           break;
         case 35:
-          _context71.next = 40;
+          _context80.next = 40;
           break;
         case 37:
-          _context71.prev = 37;
-          _context71.t0 = _context71["catch"](26);
-          _iterator9.e(_context71.t0);
+          _context80.prev = 37;
+          _context80.t0 = _context80["catch"](26);
+          _iterator10.e(_context80.t0);
         case 40:
-          _context71.prev = 40;
-          _iterator9.f();
-          return _context71.finish(40);
+          _context80.prev = 40;
+          _iterator10.f();
+          return _context80.finish(40);
         case 43:
-          _context71.next = 14;
+          _context80.next = 14;
           break;
         case 45:
-          _context71.next = 50;
+          _context80.next = 50;
           break;
         case 47:
-          _context71.prev = 47;
-          _context71.t1 = _context71["catch"](12);
-          _iterator8.e(_context71.t1);
+          _context80.prev = 47;
+          _context80.t1 = _context80["catch"](12);
+          _iterator9.e(_context80.t1);
         case 50:
-          _context71.prev = 50;
-          _iterator8.f();
-          return _context71.finish(50);
+          _context80.prev = 50;
+          _iterator9.f();
+          return _context80.finish(50);
         case 53:
-          _context71.next = 6;
+          _context80.next = 6;
           break;
         case 55:
-          _context71.next = 60;
+          _context80.next = 60;
           break;
         case 57:
-          _context71.prev = 57;
-          _context71.t2 = _context71["catch"](4);
-          _iterator7.e(_context71.t2);
+          _context80.prev = 57;
+          _context80.t2 = _context80["catch"](4);
+          _iterator8.e(_context80.t2);
         case 60:
-          _context71.prev = 60;
-          _iterator7.f();
-          return _context71.finish(60);
+          _context80.prev = 60;
+          _iterator8.f();
+          return _context80.finish(60);
         case 63:
-          return _context71.abrupt("return", items);
+          return _context80.abrupt("return", items);
         case 64:
         case "end":
-          return _context71.stop();
+          return _context80.stop();
       }
-    }, _callee68, null, [[4, 57, 60, 63], [12, 47, 50, 53], [26, 37, 40, 43]]);
+    }, _callee76, null, [[4, 57, 60, 63], [12, 47, 50, 53], [26, 37, 40, 43]]);
   }));
-  return function expandNotificacionesVehiculosActivasConVehiculoDocs(_x137) {
-    return _ref97.apply(this, arguments);
+  return function expandNotificacionesVehiculosActivasConVehiculoDocs(_x151) {
+    return _ref107.apply(this, arguments);
   };
 }();
 var CRON_DEFAULTS_KM_BY_SECRET_CODE = {
@@ -6427,22 +7176,22 @@ var cronGetWarningThresholdDias = function cronGetWarningThresholdDias(item) {
 
 /** Usuarios de la colección Usuarios que tienen el campo notificacionesVehiculos definido y no nulo (Firestore: != null excluye ausencia del campo). */
 var getUsuariosConNotificacionesVehiculos = /*#__PURE__*/function () {
-  var _ref99 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee69() {
-    var snapshot, usuarios, conActivas, items, hoy, conItemsParaPushMantenimiento, itemParaPushMantenimiento, _iterator10, _step10, _item, fechaProx, diasRestantes, warningThresholdDias, _iterator11, _step11, item, _mensajeMantenimiento, title, body;
-    return _regeneratorRuntime().wrap(function _callee69$(_context72) {
-      while (1) switch (_context72.prev = _context72.next) {
+  var _ref109 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee77() {
+    var snapshot, usuarios, conActivas, items, hoy, conItemsParaPushMantenimiento, itemParaPushMantenimiento, _iterator11, _step11, _item, fechaProx, diasRestantes, warningThresholdDias, _iterator12, _step12, item, _mensajeMantenimiento, title, body;
+    return _regeneratorRuntime().wrap(function _callee77$(_context81) {
+      while (1) switch (_context81.prev = _context81.next) {
         case 0:
-          _context72.prev = 0;
-          _context72.next = 3;
+          _context81.prev = 0;
+          _context81.next = 3;
           return db.collection("Usuarios").where("notificacionesVehiculos", "!=", null).get();
         case 3:
-          snapshot = _context72.sent;
+          snapshot = _context81.sent;
           if (!snapshot.empty) {
-            _context72.next = 7;
+            _context81.next = 7;
             break;
           }
           console.log("Job notificacionesVehiculos: no hay usuarios con ese campo.");
-          return _context72.abrupt("return", []);
+          return _context81.abrupt("return", []);
         case 7:
           usuarios = snapshot.docs.map(function (doc) {
             var data = doc.data();
@@ -6456,32 +7205,32 @@ var getUsuariosConNotificacionesVehiculos = /*#__PURE__*/function () {
           conActivas = usuarios.filter(function (u) {
             return u.notificacionesVehiculos.length > 0;
           });
-          _context72.next = 11;
+          _context81.next = 11;
           return expandNotificacionesVehiculosActivasConVehiculoDocs(conActivas);
         case 11:
-          items = _context72.sent;
+          items = _context81.sent;
           console.log("Job notificacionesVehiculos: ".concat(usuarios.length, " usuario(s) con campo; ").concat(conActivas.length, " con active === true; ").concat(items.length, " \xEDtem(s) expandido(s) con datos de Vehiculos/."));
           hoy = startOfDayLocal(new Date());
           conItemsParaPushMantenimiento = 0;
           itemParaPushMantenimiento = [];
-          _iterator10 = _createForOfIteratorHelper(items);
-          _context72.prev = 17;
-          _iterator10.s();
+          _iterator11 = _createForOfIteratorHelper(items);
+          _context81.prev = 17;
+          _iterator11.s();
         case 19:
-          if ((_step10 = _iterator10.n()).done) {
-            _context72.next = 33;
+          if ((_step11 = _iterator11.n()).done) {
+            _context81.next = 33;
             break;
           }
-          _item = _step10.value;
+          _item = _step11.value;
           fechaProx = parseProximaRevisionDDMMYYYY(_item.proximaRevision);
           if (fechaProx) {
-            _context72.next = 24;
+            _context81.next = 24;
             break;
           }
-          return _context72.abrupt("continue", 31);
+          return _context81.abrupt("continue", 31);
         case 24:
           if (!(fechaProx < hoy)) {
-            _context72.next = 28;
+            _context81.next = 28;
             break;
           }
           conItemsParaPushMantenimiento += 1;
@@ -6490,7 +7239,7 @@ var getUsuariosConNotificacionesVehiculos = /*#__PURE__*/function () {
               kind: "vencida"
             }
           }));
-          return _context72.abrupt("continue", 31);
+          return _context81.abrupt("continue", 31);
         case 28:
           diasRestantes = Math.round((fechaProx.getTime() - hoy.getTime()) / 86400000);
           warningThresholdDias = cronGetWarningThresholdDias(_item);
@@ -6504,65 +7253,65 @@ var getUsuariosConNotificacionesVehiculos = /*#__PURE__*/function () {
             }));
           }
         case 31:
-          _context72.next = 19;
+          _context81.next = 19;
           break;
         case 33:
-          _context72.next = 38;
+          _context81.next = 38;
           break;
         case 35:
-          _context72.prev = 35;
-          _context72.t0 = _context72["catch"](17);
-          _iterator10.e(_context72.t0);
+          _context81.prev = 35;
+          _context81.t0 = _context81["catch"](17);
+          _iterator11.e(_context81.t0);
         case 38:
-          _context72.prev = 38;
-          _iterator10.f();
-          return _context72.finish(38);
+          _context81.prev = 38;
+          _iterator11.f();
+          return _context81.finish(38);
         case 41:
           if (!(conItemsParaPushMantenimiento > 0)) {
-            _context72.next = 60;
+            _context81.next = 60;
             break;
           }
-          _iterator11 = _createForOfIteratorHelper(itemParaPushMantenimiento);
-          _context72.prev = 43;
-          _iterator11.s();
+          _iterator12 = _createForOfIteratorHelper(itemParaPushMantenimiento);
+          _context81.prev = 43;
+          _iterator12.s();
         case 45:
-          if ((_step11 = _iterator11.n()).done) {
-            _context72.next = 52;
+          if ((_step12 = _iterator12.n()).done) {
+            _context81.next = 52;
             break;
           }
-          item = _step11.value;
+          item = _step12.value;
           _mensajeMantenimiento = mensajeMantenimientoPushPorSecretCode(item, item._mantenimientoPushMeta), title = _mensajeMantenimiento.title, body = _mensajeMantenimiento.body;
-          _context72.next = 50;
+          _context81.next = 50;
           return enviarPushMantenimientoVencido(item, title, body);
         case 50:
-          _context72.next = 45;
+          _context81.next = 45;
           break;
         case 52:
-          _context72.next = 57;
+          _context81.next = 57;
           break;
         case 54:
-          _context72.prev = 54;
-          _context72.t1 = _context72["catch"](43);
-          _iterator11.e(_context72.t1);
+          _context81.prev = 54;
+          _context81.t1 = _context81["catch"](43);
+          _iterator12.e(_context81.t1);
         case 57:
-          _context72.prev = 57;
-          _iterator11.f();
-          return _context72.finish(57);
+          _context81.prev = 57;
+          _iterator12.f();
+          return _context81.finish(57);
         case 60:
-          return _context72.abrupt("return", items);
+          return _context81.abrupt("return", items);
         case 63:
-          _context72.prev = 63;
-          _context72.t2 = _context72["catch"](0);
-          console.error("Error al obtener usuarios con notificacionesVehiculos:", _context72.t2);
-          return _context72.abrupt("return", []);
+          _context81.prev = 63;
+          _context81.t2 = _context81["catch"](0);
+          console.error("Error al obtener usuarios con notificacionesVehiculos:", _context81.t2);
+          return _context81.abrupt("return", []);
         case 67:
         case "end":
-          return _context72.stop();
+          return _context81.stop();
       }
-    }, _callee69, null, [[0, 63], [17, 35, 38, 41], [43, 54, 57, 60]]);
+    }, _callee77, null, [[0, 63], [17, 35, 38, 41], [43, 54, 57, 60]]);
   }));
   return function getUsuariosConNotificacionesVehiculos() {
-    return _ref99.apply(this, arguments);
+    return _ref109.apply(this, arguments);
   };
 }();
 
@@ -6577,16 +7326,16 @@ var cronKmParseEnteroNoNegativo = function cronKmParseEnteroNoNegativo(raw) {
   return n;
 };
 var cronKmEnviarPushUsuario = /*#__PURE__*/function () {
-  var _ref100 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee70(token, title, body, secretCode) {
+  var _ref110 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee78(token, title, body, secretCode) {
     var reqNotif, resNotif;
-    return _regeneratorRuntime().wrap(function _callee70$(_context73) {
-      while (1) switch (_context73.prev = _context73.next) {
+    return _regeneratorRuntime().wrap(function _callee78$(_context82) {
+      while (1) switch (_context82.prev = _context82.next) {
         case 0:
           if (!(!token || typeof token !== "string" || !token.trim())) {
-            _context73.next = 2;
+            _context82.next = 2;
             break;
           }
-          return _context73.abrupt("return", false);
+          return _context82.abrupt("return", false);
         case 2:
           reqNotif = {
             body: {
@@ -6603,24 +7352,24 @@ var cronKmEnviarPushUsuario = /*#__PURE__*/function () {
               };
             }
           };
-          _context73.prev = 4;
-          _context73.next = 7;
+          _context82.prev = 4;
+          _context82.next = 7;
           return sendNotification(reqNotif, resNotif);
         case 7:
-          return _context73.abrupt("return", true);
+          return _context82.abrupt("return", true);
         case 10:
-          _context73.prev = 10;
-          _context73.t0 = _context73["catch"](4);
-          console.error("cronKm push:", _context73.t0.message, secretCode);
-          return _context73.abrupt("return", false);
+          _context82.prev = 10;
+          _context82.t0 = _context82["catch"](4);
+          console.error("cronKm push:", _context82.t0.message, secretCode);
+          return _context82.abrupt("return", false);
         case 14:
         case "end":
-          return _context73.stop();
+          return _context82.stop();
       }
-    }, _callee70, null, [[4, 10]]);
+    }, _callee78, null, [[4, 10]]);
   }));
-  return function cronKmEnviarPushUsuario(_x140, _x141, _x142, _x143) {
-    return _ref100.apply(this, arguments);
+  return function cronKmEnviarPushUsuario(_x154, _x155, _x156, _x157) {
+    return _ref110.apply(this, arguments);
   };
 }();
 var cronKmMensajeSuperadoProximo = function cronKmMensajeSuperadoProximo(ctx) {
@@ -6644,29 +7393,29 @@ var cronKmMensajeAdvertenciaRango = function cronKmMensajeAdvertenciaRango(ctx) 
  * - Si faltan de 1 a 3000 km para proximoKM: push advertencia (1200 sí; 3002 no).
  */
 var cronKmEvaluarNotificacionActiva = /*#__PURE__*/function () {
-  var _ref102 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee71(_ref101) {
-    var _ref103, _notif$ultimoKM, _ref104, _notif$intervalokm;
+  var _ref112 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee79(_ref111) {
+    var _ref113, _notif$ultimoKM, _ref114, _notif$intervalokm;
     var token, nombreUsuario, uidvehicle, notif, vehData, kmVehiculo, ultimoKM, intervalokm, kmDelta, nombreTipo, vehDesc, enviados, _cronKmMensajeSuperad, title, body, ok, warningThresholdKm, _cronKmMensajeAdverte, _title, _body, _ok;
-    return _regeneratorRuntime().wrap(function _callee71$(_context74) {
-      while (1) switch (_context74.prev = _context74.next) {
+    return _regeneratorRuntime().wrap(function _callee79$(_context83) {
+      while (1) switch (_context83.prev = _context83.next) {
         case 0:
-          token = _ref101.token, nombreUsuario = _ref101.nombreUsuario, uidvehicle = _ref101.uidvehicle, notif = _ref101.notif, vehData = _ref101.vehData;
+          token = _ref111.token, nombreUsuario = _ref111.nombreUsuario, uidvehicle = _ref111.uidvehicle, notif = _ref111.notif, vehData = _ref111.vehData;
           kmVehiculo = cronKmParseEnteroNoNegativo(vehData === null || vehData === void 0 ? void 0 : vehData.KM);
           if (!(kmVehiculo === null)) {
-            _context74.next = 4;
+            _context83.next = 4;
             break;
           }
-          return _context74.abrupt("return", {
+          return _context83.abrupt("return", {
             enviados: 0
           });
         case 4:
-          ultimoKM = cronKmParseEnteroNoNegativo((_ref103 = (_notif$ultimoKM = notif.ultimoKM) !== null && _notif$ultimoKM !== void 0 ? _notif$ultimoKM : notif.ultimokm) !== null && _ref103 !== void 0 ? _ref103 : notif.ultimo_km);
-          intervalokm = cronKmParseEnteroNoNegativo((_ref104 = (_notif$intervalokm = notif.intervalokm) !== null && _notif$intervalokm !== void 0 ? _notif$intervalokm : notif.intervaloKm) !== null && _ref104 !== void 0 ? _ref104 : notif.intervaloKM);
+          ultimoKM = cronKmParseEnteroNoNegativo((_ref113 = (_notif$ultimoKM = notif.ultimoKM) !== null && _notif$ultimoKM !== void 0 ? _notif$ultimoKM : notif.ultimokm) !== null && _ref113 !== void 0 ? _ref113 : notif.ultimo_km);
+          intervalokm = cronKmParseEnteroNoNegativo((_ref114 = (_notif$intervalokm = notif.intervalokm) !== null && _notif$intervalokm !== void 0 ? _notif$intervalokm : notif.intervaloKm) !== null && _ref114 !== void 0 ? _ref114 : notif.intervaloKM);
           if (!(ultimoKM === null || intervalokm === null || intervalokm <= 0)) {
-            _context74.next = 8;
+            _context83.next = 8;
             break;
           }
-          return _context74.abrupt("return", {
+          return _context83.abrupt("return", {
             enviados: 0
           });
         case 8:
@@ -6675,7 +7424,7 @@ var cronKmEvaluarNotificacionActiva = /*#__PURE__*/function () {
           vehDesc = describeVehiculoParaNotificacion(vehData || {});
           enviados = 0;
           if (!(kmDelta < 0)) {
-            _context74.next = 19;
+            _context83.next = 19;
             break;
           }
           _cronKmMensajeSuperad = cronKmMensajeSuperadoProximo({
@@ -6685,18 +7434,18 @@ var cronKmEvaluarNotificacionActiva = /*#__PURE__*/function () {
             kmVehiculo: kmVehiculo,
             proximoKM: ultimoKM + intervalokm
           }), title = _cronKmMensajeSuperad.title, body = _cronKmMensajeSuperad.body;
-          _context74.next = 16;
+          _context83.next = 16;
           return cronKmEnviarPushUsuario(token, title, body, SECRET_CODE_PROXIMO_KM_SUPERADO);
         case 16:
-          ok = _context74.sent;
+          ok = _context83.sent;
           if (ok) enviados += 1;
-          return _context74.abrupt("return", {
+          return _context83.abrupt("return", {
             enviados: enviados
           });
         case 19:
           warningThresholdKm = cronGetWarningThresholdKm(notif);
           if (!(kmDelta >= 1 && kmDelta <= warningThresholdKm)) {
-            _context74.next = 26;
+            _context83.next = 26;
             break;
           }
           _cronKmMensajeAdverte = cronKmMensajeAdvertenciaRango({
@@ -6707,120 +7456,120 @@ var cronKmEvaluarNotificacionActiva = /*#__PURE__*/function () {
             proximoKM: ultimoKM + intervalokm,
             kmRestantes: kmDelta
           }), _title = _cronKmMensajeAdverte.title, _body = _cronKmMensajeAdverte.body;
-          _context74.next = 24;
+          _context83.next = 24;
           return cronKmEnviarPushUsuario(token, _title, _body, SECRET_CODE_PROXIMO_KM_ADVERTENCIA);
         case 24:
-          _ok = _context74.sent;
+          _ok = _context83.sent;
           if (_ok) enviados += 1;
         case 26:
-          return _context74.abrupt("return", {
+          return _context83.abrupt("return", {
             enviados: enviados
           });
         case 27:
         case "end":
-          return _context74.stop();
+          return _context83.stop();
       }
-    }, _callee71);
+    }, _callee79);
   }));
-  return function cronKmEvaluarNotificacionActiva(_x144) {
-    return _ref102.apply(this, arguments);
+  return function cronKmEvaluarNotificacionActiva(_x158) {
+    return _ref112.apply(this, arguments);
   };
 }();
 var jobNotificacionesVehiculosProximoKm = /*#__PURE__*/function () {
-  var _ref105 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee72() {
-    var snapshot, totalEnviados, _iterator12, _step12, doc, data, bloques, token, nombreUsuario, uiduser, userRef, _iterator13, _step13, veh, uidvehicle, vehSnap, vehData, notifs, _iterator14, _step14, notif, _yield$cronKmEvaluarN, enviados;
-    return _regeneratorRuntime().wrap(function _callee72$(_context75) {
-      while (1) switch (_context75.prev = _context75.next) {
+  var _ref115 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee80() {
+    var snapshot, totalEnviados, _iterator13, _step13, doc, data, bloques, token, nombreUsuario, uiduser, userRef, _iterator14, _step14, veh, uidvehicle, vehSnap, vehData, notifs, _iterator15, _step15, notif, _yield$cronKmEvaluarN, enviados;
+    return _regeneratorRuntime().wrap(function _callee80$(_context84) {
+      while (1) switch (_context84.prev = _context84.next) {
         case 0:
-          _context75.prev = 0;
-          _context75.next = 3;
+          _context84.prev = 0;
+          _context84.next = 3;
           return db.collection("Usuarios").where("notificacionesVehiculos", "!=", null).get();
         case 3:
-          snapshot = _context75.sent;
+          snapshot = _context84.sent;
           if (!snapshot.empty) {
-            _context75.next = 6;
+            _context84.next = 6;
             break;
           }
-          return _context75.abrupt("return");
+          return _context84.abrupt("return");
         case 6:
           totalEnviados = 0;
-          _iterator12 = _createForOfIteratorHelper(snapshot.docs);
-          _context75.prev = 8;
-          _iterator12.s();
+          _iterator13 = _createForOfIteratorHelper(snapshot.docs);
+          _context84.prev = 8;
+          _iterator13.s();
         case 10:
-          if ((_step12 = _iterator12.n()).done) {
-            _context75.next = 73;
+          if ((_step13 = _iterator13.n()).done) {
+            _context84.next = 73;
             break;
           }
-          doc = _step12.value;
+          doc = _step13.value;
           data = doc.data();
           bloques = filterNotificacionesVehiculosSoloActivas(data.notificacionesVehiculos);
           if (bloques.length) {
-            _context75.next = 16;
+            _context84.next = 16;
             break;
           }
-          return _context75.abrupt("continue", 71);
+          return _context84.abrupt("continue", 71);
         case 16:
           token = vehiculoCoalesceEmpty(data.token);
           if (token) {
-            _context75.next = 19;
+            _context84.next = 19;
             break;
           }
-          return _context75.abrupt("continue", 71);
+          return _context84.abrupt("continue", 71);
         case 19:
           nombreUsuario = nombreUsuarioDesdeDocUsuario(data) || "amigo";
           uiduser = doc.id;
           userRef = db.collection("Usuarios").doc(uiduser);
-          _iterator13 = _createForOfIteratorHelper(bloques);
-          _context75.prev = 23;
-          _iterator13.s();
+          _iterator14 = _createForOfIteratorHelper(bloques);
+          _context84.prev = 23;
+          _iterator14.s();
         case 25:
-          if ((_step13 = _iterator13.n()).done) {
-            _context75.next = 63;
+          if ((_step14 = _iterator14.n()).done) {
+            _context84.next = 63;
             break;
           }
-          veh = _step13.value;
+          veh = _step14.value;
           if (!(!veh || _typeof(veh) !== "object")) {
-            _context75.next = 29;
+            _context84.next = 29;
             break;
           }
-          return _context75.abrupt("continue", 61);
+          return _context84.abrupt("continue", 61);
         case 29:
           uidvehicle = veh.uidvehicle != null && String(veh.uidvehicle).trim() !== "" ? String(veh.uidvehicle).trim() : "";
           if (uidvehicle) {
-            _context75.next = 32;
+            _context84.next = 32;
             break;
           }
-          return _context75.abrupt("continue", 61);
+          return _context84.abrupt("continue", 61);
         case 32:
-          _context75.next = 34;
+          _context84.next = 34;
           return userRef.collection("Vehiculos").doc(uidvehicle).get();
         case 34:
-          vehSnap = _context75.sent;
+          vehSnap = _context84.sent;
           if (vehSnap.exists) {
-            _context75.next = 37;
+            _context84.next = 37;
             break;
           }
-          return _context75.abrupt("continue", 61);
+          return _context84.abrupt("continue", 61);
         case 37:
           vehData = vehSnap.data() || {};
           notifs = Array.isArray(veh.notificaciones) ? veh.notificaciones : [];
-          _iterator14 = _createForOfIteratorHelper(notifs);
-          _context75.prev = 40;
-          _iterator14.s();
+          _iterator15 = _createForOfIteratorHelper(notifs);
+          _context84.prev = 40;
+          _iterator15.s();
         case 42:
-          if ((_step14 = _iterator14.n()).done) {
-            _context75.next = 53;
+          if ((_step15 = _iterator15.n()).done) {
+            _context84.next = 53;
             break;
           }
-          notif = _step14.value;
+          notif = _step15.value;
           if (!(!notif || _typeof(notif) !== "object" || notif.active !== true)) {
-            _context75.next = 46;
+            _context84.next = 46;
             break;
           }
-          return _context75.abrupt("continue", 51);
+          return _context84.abrupt("continue", 51);
         case 46:
-          _context75.next = 48;
+          _context84.next = 48;
           return cronKmEvaluarNotificacionActiva({
             token: token,
             nombreUsuario: nombreUsuario,
@@ -6829,69 +7578,69 @@ var jobNotificacionesVehiculosProximoKm = /*#__PURE__*/function () {
             vehData: vehData
           });
         case 48:
-          _yield$cronKmEvaluarN = _context75.sent;
+          _yield$cronKmEvaluarN = _context84.sent;
           enviados = _yield$cronKmEvaluarN.enviados;
           totalEnviados += enviados;
         case 51:
-          _context75.next = 42;
+          _context84.next = 42;
           break;
         case 53:
-          _context75.next = 58;
+          _context84.next = 58;
           break;
         case 55:
-          _context75.prev = 55;
-          _context75.t0 = _context75["catch"](40);
-          _iterator14.e(_context75.t0);
+          _context84.prev = 55;
+          _context84.t0 = _context84["catch"](40);
+          _iterator15.e(_context84.t0);
         case 58:
-          _context75.prev = 58;
-          _iterator14.f();
-          return _context75.finish(58);
+          _context84.prev = 58;
+          _iterator15.f();
+          return _context84.finish(58);
         case 61:
-          _context75.next = 25;
+          _context84.next = 25;
           break;
         case 63:
-          _context75.next = 68;
+          _context84.next = 68;
           break;
         case 65:
-          _context75.prev = 65;
-          _context75.t1 = _context75["catch"](23);
-          _iterator13.e(_context75.t1);
+          _context84.prev = 65;
+          _context84.t1 = _context84["catch"](23);
+          _iterator14.e(_context84.t1);
         case 68:
-          _context75.prev = 68;
-          _iterator13.f();
-          return _context75.finish(68);
+          _context84.prev = 68;
+          _iterator14.f();
+          return _context84.finish(68);
         case 71:
-          _context75.next = 10;
+          _context84.next = 10;
           break;
         case 73:
-          _context75.next = 78;
+          _context84.next = 78;
           break;
         case 75:
-          _context75.prev = 75;
-          _context75.t2 = _context75["catch"](8);
-          _iterator12.e(_context75.t2);
+          _context84.prev = 75;
+          _context84.t2 = _context84["catch"](8);
+          _iterator13.e(_context84.t2);
         case 78:
-          _context75.prev = 78;
-          _iterator12.f();
-          return _context75.finish(78);
+          _context84.prev = 78;
+          _iterator13.f();
+          return _context84.finish(78);
         case 81:
           if (totalEnviados > 0) {
             console.log("Job proximoKM (Vehiculos): ".concat(totalEnviados, " notificaci\xF3n(es) enviada(s)."));
           }
-          _context75.next = 87;
+          _context84.next = 87;
           break;
         case 84:
-          _context75.prev = 84;
-          _context75.t3 = _context75["catch"](0);
-          console.error("Error en job notificaciones proximoKM:", _context75.t3);
+          _context84.prev = 84;
+          _context84.t3 = _context84["catch"](0);
+          console.error("Error en job notificaciones proximoKM:", _context84.t3);
         case 87:
         case "end":
-          return _context75.stop();
+          return _context84.stop();
       }
-    }, _callee72, null, [[0, 84], [8, 75, 78, 81], [23, 65, 68, 71], [40, 55, 58, 61]]);
+    }, _callee80, null, [[0, 84], [8, 75, 78, 81], [23, 65, 68, 71], [40, 55, 58, 61]]);
   }));
   return function jobNotificacionesVehiculosProximoKm() {
-    return _ref105.apply(this, arguments);
+    return _ref115.apply(this, arguments);
   };
 }();
 var SECRET_CODE_LICENCIA_VENC = "licencia_fecha_vencimiento";
@@ -6942,16 +7691,16 @@ var clasificarVencimientoDocumentoProximoMes = function clasificarVencimientoDoc
   return null;
 };
 var enviarPushDocumentacionConductorJob = /*#__PURE__*/function () {
-  var _ref106 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee73(token, title, body, secretCode) {
+  var _ref116 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee81(token, title, body, secretCode) {
     var reqNotif, resNotif;
-    return _regeneratorRuntime().wrap(function _callee73$(_context76) {
-      while (1) switch (_context76.prev = _context76.next) {
+    return _regeneratorRuntime().wrap(function _callee81$(_context85) {
+      while (1) switch (_context85.prev = _context85.next) {
         case 0:
           if (!(!token || typeof token !== "string" || !token.trim())) {
-            _context76.next = 2;
+            _context85.next = 2;
             break;
           }
-          return _context76.abrupt("return", false);
+          return _context85.abrupt("return", false);
         case 2:
           reqNotif = {
             body: {
@@ -6968,24 +7717,24 @@ var enviarPushDocumentacionConductorJob = /*#__PURE__*/function () {
               };
             }
           };
-          _context76.prev = 4;
-          _context76.next = 7;
+          _context85.prev = 4;
+          _context85.next = 7;
           return sendNotification(reqNotif, resNotif);
         case 7:
-          return _context76.abrupt("return", true);
+          return _context85.abrupt("return", true);
         case 10:
-          _context76.prev = 10;
-          _context76.t0 = _context76["catch"](4);
-          console.error("Push documentación conductor:", _context76.t0.message, secretCode);
-          return _context76.abrupt("return", false);
+          _context85.prev = 10;
+          _context85.t0 = _context85["catch"](4);
+          console.error("Push documentación conductor:", _context85.t0.message, secretCode);
+          return _context85.abrupt("return", false);
         case 14:
         case "end":
-          return _context76.stop();
+          return _context85.stop();
       }
-    }, _callee73, null, [[4, 10]]);
+    }, _callee81, null, [[4, 10]]);
   }));
-  return function enviarPushDocumentacionConductorJob(_x145, _x146, _x147, _x148) {
-    return _ref106.apply(this, arguments);
+  return function enviarPushDocumentacionConductorJob(_x159, _x160, _x161, _x162) {
+    return _ref116.apply(this, arguments);
   };
 }();
 
@@ -6993,49 +7742,70 @@ var enviarPushDocumentacionConductorJob = /*#__PURE__*/function () {
  * Usuarios con licencia_fecha_vencimiento y/o certificado_medico_fecha_vencimiento.
  * Notifica si venció o faltan 1–30 días. secretCode en data: licencia_fecha_vencimiento | certificado_medico_fecha_vencimiento
  */
+/**
+ * Regla de repetición de avisos de vencimiento (APP-UX-3).
+ * Antes de vencer: solo a los 30, 7 y 1 día y el mismo día. Ya vencido: una vez por
+ * semana (7, 14, 21… días después), no todos los días. Aplica a licencia, certificado
+ * médico, RCV y trimestres. El job sigue corriendo a diario; esta función decide si toca avisar hoy.
+ */
+var DIAS_AVISO_ANTES_DE_VENCER = [30, 7, 1, 0];
+var debeNotificarVencimiento = function debeNotificarVencimiento(fechaFin) {
+  if (!(fechaFin instanceof Date) || isNaN(fechaFin.getTime())) return false;
+  var hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  var dias = Math.round((fechaFin.getTime() - hoy.getTime()) / 86400000);
+  if (dias >= 0) return DIAS_AVISO_ANTES_DE_VENCER.includes(dias);
+  return -dias % 7 === 0;
+};
 var jobNotificacionesLicenciaYCertificadoMedico = /*#__PURE__*/function () {
-  var _ref107 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee75() {
-    var _yield$Promise$all, _yield$Promise$all2, licSnap, certSnap, enviados, procesarCampo, _iterator15, _step15, doc, _iterator16, _step16, _doc2;
-    return _regeneratorRuntime().wrap(function _callee75$(_context78) {
-      while (1) switch (_context78.prev = _context78.next) {
+  var _ref117 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee83() {
+    var _yield$Promise$all3, _yield$Promise$all4, licSnap, certSnap, enviados, procesarCampo, _iterator16, _step16, doc, _iterator17, _step17, _doc2;
+    return _regeneratorRuntime().wrap(function _callee83$(_context87) {
+      while (1) switch (_context87.prev = _context87.next) {
         case 0:
-          _context78.prev = 0;
-          _context78.next = 3;
+          _context87.prev = 0;
+          _context87.next = 3;
           return Promise.all([db.collection("Usuarios").where("licencia_fecha_vencimiento", "!=", null).get(), db.collection("Usuarios").where("certificado_medico_fecha_vencimiento", "!=", null).get()]);
         case 3:
-          _yield$Promise$all = _context78.sent;
-          _yield$Promise$all2 = _slicedToArray(_yield$Promise$all, 2);
-          licSnap = _yield$Promise$all2[0];
-          certSnap = _yield$Promise$all2[1];
+          _yield$Promise$all3 = _context87.sent;
+          _yield$Promise$all4 = _slicedToArray(_yield$Promise$all3, 2);
+          licSnap = _yield$Promise$all4[0];
+          certSnap = _yield$Promise$all4[1];
           enviados = 0;
           procesarCampo = /*#__PURE__*/function () {
-            var _ref108 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee74(doc, campoFecha, secretCode, esLicencia) {
+            var _ref118 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee82(doc, campoFecha, secretCode, esLicencia) {
               var data, fechaFin, estado, token, nombre, fechaTxt, title, body, diasTxt, _diasTxt, ok;
-              return _regeneratorRuntime().wrap(function _callee74$(_context77) {
-                while (1) switch (_context77.prev = _context77.next) {
+              return _regeneratorRuntime().wrap(function _callee82$(_context86) {
+                while (1) switch (_context86.prev = _context86.next) {
                   case 0:
                     data = doc.data();
                     fechaFin = firestoreFechaToStartOfDayLocal(data[campoFecha]);
                     if (fechaFin) {
-                      _context77.next = 4;
+                      _context86.next = 4;
                       break;
                     }
-                    return _context77.abrupt("return");
+                    return _context86.abrupt("return");
                   case 4:
                     estado = clasificarVencimientoDocumento(fechaFin);
                     if (estado) {
-                      _context77.next = 7;
+                      _context86.next = 7;
                       break;
                     }
-                    return _context77.abrupt("return");
+                    return _context86.abrupt("return");
                   case 7:
+                    if (debeNotificarVencimiento(fechaFin)) {
+                      _context86.next = 9;
+                      break;
+                    }
+                    return _context86.abrupt("return");
+                  case 9:
                     token = vehiculoCoalesceEmpty(data.token);
                     if (token) {
-                      _context77.next = 10;
+                      _context86.next = 12;
                       break;
                     }
-                    return _context77.abrupt("return");
-                  case 10:
+                    return _context86.abrupt("return");
+                  case 12:
                     nombre = nombreUsuarioDesdeDocUsuario(_objectSpread({}, data)) || "amigo";
                     fechaTxt = formatoFechaDDMMAAAA(fechaFin);
                     if (esLicencia) {
@@ -7055,90 +7825,90 @@ var jobNotificacionesLicenciaYCertificadoMedico = /*#__PURE__*/function () {
                       title = "".concat(nombre, ", certificado m\xE9dico por vencer");
                       body = "Hola ".concat(nombre, ", ").concat(_diasTxt, " para el vencimiento de tu certificado m\xE9dico (").concat(fechaTxt, "). Agenda tu cita m\xE9dica con anticipaci\xF3n.");
                     }
-                    _context77.next = 15;
+                    _context86.next = 17;
                     return enviarPushDocumentacionConductorJob(token, title, body, secretCode);
-                  case 15:
-                    ok = _context77.sent;
-                    if (ok) enviados += 1;
                   case 17:
+                    ok = _context86.sent;
+                    if (ok) enviados += 1;
+                  case 19:
                   case "end":
-                    return _context77.stop();
+                    return _context86.stop();
                 }
-              }, _callee74);
+              }, _callee82);
             }));
-            return function procesarCampo(_x149, _x150, _x151, _x152) {
-              return _ref108.apply(this, arguments);
+            return function procesarCampo(_x163, _x164, _x165, _x166) {
+              return _ref118.apply(this, arguments);
             };
           }();
-          _iterator15 = _createForOfIteratorHelper(licSnap.docs);
-          _context78.prev = 10;
-          _iterator15.s();
+          _iterator16 = _createForOfIteratorHelper(licSnap.docs);
+          _context87.prev = 10;
+          _iterator16.s();
         case 12:
-          if ((_step15 = _iterator15.n()).done) {
-            _context78.next = 18;
+          if ((_step16 = _iterator16.n()).done) {
+            _context87.next = 18;
             break;
           }
-          doc = _step15.value;
-          _context78.next = 16;
+          doc = _step16.value;
+          _context87.next = 16;
           return procesarCampo(doc, "licencia_fecha_vencimiento", SECRET_CODE_LICENCIA_VENC, true);
         case 16:
-          _context78.next = 12;
+          _context87.next = 12;
           break;
         case 18:
-          _context78.next = 23;
+          _context87.next = 23;
           break;
         case 20:
-          _context78.prev = 20;
-          _context78.t0 = _context78["catch"](10);
-          _iterator15.e(_context78.t0);
+          _context87.prev = 20;
+          _context87.t0 = _context87["catch"](10);
+          _iterator16.e(_context87.t0);
         case 23:
-          _context78.prev = 23;
-          _iterator15.f();
-          return _context78.finish(23);
+          _context87.prev = 23;
+          _iterator16.f();
+          return _context87.finish(23);
         case 26:
-          _iterator16 = _createForOfIteratorHelper(certSnap.docs);
-          _context78.prev = 27;
-          _iterator16.s();
+          _iterator17 = _createForOfIteratorHelper(certSnap.docs);
+          _context87.prev = 27;
+          _iterator17.s();
         case 29:
-          if ((_step16 = _iterator16.n()).done) {
-            _context78.next = 35;
+          if ((_step17 = _iterator17.n()).done) {
+            _context87.next = 35;
             break;
           }
-          _doc2 = _step16.value;
-          _context78.next = 33;
+          _doc2 = _step17.value;
+          _context87.next = 33;
           return procesarCampo(_doc2, "certificado_medico_fecha_vencimiento", SECRET_CODE_CERT_MEDICO_VENC, false);
         case 33:
-          _context78.next = 29;
+          _context87.next = 29;
           break;
         case 35:
-          _context78.next = 40;
+          _context87.next = 40;
           break;
         case 37:
-          _context78.prev = 37;
-          _context78.t1 = _context78["catch"](27);
-          _iterator16.e(_context78.t1);
+          _context87.prev = 37;
+          _context87.t1 = _context87["catch"](27);
+          _iterator17.e(_context87.t1);
         case 40:
-          _context78.prev = 40;
-          _iterator16.f();
-          return _context78.finish(40);
+          _context87.prev = 40;
+          _iterator17.f();
+          return _context87.finish(40);
         case 43:
           if (enviados > 0) {
             console.log("Job licencia/certificado m\xE9dico: ".concat(enviados, " notificaci\xF3n(es) enviada(s)."));
           }
-          _context78.next = 49;
+          _context87.next = 49;
           break;
         case 46:
-          _context78.prev = 46;
-          _context78.t2 = _context78["catch"](0);
-          console.error("Error en job licencia/certificado médico:", _context78.t2);
+          _context87.prev = 46;
+          _context87.t2 = _context87["catch"](0);
+          console.error("Error en job licencia/certificado médico:", _context87.t2);
         case 49:
         case "end":
-          return _context78.stop();
+          return _context87.stop();
       }
-    }, _callee75, null, [[0, 46], [10, 20, 23, 26], [27, 37, 40, 43]]);
+    }, _callee83, null, [[0, 46], [10, 20, 23, 26], [27, 37, 40, 43]]);
   }));
   return function jobNotificacionesLicenciaYCertificadoMedico() {
-    return _ref107.apply(this, arguments);
+    return _ref117.apply(this, arguments);
   };
 }();
 var SECRET_CODE_RCV_VENC = "rcv_fecha_vencimiento";
@@ -7153,23 +7923,23 @@ var uidUsuarioDesdeRutaVehiculo = function uidUsuarioDesdeRutaVehiculo(docRef) {
   return null;
 };
 var obtenerUsuarioLiteParaJobVehiculo = /*#__PURE__*/function () {
-  var _ref109 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee76(uid, cache) {
+  var _ref119 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee84(uid, cache) {
     var snap, vacio, d, lite;
-    return _regeneratorRuntime().wrap(function _callee76$(_context79) {
-      while (1) switch (_context79.prev = _context79.next) {
+    return _regeneratorRuntime().wrap(function _callee84$(_context88) {
+      while (1) switch (_context88.prev = _context88.next) {
         case 0:
           if (!cache.has(uid)) {
-            _context79.next = 2;
+            _context88.next = 2;
             break;
           }
-          return _context79.abrupt("return", cache.get(uid));
+          return _context88.abrupt("return", cache.get(uid));
         case 2:
-          _context79.next = 4;
+          _context88.next = 4;
           return db.collection("Usuarios").doc(uid).get();
         case 4:
-          snap = _context79.sent;
+          snap = _context88.sent;
           if (snap.exists) {
-            _context79.next = 9;
+            _context88.next = 9;
             break;
           }
           vacio = {
@@ -7177,7 +7947,7 @@ var obtenerUsuarioLiteParaJobVehiculo = /*#__PURE__*/function () {
             nombre: "amigo"
           };
           cache.set(uid, vacio);
-          return _context79.abrupt("return", vacio);
+          return _context88.abrupt("return", vacio);
         case 9:
           d = snap.data();
           lite = {
@@ -7185,73 +7955,79 @@ var obtenerUsuarioLiteParaJobVehiculo = /*#__PURE__*/function () {
             nombre: nombreUsuarioDesdeDocUsuario(d) || "amigo"
           };
           cache.set(uid, lite);
-          return _context79.abrupt("return", lite);
+          return _context88.abrupt("return", lite);
         case 13:
         case "end":
-          return _context79.stop();
+          return _context88.stop();
       }
-    }, _callee76);
+    }, _callee84);
   }));
-  return function obtenerUsuarioLiteParaJobVehiculo(_x153, _x154) {
-    return _ref109.apply(this, arguments);
+  return function obtenerUsuarioLiteParaJobVehiculo(_x167, _x168) {
+    return _ref119.apply(this, arguments);
   };
 }();
 var jobNotificacionesRcvYTrimestresVehiculos = /*#__PURE__*/function () {
-  var _ref110 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee78() {
-    var _yield$Promise$all3, _yield$Promise$all4, rcvSnap, trimSnap, userCache, enviados, procesarVehiculoCampo, _iterator17, _step17, doc, _iterator18, _step18, _doc3;
-    return _regeneratorRuntime().wrap(function _callee78$(_context81) {
-      while (1) switch (_context81.prev = _context81.next) {
+  var _ref120 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee86() {
+    var _yield$Promise$all5, _yield$Promise$all6, rcvSnap, trimSnap, userCache, enviados, procesarVehiculoCampo, _iterator18, _step18, doc, _iterator19, _step19, _doc3;
+    return _regeneratorRuntime().wrap(function _callee86$(_context90) {
+      while (1) switch (_context90.prev = _context90.next) {
         case 0:
-          _context81.prev = 0;
-          _context81.next = 3;
+          _context90.prev = 0;
+          _context90.next = 3;
           return Promise.all([db.collectionGroup("Vehiculos").where("rcv_fecha_vencimiento", "!=", null).get(), db.collectionGroup("Vehiculos").where("trimestres_fecha_vencimiento", "!=", null).get()]);
         case 3:
-          _yield$Promise$all3 = _context81.sent;
-          _yield$Promise$all4 = _slicedToArray(_yield$Promise$all3, 2);
-          rcvSnap = _yield$Promise$all4[0];
-          trimSnap = _yield$Promise$all4[1];
+          _yield$Promise$all5 = _context90.sent;
+          _yield$Promise$all6 = _slicedToArray(_yield$Promise$all5, 2);
+          rcvSnap = _yield$Promise$all6[0];
+          trimSnap = _yield$Promise$all6[1];
           userCache = new Map();
           enviados = 0;
           procesarVehiculoCampo = /*#__PURE__*/function () {
-            var _ref111 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee77(doc, campoFecha, secretCode, esRcv) {
+            var _ref121 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee85(doc, campoFecha, secretCode, esRcv) {
               var uid, data, fechaFin, estado, _yield$obtenerUsuario, token, nombre, veh, fechaTxt, title, body, diasTxt, ok;
-              return _regeneratorRuntime().wrap(function _callee77$(_context80) {
-                while (1) switch (_context80.prev = _context80.next) {
+              return _regeneratorRuntime().wrap(function _callee85$(_context89) {
+                while (1) switch (_context89.prev = _context89.next) {
                   case 0:
                     uid = uidUsuarioDesdeRutaVehiculo(doc.ref);
                     if (uid) {
-                      _context80.next = 3;
+                      _context89.next = 3;
                       break;
                     }
-                    return _context80.abrupt("return");
+                    return _context89.abrupt("return");
                   case 3:
                     data = doc.data();
                     fechaFin = firestoreFechaToStartOfDayLocal(data[campoFecha]);
                     if (fechaFin) {
-                      _context80.next = 7;
+                      _context89.next = 7;
                       break;
                     }
-                    return _context80.abrupt("return");
+                    return _context89.abrupt("return");
                   case 7:
                     estado = clasificarVencimientoDocumentoProximoMes(fechaFin);
                     if (estado) {
-                      _context80.next = 10;
+                      _context89.next = 10;
                       break;
                     }
-                    return _context80.abrupt("return");
+                    return _context89.abrupt("return");
                   case 10:
-                    _context80.next = 12;
-                    return obtenerUsuarioLiteParaJobVehiculo(uid, userCache);
+                    if (debeNotificarVencimiento(fechaFin)) {
+                      _context89.next = 12;
+                      break;
+                    }
+                    return _context89.abrupt("return");
                   case 12:
-                    _yield$obtenerUsuario = _context80.sent;
+                    _context89.next = 14;
+                    return obtenerUsuarioLiteParaJobVehiculo(uid, userCache);
+                  case 14:
+                    _yield$obtenerUsuario = _context89.sent;
                     token = _yield$obtenerUsuario.token;
                     nombre = _yield$obtenerUsuario.nombre;
                     if (token) {
-                      _context80.next = 17;
+                      _context89.next = 19;
                       break;
                     }
-                    return _context80.abrupt("return");
-                  case 17:
+                    return _context89.abrupt("return");
+                  case 19:
                     veh = describeVehiculoParaNotificacion(data);
                     fechaTxt = formatoFechaDDMMAAAA(fechaFin);
                     if (esRcv) {
@@ -7270,90 +8046,90 @@ var jobNotificacionesRcvYTrimestresVehiculos = /*#__PURE__*/function () {
                       title = "¡Día de Trimestres!";
                       body = "El impuesto de tu ".concat(veh, " vence pronto. Recuerda realizar tu pago municipal a tiempo.");
                     }
-                    _context80.next = 22;
+                    _context89.next = 24;
                     return enviarPushDocumentacionConductorJob(token, title, body, secretCode);
-                  case 22:
-                    ok = _context80.sent;
-                    if (ok) enviados += 1;
                   case 24:
+                    ok = _context89.sent;
+                    if (ok) enviados += 1;
+                  case 26:
                   case "end":
-                    return _context80.stop();
+                    return _context89.stop();
                 }
-              }, _callee77);
+              }, _callee85);
             }));
-            return function procesarVehiculoCampo(_x155, _x156, _x157, _x158) {
-              return _ref111.apply(this, arguments);
+            return function procesarVehiculoCampo(_x169, _x170, _x171, _x172) {
+              return _ref121.apply(this, arguments);
             };
           }();
-          _iterator17 = _createForOfIteratorHelper(rcvSnap.docs);
-          _context81.prev = 11;
-          _iterator17.s();
+          _iterator18 = _createForOfIteratorHelper(rcvSnap.docs);
+          _context90.prev = 11;
+          _iterator18.s();
         case 13:
-          if ((_step17 = _iterator17.n()).done) {
-            _context81.next = 19;
+          if ((_step18 = _iterator18.n()).done) {
+            _context90.next = 19;
             break;
           }
-          doc = _step17.value;
-          _context81.next = 17;
+          doc = _step18.value;
+          _context90.next = 17;
           return procesarVehiculoCampo(doc, "rcv_fecha_vencimiento", SECRET_CODE_RCV_VENC, true);
         case 17:
-          _context81.next = 13;
+          _context90.next = 13;
           break;
         case 19:
-          _context81.next = 24;
+          _context90.next = 24;
           break;
         case 21:
-          _context81.prev = 21;
-          _context81.t0 = _context81["catch"](11);
-          _iterator17.e(_context81.t0);
+          _context90.prev = 21;
+          _context90.t0 = _context90["catch"](11);
+          _iterator18.e(_context90.t0);
         case 24:
-          _context81.prev = 24;
-          _iterator17.f();
-          return _context81.finish(24);
+          _context90.prev = 24;
+          _iterator18.f();
+          return _context90.finish(24);
         case 27:
-          _iterator18 = _createForOfIteratorHelper(trimSnap.docs);
-          _context81.prev = 28;
-          _iterator18.s();
+          _iterator19 = _createForOfIteratorHelper(trimSnap.docs);
+          _context90.prev = 28;
+          _iterator19.s();
         case 30:
-          if ((_step18 = _iterator18.n()).done) {
-            _context81.next = 36;
+          if ((_step19 = _iterator19.n()).done) {
+            _context90.next = 36;
             break;
           }
-          _doc3 = _step18.value;
-          _context81.next = 34;
+          _doc3 = _step19.value;
+          _context90.next = 34;
           return procesarVehiculoCampo(_doc3, "trimestres_fecha_vencimiento", SECRET_CODE_TRIMESTRES_VENC, false);
         case 34:
-          _context81.next = 30;
+          _context90.next = 30;
           break;
         case 36:
-          _context81.next = 41;
+          _context90.next = 41;
           break;
         case 38:
-          _context81.prev = 38;
-          _context81.t1 = _context81["catch"](28);
-          _iterator18.e(_context81.t1);
+          _context90.prev = 38;
+          _context90.t1 = _context90["catch"](28);
+          _iterator19.e(_context90.t1);
         case 41:
-          _context81.prev = 41;
-          _iterator18.f();
-          return _context81.finish(41);
+          _context90.prev = 41;
+          _iterator19.f();
+          return _context90.finish(41);
         case 44:
           if (enviados > 0) {
             console.log("Job RCV/trimestres (Vehiculos): ".concat(enviados, " notificaci\xF3n(es) enviada(s)."));
           }
-          _context81.next = 50;
+          _context90.next = 50;
           break;
         case 47:
-          _context81.prev = 47;
-          _context81.t2 = _context81["catch"](0);
-          console.error("Error en job RCV/trimestres vehículos:", _context81.t2);
+          _context90.prev = 47;
+          _context90.t2 = _context90["catch"](0);
+          console.error("Error en job RCV/trimestres vehículos:", _context90.t2);
         case 50:
         case "end":
-          return _context81.stop();
+          return _context90.stop();
       }
-    }, _callee78, null, [[0, 47], [11, 21, 24, 27], [28, 38, 41, 44]]);
+    }, _callee86, null, [[0, 47], [11, 21, 24, 27], [28, 38, 41, 44]]);
   }));
   return function jobNotificacionesRcvYTrimestresVehiculos() {
-    return _ref110.apply(this, arguments);
+    return _ref120.apply(this, arguments);
   };
 }();
 var SECRET_CODE_ACTUALIZAR_KM_VEHICULOS = "ActualizarKmVehiculos";
@@ -7378,112 +8154,184 @@ var SECRET_CODE_ACTUALIZAR_KM_VEHICULOS = "ActualizarKmVehiculos";
  * Si el token devuelve `registration-token-not-registered` (app desinstalada o token
  * expirado), lo limpia automáticamente en Firestore (`token: ""`).
  */
-var cargarKmVehiculos = /*#__PURE__*/function () {
-  var _ref112 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee80() {
-    var snapshot, vehiculoChecks, aprobadosConVehiculo, BATCH, i, chunk, batch, _iterator19, _step19, doc, seenTokens, sinToken, pendientes, _iterator20, _step20, _doc4, data, token, vehDesc, pushes, invalidTokens, _i5, _chunk, batchResult, j, resp, _resp$error, code, _resp$error2;
-    return _regeneratorRuntime().wrap(function _callee80$(_context83) {
-      while (1) switch (_context83.prev = _context83.next) {
+/**
+ * Resetea showModalKm y showMaintenancePopup a true en TODOS los documentos
+ * de la colección Usuarios. Se ejecuta cada lunes a las 10:00 AM.
+ */
+var resetWeeklyPopupFlags = /*#__PURE__*/function () {
+  var _ref122 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee87() {
+    var snapshot, BATCH, updated, i, chunk, batch, _iterator20, _step20, doc;
+    return _regeneratorRuntime().wrap(function _callee87$(_context91) {
+      while (1) switch (_context91.prev = _context91.next) {
         case 0:
-          _context83.prev = 0;
-          _context83.next = 3;
+          _context91.prev = 0;
+          _context91.next = 3;
+          return db.collection("Usuarios").get();
+        case 3:
+          snapshot = _context91.sent;
+          if (!snapshot.empty) {
+            _context91.next = 7;
+            break;
+          }
+          console.log("resetWeeklyPopupFlags: colección Usuarios vacía.");
+          return _context91.abrupt("return");
+        case 7:
+          BATCH = 500;
+          updated = 0;
+          i = 0;
+        case 10:
+          if (!(i < snapshot.docs.length)) {
+            _context91.next = 21;
+            break;
+          }
+          chunk = snapshot.docs.slice(i, i + BATCH);
+          batch = db.batch();
+          _iterator20 = _createForOfIteratorHelper(chunk);
+          try {
+            for (_iterator20.s(); !(_step20 = _iterator20.n()).done;) {
+              doc = _step20.value;
+              batch.update(doc.ref, {
+                showModalKm: true,
+                showMaintenancePopup: true
+              });
+            }
+          } catch (err) {
+            _iterator20.e(err);
+          } finally {
+            _iterator20.f();
+          }
+          _context91.next = 17;
+          return batch.commit();
+        case 17:
+          updated += chunk.length;
+        case 18:
+          i += BATCH;
+          _context91.next = 10;
+          break;
+        case 21:
+          console.log("resetWeeklyPopupFlags: ".concat(updated, " documento(s) actualizados (showModalKm + showMaintenancePopup \u2192 true)."));
+          _context91.next = 27;
+          break;
+        case 24:
+          _context91.prev = 24;
+          _context91.t0 = _context91["catch"](0);
+          console.error("Error en resetWeeklyPopupFlags:", _context91.t0);
+        case 27:
+        case "end":
+          return _context91.stop();
+      }
+    }, _callee87, null, [[0, 24]]);
+  }));
+  return function resetWeeklyPopupFlags() {
+    return _ref122.apply(this, arguments);
+  };
+}();
+var cargarKmVehiculos = /*#__PURE__*/function () {
+  var _ref123 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee89() {
+    var snapshot, vehiculoChecks, aprobadosConVehiculo, BATCH, i, chunk, batch, _iterator21, _step21, doc, seenTokens, sinToken, pendientes, _iterator22, _step22, _doc4, data, token, vehDesc, pushes, invalidTokens, _i6, _chunk, batchResult, j, resp, _resp$error, code, _resp$error2;
+    return _regeneratorRuntime().wrap(function _callee89$(_context93) {
+      while (1) switch (_context93.prev = _context93.next) {
+        case 0:
+          _context93.prev = 0;
+          _context93.next = 3;
           return db.collection("Usuarios").where("status", "==", "Aprobado").get();
         case 3:
-          snapshot = _context83.sent;
+          snapshot = _context93.sent;
           if (!snapshot.empty) {
-            _context83.next = 7;
+            _context93.next = 7;
             break;
           }
           console.log("cargarKmVehiculos: no hay usuarios aprobados.");
-          return _context83.abrupt("return");
+          return _context93.abrupt("return");
         case 7:
-          _context83.next = 9;
+          _context93.next = 9;
           return Promise.all(snapshot.docs.map(/*#__PURE__*/function () {
-            var _ref113 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee79(doc) {
+            var _ref124 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee88(doc) {
               var vehSnap;
-              return _regeneratorRuntime().wrap(function _callee79$(_context82) {
-                while (1) switch (_context82.prev = _context82.next) {
+              return _regeneratorRuntime().wrap(function _callee88$(_context92) {
+                while (1) switch (_context92.prev = _context92.next) {
                   case 0:
-                    _context82.next = 2;
+                    _context92.next = 2;
                     return doc.ref.collection("Vehiculos").limit(1).get();
                   case 2:
-                    vehSnap = _context82.sent;
-                    return _context82.abrupt("return", vehSnap.empty ? null : doc);
+                    vehSnap = _context92.sent;
+                    return _context92.abrupt("return", vehSnap.empty ? null : doc);
                   case 4:
                   case "end":
-                    return _context82.stop();
+                    return _context92.stop();
                 }
-              }, _callee79);
+              }, _callee88);
             }));
-            return function (_x159) {
-              return _ref113.apply(this, arguments);
+            return function (_x173) {
+              return _ref124.apply(this, arguments);
             };
           }()));
         case 9:
-          vehiculoChecks = _context83.sent;
+          vehiculoChecks = _context93.sent;
           aprobadosConVehiculo = vehiculoChecks.filter(Boolean);
           if (!(aprobadosConVehiculo.length === 0)) {
-            _context83.next = 14;
+            _context93.next = 14;
             break;
           }
           console.log("cargarKmVehiculos: ningún usuario aprobado tiene vehículos.");
-          return _context83.abrupt("return");
+          return _context93.abrupt("return");
         case 14:
           BATCH = 500; // 1. Marcar showModalKm=true en batches de Firestore
           i = 0;
         case 16:
           if (!(i < aprobadosConVehiculo.length)) {
-            _context83.next = 26;
+            _context93.next = 26;
             break;
           }
           chunk = aprobadosConVehiculo.slice(i, i + BATCH);
           batch = db.batch();
-          _iterator19 = _createForOfIteratorHelper(chunk);
+          _iterator21 = _createForOfIteratorHelper(chunk);
           try {
-            for (_iterator19.s(); !(_step19 = _iterator19.n()).done;) {
-              doc = _step19.value;
+            for (_iterator21.s(); !(_step21 = _iterator21.n()).done;) {
+              doc = _step21.value;
               batch.update(doc.ref, {
                 showModalKm: true
               });
             }
           } catch (err) {
-            _iterator19.e(err);
+            _iterator21.e(err);
           } finally {
-            _iterator19.f();
+            _iterator21.f();
           }
-          _context83.next = 23;
+          _context93.next = 23;
           return batch.commit();
         case 23:
           i += BATCH;
-          _context83.next = 16;
+          _context93.next = 16;
           break;
         case 26:
           // 2. Construir mensajes deduplicando por token
           seenTokens = new Set();
           sinToken = 0; // messages guarda { message, doc } para poder limpiar tokens inválidos después
           pendientes = [];
-          _iterator20 = _createForOfIteratorHelper(aprobadosConVehiculo);
-          _context83.prev = 30;
-          _iterator20.s();
+          _iterator22 = _createForOfIteratorHelper(aprobadosConVehiculo);
+          _context93.prev = 30;
+          _iterator22.s();
         case 32:
-          if ((_step20 = _iterator20.n()).done) {
-            _context83.next = 46;
+          if ((_step22 = _iterator22.n()).done) {
+            _context93.next = 46;
             break;
           }
-          _doc4 = _step20.value;
+          _doc4 = _step22.value;
           data = _doc4.data();
           token = vehiculoCoalesceEmpty(data.token);
           if (token) {
-            _context83.next = 39;
+            _context93.next = 39;
             break;
           }
           sinToken++;
-          return _context83.abrupt("continue", 44);
+          return _context93.abrupt("continue", 44);
         case 39:
           if (!seenTokens.has(token)) {
-            _context83.next = 41;
+            _context93.next = 41;
             break;
           }
-          return _context83.abrupt("continue", 44);
+          return _context93.abrupt("continue", 44);
         case 41:
           seenTokens.add(token);
           vehDesc = describeVehiculoParaNotificacion(data);
@@ -7501,91 +8349,285 @@ var cargarKmVehiculos = /*#__PURE__*/function () {
             }
           });
         case 44:
-          _context83.next = 32;
+          _context93.next = 32;
           break;
         case 46:
-          _context83.next = 51;
+          _context93.next = 51;
           break;
         case 48:
-          _context83.prev = 48;
-          _context83.t0 = _context83["catch"](30);
-          _iterator20.e(_context83.t0);
+          _context93.prev = 48;
+          _context93.t0 = _context93["catch"](30);
+          _iterator22.e(_context93.t0);
         case 51:
-          _context83.prev = 51;
-          _iterator20.f();
-          return _context83.finish(51);
+          _context93.prev = 51;
+          _iterator22.f();
+          return _context93.finish(51);
         case 54:
           // 3. Enviar en lotes de 500 usando sendEach (un solo request HTTP por lote)
           pushes = 0;
           invalidTokens = 0;
-          _i5 = 0;
+          _i6 = 0;
         case 57:
-          if (!(_i5 < pendientes.length)) {
-            _context83.next = 83;
+          if (!(_i6 < pendientes.length)) {
+            _context93.next = 83;
             break;
           }
-          _chunk = pendientes.slice(_i5, _i5 + BATCH);
-          _context83.next = 61;
+          _chunk = pendientes.slice(_i6, _i6 + BATCH);
+          _context93.next = 61;
           return admin.messaging().sendEach(_chunk.map(function (p) {
             return p.message;
           }));
         case 61:
-          batchResult = _context83.sent;
+          batchResult = _context93.sent;
           j = 0;
         case 63:
           if (!(j < batchResult.responses.length)) {
-            _context83.next = 80;
+            _context93.next = 80;
             break;
           }
           resp = batchResult.responses[j];
           if (!resp.success) {
-            _context83.next = 69;
+            _context93.next = 69;
             break;
           }
           pushes++;
-          _context83.next = 77;
+          _context93.next = 77;
           break;
         case 69:
           code = (_resp$error = resp.error) === null || _resp$error === void 0 || (_resp$error = _resp$error.errorInfo) === null || _resp$error === void 0 ? void 0 : _resp$error.code;
           if (!(code === "messaging/registration-token-not-registered")) {
-            _context83.next = 76;
+            _context93.next = 76;
             break;
           }
           // Token expirado/desinstalación — limpiar en Firestore
           invalidTokens++;
-          _context83.next = 74;
+          _context93.next = 74;
           return _chunk[j].doc.ref.update({
             token: ""
           });
         case 74:
-          _context83.next = 77;
+          _context93.next = 77;
           break;
         case 76:
           console.error("cargarKmVehiculos push [".concat(_chunk[j].doc.id, "]:"), (_resp$error2 = resp.error) === null || _resp$error2 === void 0 ? void 0 : _resp$error2.message);
         case 77:
           j++;
-          _context83.next = 63;
+          _context93.next = 63;
           break;
         case 80:
-          _i5 += BATCH;
-          _context83.next = 57;
+          _i6 += BATCH;
+          _context93.next = 57;
           break;
         case 83:
           console.log("cargarKmVehiculos: ".concat(aprobadosConVehiculo.length, " usuario(s) aprobado(s) con veh\xEDculo(s); ") + "".concat(pushes, " push(es) enviados; ").concat(sinToken, " sin token; ").concat(invalidTokens, " token(s) inv\xE1lido(s) limpiados."));
-          _context83.next = 89;
+          _context93.next = 89;
           break;
         case 86:
-          _context83.prev = 86;
-          _context83.t1 = _context83["catch"](0);
-          console.error("Error en cargarKmVehiculos:", _context83.t1);
+          _context93.prev = 86;
+          _context93.t1 = _context93["catch"](0);
+          console.error("Error en cargarKmVehiculos:", _context93.t1);
         case 89:
         case "end":
-          return _context83.stop();
+          return _context93.stop();
       }
-    }, _callee80, null, [[0, 86], [30, 48, 51, 54]]);
+    }, _callee89, null, [[0, 86], [30, 48, 51, 54]]);
   }));
   return function cargarKmVehiculos() {
-    return _ref112.apply(this, arguments);
+    return _ref123.apply(this, arguments);
+  };
+}();
+
+/**
+ * Proceso de mantenimiento: lee los Servicios, agrupa las categorías por negocio
+ * (uid_taller) y las asocia al documento del Usuario (Taller) sin duplicar.
+ *
+ * - Cada servicio aporta { uid: uid_categoria, nombre: categoria }.
+ * - Se deduplica por uid de categoría.
+ * - Se conservan las categorías que el negocio ya tuviera (merge sin duplicados).
+ * - Se actualiza tanto `categorias` ([{uid, nombre}]) como `categoriasUids` ([uid]).
+ *
+ * Body opcional:
+ *   { uid_taller?: string, dryRun?: boolean }
+ *   - uid_taller: procesa solo ese negocio (si se omite, procesa todos).
+ *   - dryRun: true → no escribe, solo devuelve lo que haría.
+ */
+var asociarCategoriasDesdeServicios = /*#__PURE__*/function () {
+  var _ref125 = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee90(req, res) {
+    var _ref126, soloTaller, dryRun, serviciosQuery, serviciosSnap, porTaller, actualizados, sinCambios, detalle, _iterator23, _step23, _loop5, _ret2;
+    return _regeneratorRuntime().wrap(function _callee90$(_context95) {
+      while (1) switch (_context95.prev = _context95.next) {
+        case 0:
+          _context95.prev = 0;
+          _ref126 = req.body || {}, soloTaller = _ref126.uid_taller, dryRun = _ref126.dryRun; // 1) Leer servicios (todos o los de un taller específico)
+          serviciosQuery = db.collection("Servicios");
+          if (soloTaller && String(soloTaller).trim() !== "") {
+            serviciosQuery = serviciosQuery.where("uid_taller", "==", String(soloTaller).trim());
+          }
+          _context95.next = 6;
+          return serviciosQuery.get();
+        case 6:
+          serviciosSnap = _context95.sent;
+          // 2) Agrupar categorías por negocio: uid_taller -> Map(uid_categoria -> nombre)
+          porTaller = new Map();
+          serviciosSnap.forEach(function (doc) {
+            var s = doc.data() || {};
+            var uidTaller = String(s.uid_taller || "").trim();
+            var uidCategoria = String(s.uid_categoria || "").trim();
+            var nombreCategoria = String(s.categoria || "").trim();
+            if (!uidTaller || !uidCategoria || !nombreCategoria) return;
+            if (!porTaller.has(uidTaller)) porTaller.set(uidTaller, new Map());
+            // Última escritura gana para el nombre; el uid evita duplicados.
+            porTaller.get(uidTaller).set(uidCategoria, nombreCategoria);
+          });
+
+          // 3) Para cada negocio, mezclar con lo existente (sin duplicar) y actualizar
+          actualizados = 0;
+          sinCambios = 0;
+          detalle = [];
+          _iterator23 = _createForOfIteratorHelper(porTaller.entries());
+          _context95.prev = 13;
+          _loop5 = /*#__PURE__*/_regeneratorRuntime().mark(function _loop5() {
+            var _step23$value, uidTaller, catMap, userRef, userSnap, userData, existentes, merge, normalizar, porNombre, categorias, categoriasUids, prevUids, cambio;
+            return _regeneratorRuntime().wrap(function _loop5$(_context94) {
+              while (1) switch (_context94.prev = _context94.next) {
+                case 0:
+                  _step23$value = _slicedToArray(_step23.value, 2), uidTaller = _step23$value[0], catMap = _step23$value[1];
+                  userRef = db.collection("Usuarios").doc(uidTaller);
+                  _context94.next = 4;
+                  return userRef.get();
+                case 4:
+                  userSnap = _context94.sent;
+                  if (userSnap.exists) {
+                    _context94.next = 8;
+                    break;
+                  }
+                  detalle.push({
+                    uid_taller: uidTaller,
+                    estado: "usuario_no_encontrado"
+                  });
+                  return _context94.abrupt("return", 0);
+                case 8:
+                  userData = userSnap.data() || {}; // Categorías ya guardadas en el negocio (puede venir como [{uid,nombre}])
+                  existentes = Array.isArray(userData.categorias) ? userData.categorias : []; // Dedupe por uid: arrancar con las existentes y sumar las de servicios
+                  merge = new Map();
+                  existentes.forEach(function (c) {
+                    var u = String((c === null || c === void 0 ? void 0 : c.uid) || "").trim();
+                    var n = String((c === null || c === void 0 ? void 0 : c.nombre) || "").trim();
+                    if (u && n) merge.set(u, n);
+                  });
+                  catMap.forEach(function (nombre, uid) {
+                    return merge.set(uid, nombre);
+                  });
+
+                  // Segundo dedupe: colapsar por nombre (case/acentos-insensible) para que no
+                  // queden categorías repetidas aunque vengan con uid distinto en los servicios.
+                  normalizar = function normalizar(s) {
+                    return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+                  };
+                  porNombre = new Map(); // nombreNormalizado -> { uid, nombre }
+                  merge.forEach(function (nombre, uid) {
+                    var clave = normalizar(nombre);
+                    if (!clave) return;
+                    if (!porNombre.has(clave)) porNombre.set(clave, {
+                      uid: uid,
+                      nombre: nombre
+                    });
+                  });
+                  categorias = Array.from(porNombre.values());
+                  categoriasUids = categorias.map(function (c) {
+                    return c.uid;
+                  }); // ¿Cambió algo respecto a lo existente? (compara conjuntos de uids)
+                  prevUids = new Set(existentes.map(function (c) {
+                    return String((c === null || c === void 0 ? void 0 : c.uid) || "").trim();
+                  }).filter(Boolean));
+                  cambio = categoriasUids.length !== prevUids.size || categoriasUids.some(function (u) {
+                    return !prevUids.has(u);
+                  });
+                  detalle.push({
+                    uid_taller: uidTaller,
+                    total_categorias: categorias.length,
+                    categorias: categorias.map(function (c) {
+                      return c.nombre;
+                    }),
+                    accion: cambio ? dryRun ? "actualizaria" : "actualizado" : "sin_cambios"
+                  });
+                  if (cambio) {
+                    _context94.next = 24;
+                    break;
+                  }
+                  sinCambios += 1;
+                  return _context94.abrupt("return", 0);
+                case 24:
+                  if (dryRun) {
+                    _context94.next = 27;
+                    break;
+                  }
+                  _context94.next = 27;
+                  return userRef.update({
+                    categorias: categorias,
+                    categoriasUids: categoriasUids
+                  });
+                case 27:
+                  actualizados += 1;
+                case 28:
+                case "end":
+                  return _context94.stop();
+              }
+            }, _loop5);
+          });
+          _iterator23.s();
+        case 16:
+          if ((_step23 = _iterator23.n()).done) {
+            _context95.next = 23;
+            break;
+          }
+          return _context95.delegateYield(_loop5(), "t0", 18);
+        case 18:
+          _ret2 = _context95.t0;
+          if (!(_ret2 === 0)) {
+            _context95.next = 21;
+            break;
+          }
+          return _context95.abrupt("continue", 21);
+        case 21:
+          _context95.next = 16;
+          break;
+        case 23:
+          _context95.next = 28;
+          break;
+        case 25:
+          _context95.prev = 25;
+          _context95.t1 = _context95["catch"](13);
+          _iterator23.e(_context95.t1);
+        case 28:
+          _context95.prev = 28;
+          _iterator23.f();
+          return _context95.finish(28);
+        case 31:
+          return _context95.abrupt("return", res.status(200).send({
+            message: dryRun ? "Simulación completada (no se escribió nada)" : "Categorías asociadas a los negocios con éxito",
+            dryRun: !!dryRun,
+            negocios_procesados: porTaller.size,
+            actualizados: actualizados,
+            sin_cambios: sinCambios,
+            detalle: detalle
+          }));
+        case 34:
+          _context95.prev = 34;
+          _context95.t2 = _context95["catch"](0);
+          console.error("Error en asociarCategoriasDesdeServicios:", _context95.t2);
+          return _context95.abrupt("return", res.status(500).send({
+            message: "Error al asociar categorías desde servicios",
+            error: _context95.t2.message
+          }));
+        case 38:
+        case "end":
+          return _context95.stop();
+      }
+    }, _callee90, null, [[0, 34], [13, 25, 28, 31]]);
+  }));
+  return function asociarCategoriasDesdeServicios(_x174, _x175) {
+    return _ref125.apply(this, arguments);
   };
 }();
 module.exports = {
@@ -7597,6 +8639,7 @@ module.exports = {
   getTiposVehiculo: getTiposVehiculo,
   saveOrUpdateVehiculo: saveOrUpdateVehiculo,
   SaveClient: SaveClient,
+  SaveClientGoogle: SaveClientGoogle,
   SaveTaller: SaveTaller,
   authenticateUser: authenticateUser,
   getUserByUid: getUserByUid,
@@ -7613,6 +8656,7 @@ module.exports = {
   getActiveCategories: getActiveCategories,
   getSubcategoriesByCategoryUid: getSubcategoriesByCategoryUid,
   saveOrUpdateService: saveOrUpdateService,
+  deleteService: deleteService,
   getPlanes: getPlanes,
   getMetodosPago: getMetodosPago,
   ReportarPagoData: ReportarPagoData,
@@ -7642,5 +8686,7 @@ module.exports = {
   updateVehiculoKm: updateVehiculoKm,
   cargarKmVehiculos: cargarKmVehiculos,
   jobRechazarPropuestasFechaPropuestaMayor3Dias: jobRechazarPropuestasFechaPropuestaMayor3Dias,
-  getServicesByTallerUidTrue: getServicesByTallerUidTrue
+  getServicesByTallerUidTrue: getServicesByTallerUidTrue,
+  asociarCategoriasDesdeServicios: asociarCategoriasDesdeServicios,
+  resetWeeklyPopupFlags: resetWeeklyPopupFlags
 };

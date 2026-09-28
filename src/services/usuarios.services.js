@@ -1,5 +1,6 @@
 const admin = require("firebase-admin");
 const { db, bucket } = require("../firebase");
+const { limpiarUsuarioPublico } = require("../middlewares/auth");
 const { Buffer } = require('buffer');
 
 const { getAuth, signInWithEmailAndPassword } = require("firebase/auth");
@@ -721,6 +722,75 @@ const saveOrUpdateVehiculo = async (req, res) => {
   }
 };
 
+/**
+ * Registro seguro: obtiene o crea la cuenta de Firebase Auth para un alta nueva.
+ *
+ * Antes, si el correo ya existía, se le cambiaba la contraseña a la recibida
+ * (cualquiera podía tomar la cuenta de otro, incluidos Admins). Ahora:
+ *  - Cuenta nueva            -> se crea.
+ *  - Cuenta con Google/Apple -> solo si trae idToken válido del mismo usuario.
+ *  - Cuenta huérfana (sin documento en Usuarios/Admins y que nunca inició
+ *    sesión: quedó a medias en un registro fallido) -> se repara.
+ *  - Cualquier otro caso     -> error 409 "ya registrado".
+ */
+const registroError = (status, message) => {
+  const err = new Error(message);
+  err.httpStatus = status;
+  return err;
+};
+
+const obtenerOCrearCuentaRegistro = async ({ email, password, phone, displayName, idToken }) => {
+  const phoneForAuth = String(phone || "").replace(/\s+/g, "");
+  const basePayload = { email, displayName: displayName || "", disabled: false };
+  if (phoneForAuth) basePayload.phoneNumber = `+58${phoneForAuth}`;
+
+  let existing = null;
+  try {
+    existing = await admin.auth().getUserByEmail(email);
+  } catch (error) {
+    if (error.code !== "auth/user-not-found") throw error;
+  }
+
+  if (!existing) {
+    if (!password && !idToken) {
+      throw registroError(400, "La contraseña es obligatoria.");
+    }
+    const createPayload = { ...basePayload };
+    if (password) createPayload.password = password;
+    return admin.auth().createUser(createPayload);
+  }
+
+  // Cuenta creada en el cliente con Google/Apple: debe probar que es suya.
+  if (idToken) {
+    let decoded;
+    try {
+      decoded = await admin.auth().verifyIdToken(idToken);
+    } catch (e) {
+      throw registroError(401, "La sesión no es válida. Inicia sesión de nuevo.");
+    }
+    if (decoded.uid !== existing.uid) {
+      throw registroError(403, "La sesión no corresponde a este correo.");
+    }
+    const { email: _e, ...rest } = basePayload; // no cambiamos el correo
+    return admin.auth().updateUser(existing.uid, rest);
+  }
+
+  const [usuarioDoc, adminSnap] = await Promise.all([
+    db.collection("Usuarios").doc(existing.uid).get(),
+    db.collection("Admins").where("email", "==", email).limit(1).get(),
+  ]);
+  const nuncaInicioSesion = !existing.metadata || !existing.metadata.lastSignInTime;
+  const esHuerfana = !usuarioDoc.exists && adminSnap.empty && nuncaInicioSesion;
+
+  if (!esHuerfana) {
+    throw registroError(409, "Este correo ya está registrado. Inicia sesión o recupera tu contraseña.");
+  }
+
+  const repairPayload = { ...basePayload };
+  if (password) repairPayload.password = password;
+  return admin.auth().updateUser(existing.uid, repairPayload);
+};
+
 const SaveClient = async (req, res) => {
   try {
     // Recibir los datos del cliente desde el cuerpo de la solicitud
@@ -736,31 +806,12 @@ const SaveClient = async (req, res) => {
 
     let userRecord;
     try {
-      // Intentar obtener el usuario por email
-      userRecord = await admin.auth().getUserByEmail(email);
-
-      // Si existe, actualizar la clave y otros detalles
-      userRecord = await admin.auth().updateUser(userRecord.uid, {
-        email: email,
-        password: password,
-        phoneNumber: `+58${phone}`,
-        displayName: Nombre,
-        disabled: false,
-      });
+      userRecord = await obtenerOCrearCuentaRegistro({ email, password, phone, displayName: Nombre });
     } catch (error) {
-      if (error.code === "auth/user-not-found") {
-        // Si no existe, crearlo
-        userRecord = await admin.auth().createUser({
-          email: email,
-          password: password,
-          phoneNumber: `+58${phone}`,
-          displayName: Nombre,
-          disabled: false,
-        });
-      } else {
-        // Si otro error ocurre, lanzarlo
-        throw error;
+      if (error.httpStatus) {
+        return res.status(error.httpStatus).send({ message: error.message });
       }
+      throw error;
     }
 
     // Obtener el UID del usuario
@@ -920,13 +971,24 @@ const SaveClient = async (req, res) => {
 // directo" tras iniciar sesión con Google sin llenar formularios.
 const SaveClientGoogle = async (req, res) => {
   try {
-    const { uid, email, nombre, token, authProvider } = req.body;
+    const { uid, email, nombre, token, authProvider, idToken } = req.body;
     const provider = authProvider === "apple" ? "apple" : "google";
 
-    if (!uid || !email) {
+    if (!uid || !email || !idToken) {
       return res
         .status(400)
-        .send({ message: "Faltan datos de la cuenta de Google (uid o email)" });
+        .send({ message: "Faltan datos de la cuenta de Google/Apple (uid, email o idToken)" });
+    }
+
+    // Debe probar que la cuenta es suya; antes bastaba con enviar un uid
+    // para recibir el documento completo de cualquier usuario.
+    try {
+      const decoded = await admin.auth().verifyIdToken(idToken);
+      if (decoded.uid !== uid) {
+        return res.status(403).send({ message: "La sesión no corresponde a esta cuenta." });
+      }
+    } catch (e) {
+      return res.status(401).send({ message: "La sesión no es válida. Inicia sesión de nuevo." });
     }
 
     // El usuario ya existe en Firebase Auth (creado vía Google en el cliente);
@@ -1016,31 +1078,12 @@ const SaveTaller = async (req, res) => {
 
     let userRecord;
     try {
-      // Intentar obtener el usuario por email
-      userRecord = await admin.auth().getUserByEmail(email);
-
-      // Si existe, actualizar la clave y otros detalles
-      userRecord = await admin.auth().updateUser(userRecord.uid, {
-        email: email,
-        password: password,
-        phoneNumber: `+58${phone}`,
-        displayName: Nombre,
-        disabled: false,
-      });
+      userRecord = await obtenerOCrearCuentaRegistro({ email, password, phone, displayName: Nombre });
     } catch (error) {
-      if (error.code === "auth/user-not-found") {
-        // Si no existe, crearlo
-        userRecord = await admin.auth().createUser({
-          email: email,
-          password: password,
-          phoneNumber: `+58${phone}`,
-          displayName: Nombre,
-          disabled: false,
-        });
-      } else {
-        // Si otro error ocurre, lanzarlo
-        throw error;
+      if (error.httpStatus) {
+        return res.status(error.httpStatus).send({ message: error.message });
       }
+      throw error;
     }
 
     // Obtener el UID del usuario
@@ -1234,46 +1277,19 @@ const SaveTallerExtended = async (req, res) => {
       lng,
       token,
       horarios_atencion,
-      authProvider
+      authProvider,
+      responsable,
+      categorias
     } = req.body;
-
-    // Cuentas de Google ya existen en Firebase Auth y no tienen contraseña:
-    // en ese caso no tocamos credenciales (evita "contraseña inválida").
-    const isGoogle = authProvider === "google" || !password;
 
     let userRecord;
     try {
-      // Intentar obtener el usuario por email
-      userRecord = await admin.auth().getUserByEmail(email);
-
-      // Si existe, actualizar los detalles (la clave solo si NO es Google)
-      const phoneForAuth = (phone || whatsapp || '').replace(/\s+/g, '');
-      const updatePayload = {
-        email: email,
-        phoneNumber: `+58${phoneForAuth}`,
-        displayName: nombre,
-        disabled: false,
-      };
-      if (!isGoogle && password) {
-        updatePayload.password = password;
-      }
-      userRecord = await admin.auth().updateUser(userRecord.uid, updatePayload);
+      userRecord = await obtenerOCrearCuentaRegistro({ email, password, phone: phone || whatsapp, displayName: nombre, idToken: req.body.idToken });
     } catch (error) {
-      if (error.code === "auth/user-not-found") {
-        const phoneForAuth = (phone || whatsapp || '').replace(/\s+/g, '');
-        const createPayload = {
-          email: email,
-          phoneNumber: `+58${phoneForAuth}`,
-          displayName: nombre,
-          disabled: false,
-        };
-        if (password) {
-          createPayload.password = password;
-        }
-        userRecord = await admin.auth().createUser(createPayload);
-      } else {
-        throw error;
+      if (error.httpStatus) {
+        return res.status(error.httpStatus).send({ message: error.message });
       }
+      throw error;
     }
 
     // Obtener el UID del usuario
@@ -1334,8 +1350,12 @@ const SaveTallerExtended = async (req, res) => {
       phone: (phone || whatsapp || '').replace(/\s+/g, ''),
       typeUser: 'Taller',
       email: email == undefined ? '' : email.toLowerCase(),
-      password: password,
-      status: 'En espera de documentos',
+      // La contraseña NO se guarda en Firestore: solo vive en Firebase Auth.
+      // Si ya subió RIF + foto frente + foto interna, pasa directo a revisión.
+      status: rifIdFiscalUrl && fotoFrenteTallerUrl && fotoInternaTallerUrl
+        ? 'En espera por aprobación'
+        : 'En espera de documentos',
+      responsable: responsable == undefined ? '' : String(responsable).trim(),
       Direccion: Direccion == undefined ? '' : Direccion,
       RegComercial: RegComercial == undefined ? '' : RegComercial,
       Caracteristicas: Caracteristicas == undefined ? '' : Caracteristicas,
@@ -1362,6 +1382,17 @@ const SaveTallerExtended = async (req, res) => {
       createdAt: new Date(),
       horarios_atencion: horarios_atencion == undefined ? [] : horarios_atencion
     };
+
+    // Categorías elegidas en el registro (paso "Servicios").
+    if (Array.isArray(categorias) && categorias.length) {
+      const limpias = categorias
+        .map((c) => ({ uid: String(c?.uid || '').trim(), nombre: String(c?.nombre || '').trim() }))
+        .filter((c) => c.uid && c.nombre);
+      if (limpias.length) {
+        infoUserCreated.categorias = limpias;
+        infoUserCreated.categoriasUids = Array.from(new Set(limpias.map((c) => c.uid)));
+      }
+    }
 
     await db
       .collection("Usuarios")
@@ -1485,6 +1516,20 @@ const SaveTallerExtended = async (req, res) => {
 };
 
 // Función para autenticar usuarios
+/**
+ * Token para que la app abra una sesión de Firebase Auth (signInWithCustomToken)
+ * y mande un ID token verificable en cada llamada (middlewares/auth.js).
+ * Si falla no se bloquea el inicio de sesión: la app sigue como antes.
+ */
+const crearTokenSesion = async uid => {
+  try {
+    return await admin.auth().createCustomToken(uid);
+  } catch (e) {
+    console.warn("[auth] no se pudo crear el customToken:", e.message);
+    return null;
+  }
+};
+
 const authenticateUser = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -1536,6 +1581,7 @@ const authenticateUser = async (req, res) => {
         return res.status(200).send({
           message: "Usuario autenticado exitosamente como Admin",
           userData: adminData[0], // Enviar el primer documento encontrado con el UID
+          customToken: await crearTokenSesion(user.uid),
         });
       }
     } else {
@@ -1547,6 +1593,7 @@ const authenticateUser = async (req, res) => {
       return res.status(200).send({
         message: "Usuario autenticado exitosamente",
         userData: userData[0], // Enviar el primer documento encontrado con el UID
+        customToken: await crearTokenSesion(user.uid),
       });
     }
   } catch (error) {
@@ -1588,7 +1635,8 @@ const getUserByUid = async (req, res) => {
       // Si el documento existe, devolver los datos del usuario
       return res.status(200).send({
         message: "Usuario encontrado",
-        userData: userDoc.data(), // Devuelve los datos del documento
+        // Sin token push ni contraseña para terceros (sí para el dueño y admin).
+        userData: limpiarUsuarioPublico(userDoc.data(), req.sesion, uid),
       });
     } else {
       console.log("No Existe");
@@ -2197,6 +2245,100 @@ const getTalleres = async (req, res) => {
   }
 };
 
+// --- Requerimiento 001 (puntos 6 y 7) ---------------------------------------
+// Dias por defecto del plan gratis cuando el documento del plan no trae vigencia.
+const PLAN_GRATIS_DIAS_POR_DEFECTO = 5;
+const MS_POR_DIA = 24 * 60 * 60 * 1000;
+
+// Punto 7: al aprobar el comercio, todos sus servicios pasan a estatus true.
+const activarServiciosDelTaller = async (tallerId) => {
+  const snap = await db
+    .collection("Servicios")
+    .where("uid_taller", "==", tallerId)
+    .get();
+
+  if (snap.empty) return { total: 0, encendidos: 0 };
+
+  const docs = snap.docs;
+  let encendidos = 0;
+
+  for (let i = 0; i < docs.length; i += 400) {
+    const batch = db.batch();
+    docs.slice(i, i + 400).forEach((d) => {
+      if ((d.data() || {}).estatus !== true) encendidos += 1;
+      batch.update(d.ref, { estatus: true, lastActive: true });
+    });
+    await batch.commit();
+  }
+
+  return { total: docs.length, encendidos };
+};
+
+// Punto 6: los dias del plan no corren hasta que el negocio este aprobado.
+// AsociarPlan deja la suscripcion con pendiente_inicio true y sin fechas;
+// aqui se arranca el reloj.
+const arrancarVigenciaPlan = async (tallerId) => {
+  const userRef = db.collection("Usuarios").doc(tallerId);
+  const userSnap = await userRef.get();
+  if (!userSnap.exists) return { arrancado: false, motivo: "usuario_inexistente" };
+
+  const sub = (userSnap.data() || {}).subscripcion_actual;
+  if (!sub) return { arrancado: false, motivo: "sin_suscripcion" };
+
+  // Si ya tiene fechas y no quedo marcada como pendiente, no se toca.
+  if (sub.fecha_inicio && sub.pendiente_inicio !== true) {
+    return { arrancado: false, motivo: "ya_iniciada" };
+  }
+
+  const dias = parseInt(sub.vigencia, 10) || PLAN_GRATIS_DIAS_POR_DEFECTO;
+  const inicio = admin.firestore.Timestamp.now();
+  const fin = admin.firestore.Timestamp.fromMillis(
+    inicio.toMillis() + dias * MS_POR_DIA
+  );
+
+  await userRef.update({
+    "subscripcion_actual.fecha_inicio": inicio,
+    "subscripcion_actual.fecha_fin": fin,
+    "subscripcion_actual.pendiente_inicio": false,
+  });
+
+  // Espejo en la coleccion Subscripciones.
+  const pendientes = await db
+    .collection("Subscripciones")
+    .where("taller_uid", "==", tallerId)
+    .where("pendiente_inicio", "==", true)
+    .get();
+
+  if (!pendientes.empty) {
+    const batch = db.batch();
+    pendientes.docs.forEach((d) => {
+      batch.update(d.ref, {
+        fecha_inicio: inicio,
+        fecha_fin: fin,
+        pendiente_inicio: false,
+      });
+    });
+    await batch.commit();
+  }
+
+  return { arrancado: true, dias };
+};
+
+// Se ejecuta una sola vez, cuando el certificador aprueba el comercio.
+const activarComercioTrasAprobacion = async (uid) => {
+  const tallerId = String(uid || "").trim();
+  if (!tallerId) return;
+
+  try {
+    const servicios = await activarServiciosDelTaller(tallerId);
+    const plan = await arrancarVigenciaPlan(tallerId);
+    console.log("activarComercioTrasAprobacion", tallerId, servicios, plan);
+  } catch (e) {
+    // No debe tumbar la aprobacion del taller.
+    console.error("activarComercioTrasAprobacion:", e && e.message);
+  }
+};
+
 const actualizarStatusUsuario = async (req, res) => {
   try {
     // Obtener el UID y el nuevo estado desde el cuerpo de la solicitud
@@ -2223,6 +2365,11 @@ const actualizarStatusUsuario = async (req, res) => {
 
     // Actualizar el campo 'status' en el documento del usuario
     await db.collection("Usuarios").doc(uid).update(updateData);
+
+    // Requerimiento 001: al aprobar, encender los servicios y arrancar el plan.
+    if (nuevoStatus === "Aprobado") {
+      await activarComercioTrasAprobacion(uid);
+    }
 
     // Devolver una respuesta de éxito
     return res.status(200).send({
@@ -3615,11 +3762,13 @@ const getSolicitudesByUsuario = async (req, res) => {
         .json({ error: "uid_usuario es requerido." });
     }
 
-    const snapshot = await db
-      .collection("Solicitudes")
-      .where("uid_usuario", "==", uid_usuario.trim())
-      .where("status", "==", status.trim())
-      .get();
+    // `status` es opcional: "Mis solicitudes" pide todas las del usuario sin
+    // filtrar y antes status.trim() fallaba (500) cuando no venía.
+    let consulta = db.collection("Solicitudes").where("uid_usuario", "==", uid_usuario.trim());
+    if (typeof status === "string" && status.trim() !== "") {
+      consulta = consulta.where("status", "==", status.trim());
+    }
+    const snapshot = await consulta.get();
 
     if (snapshot.empty) {
       return res.status(200).json(solo_ultima ? null : []);
@@ -4386,8 +4535,12 @@ const AsociarPlan = async (req, res) => {
         taller_uid: userId == undefined ? "" : userId,
         vigencia: planData.vigencia == undefined ? "" : planData.vigencia,
 
-        fecha_inicio: admin.firestore.Timestamp.now(),
-        fecha_fin: planData.vigencia ? admin.firestore.Timestamp.fromMillis(Date.now() + parseInt(planData.vigencia) * 24 * 60 * 60 * 1000) : "",
+        // Requerimiento 001 punto 6: los dias del plan gratis NO arrancan al
+        // registrarse. Quedan pendientes hasta que el certificador apruebe el
+        // comercio (ver activarComercioTrasAprobacion).
+        fecha_inicio: null,
+        fecha_fin: null,
+        pendiente_inicio: true,
 
 
         nombre_taller: userData.nombre == undefined ? "" : userData.nombre,
@@ -4405,7 +4558,9 @@ const AsociarPlan = async (req, res) => {
       await db
         .collection('Usuarios')
         .doc(userId)
-        .update({ subscripcion_actual: subscripcionData });
+        .update({
+          subscripcion_actual: { ...subscripcionData, uid: subscripcionId },
+        });
 
 
       return res.status(201).send({
@@ -4660,8 +4815,48 @@ const getPlanesVencidos = async () => {
 
 }
 
+/**
+ * Aviso a los certificadores de que un taller se registró o actualizó sus
+ * datos. Antes la app descargaba TODOS los usuarios (GetUsers) para sacar sus
+ * tokens; ahora lo resuelve el servidor.
+ */
+const notificarCertificadores = async (req, res) => {
+  try {
+    const nombre = String(req.body?.nombre_taller || "").slice(0, 80);
+    const snap = await db.collection("Usuarios").where("typeUser", "==", "Certificador").get();
+    const mensajes = snap.docs
+      .map((d) => d.data()?.token)
+      .filter(Boolean)
+      .map((token) => ({
+        token,
+        notification: {
+          title: "Notificación de Registro de Nuevo Taller",
+          body: `¡Hola! El taller ${nombre || "nuevo"} ha sido registrado con éxito. Te invitamos a certificarlo y verificar si cumple con los requerimientos. ¡Gracias por tu colaboración!`,
+        },
+        data: { secretCode: "New Taller Created" },
+      }));
+    if (mensajes.length) await admin.messaging().sendEach(mensajes);
+    return res.status(200).send({ enviados: mensajes.length });
+  } catch (error) {
+    console.error("[notificarCertificadores]", error.message);
+    return res.status(200).send({ enviados: 0 });
+  }
+};
+
 const sendNotification = async (req, res) => {
-  const { token, title, body, secretCode } = req.body;
+  const { title, body, secretCode, uid_destino } = req.body;
+  let { token } = req.body;
+  // Lo normal: se indica a quién (uid_destino) y el servidor busca su token,
+  // así los tokens push no tienen que viajar a otros usuarios.
+  if (uid_destino) {
+    try {
+      const d = await db.collection("Usuarios").doc(String(uid_destino)).get();
+      token = d.exists ? d.data()?.token : null;
+    } catch (e) {
+      token = null;
+    }
+    if (!token) return res.status(200).send({ message: "El destinatario no tiene notificaciones activas." });
+  }
 
   const message = {
     notification: {
@@ -5598,6 +5793,22 @@ const enviarPushDocumentacionConductorJob = async (token, title, body, secretCod
  * Usuarios con licencia_fecha_vencimiento y/o certificado_medico_fecha_vencimiento.
  * Notifica si venció o faltan 1–30 días. secretCode en data: licencia_fecha_vencimiento | certificado_medico_fecha_vencimiento
  */
+/**
+ * Regla de repetición de avisos de vencimiento (APP-UX-3).
+ * Antes de vencer: solo a los 30, 7 y 1 día y el mismo día. Ya vencido: una vez por
+ * semana (7, 14, 21… días después), no todos los días. Aplica a licencia, certificado
+ * médico, RCV y trimestres. El job sigue corriendo a diario; esta función decide si toca avisar hoy.
+ */
+const DIAS_AVISO_ANTES_DE_VENCER = [30, 7, 1, 0];
+const debeNotificarVencimiento = (fechaFin) => {
+  if (!(fechaFin instanceof Date) || isNaN(fechaFin.getTime())) return false;
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  const dias = Math.round((fechaFin.getTime() - hoy.getTime()) / 86400000);
+  if (dias >= 0) return DIAS_AVISO_ANTES_DE_VENCER.includes(dias);
+  return (-dias) % 7 === 0;
+};
+
 const jobNotificacionesLicenciaYCertificadoMedico = async () => {
   try {
     const [licSnap, certSnap] = await Promise.all([
@@ -5613,6 +5824,7 @@ const jobNotificacionesLicenciaYCertificadoMedico = async () => {
       if (!fechaFin) return;
       const estado = clasificarVencimientoDocumento(fechaFin);
       if (!estado) return;
+      if (!debeNotificarVencimiento(fechaFin)) return;
 
       const token = vehiculoCoalesceEmpty(data.token);
       if (!token) return;
@@ -5720,6 +5932,7 @@ const jobNotificacionesRcvYTrimestresVehiculos = async () => {
 
       const estado = clasificarVencimientoDocumentoProximoMes(fechaFin);
       if (!estado) return;
+      if (!debeNotificarVencimiento(fechaFin)) return;
 
       const { token, nombre } = await obtenerUsuarioLiteParaJobVehiculo(uid, userCache);
       if (!token) return;
@@ -6063,6 +6276,7 @@ const asociarCategoriasDesdeServicios = async (req, res) => {
 
 
 module.exports = {
+  notificarCertificadores,
   getUsuarios,
   getNotificaciones,
   saveUpdateNotificationUser,
