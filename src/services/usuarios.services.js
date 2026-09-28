@@ -4752,6 +4752,34 @@ const getPlanesVencidos = async () => {
 
 }
 
+/**
+ * Aviso a los certificadores de que un taller se registró o actualizó sus
+ * datos. Antes la app descargaba TODOS los usuarios (GetUsers) para sacar sus
+ * tokens; ahora lo resuelve el servidor.
+ */
+const notificarCertificadores = async (req, res) => {
+  try {
+    const nombre = String(req.body?.nombre_taller || "").slice(0, 80);
+    const snap = await db.collection("Usuarios").where("typeUser", "==", "Certificador").get();
+    const mensajes = snap.docs
+      .map((d) => d.data()?.token)
+      .filter(Boolean)
+      .map((token) => ({
+        token,
+        notification: {
+          title: "Notificación de Registro de Nuevo Taller",
+          body: `¡Hola! El taller ${nombre || "nuevo"} ha sido registrado con éxito. Te invitamos a certificarlo y verificar si cumple con los requerimientos. ¡Gracias por tu colaboración!`,
+        },
+        data: { secretCode: "New Taller Created" },
+      }));
+    if (mensajes.length) await admin.messaging().sendEach(mensajes);
+    return res.status(200).send({ enviados: mensajes.length });
+  } catch (error) {
+    console.error("[notificarCertificadores]", error.message);
+    return res.status(200).send({ enviados: 0 });
+  }
+};
+
 const sendNotification = async (req, res) => {
   const { title, body, secretCode, uid_destino } = req.body;
   let { token } = req.body;
@@ -6185,6 +6213,7 @@ const asociarCategoriasDesdeServicios = async (req, res) => {
 
 
 module.exports = {
+  notificarCertificadores,
   getUsuarios,
   getNotificaciones,
   saveUpdateNotificationUser,

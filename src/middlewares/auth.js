@@ -29,7 +29,7 @@ const MODO = String(process.env.AUTH_MODE || 'report').toLowerCase();
 // auth    → cualquier usuario con sesión.
 // owner   → con sesión y el campo indicado del body es su propio uid
 //           (los admin pueden siempre).
-// admin   → solo administradores.
+// admin   → solo personal de Solvers (Admin o Certificador).
 const P = 'public';
 const AUTH = 'auth';
 const ADMIN = 'admin';
@@ -87,6 +87,7 @@ const POLITICA = {
   // Push: con `uid_destino` el servidor busca el token (lo normal). Mandar un
   // `token` crudo queda solo para administradores (ver reglaSendNotification).
   '/usuarios/sendNotification': { custom: 'sendNotification' },
+  '/usuarios/notificarCertificadores': AUTH,
 
   '/usuarios/actualizarStatusUsuario': ADMIN,
   '/usuarios/GetUsers': ADMIN,
@@ -118,6 +119,10 @@ const POLITICA = {
 // Rutas nuevas sin regla: se tratan como AUTH (seguro por defecto).
 const REGLA_POR_DEFECTO = AUTH;
 
+// Personal de Solvers: aprueban talleres y validan pagos.
+const STAFF = ['Admin', 'Certificador'];
+const esStaff = sesion => !!sesion && STAFF.includes(sesion.rol);
+
 // ── Identidad y rol ─────────────────────────────────────────────────────────
 const cacheRol = new Map(); // uid → { rol, hasta }
 const CACHE_MS = 5 * 60 * 1000;
@@ -128,7 +133,7 @@ const rolDe = async (uid, email) => {
   let rol = null;
   try {
     const u = await db.collection('Usuarios').doc(uid).get();
-    if (u.exists) rol = u.data()?.typeUser === 'Admin' ? 'Admin' : u.data()?.typeUser || 'Cliente';
+    if (u.exists) rol = u.data()?.typeUser || 'Cliente';
     if (!rol && email) {
       const a = await db.collection('Admins').where('email', '==', email).limit(1).get();
       if (!a.empty) rol = 'Admin';
@@ -157,7 +162,7 @@ const leerSesion = async req => {
 
 // ── Reglas especiales ───────────────────────────────────────────────────────
 const reglaAsociarPlan = async (req, sesion) => {
-  if (sesion?.rol === 'Admin') return null;
+  if (esStaff(sesion)) return null;
   const { uid, plan_uid } = req.body || {};
   if (sesion && sesion.uid === uid) return null;
   // Sin sesión solo se permite el plan gratis a un taller recién creado que
@@ -176,7 +181,7 @@ const reglaAsociarPlan = async (req, sesion) => {
 
 const reglaSendNotification = (req, sesion) => {
   if (!sesion) return 'Requiere sesión';
-  if (sesion.rol === 'Admin') return null;
+  if (esStaff(sesion)) return null;
   if (req.body?.token && !req.body?.uid_destino) return 'Usa uid_destino en lugar del token';
   return null;
 };
@@ -187,8 +192,8 @@ const motivoBloqueo = async (regla, req, sesion) => {
   if (regla && regla.custom === 'asociarPlan') return reglaAsociarPlan(req, sesion);
   if (regla && regla.custom === 'sendNotification') return reglaSendNotification(req, sesion);
   if (!sesion) return 'Requiere sesión';
-  if (sesion.rol === 'Admin') return null;
-  if (regla === ADMIN) return 'Solo administradores';
+  if (esStaff(sesion)) return null;
+  if (regla === ADMIN) return 'Solo personal de Solvers';
   if (regla && regla.owner) {
     const b = req.body || {};
     const valores = regla.owner.map(c => b[c]).filter(v => v != null && v !== '');
@@ -221,7 +226,7 @@ const autenticacion = async (req, res, next) => {
 const CAMPOS_PRIVADOS = ['token', 'password', 'fcmToken', 'certificador_key', 'idToken'];
 const limpiarUsuarioPublico = (usuario, sesion, uidDueno) => {
   if (!usuario || typeof usuario !== 'object') return usuario;
-  if (sesion && (sesion.rol === 'Admin' || sesion.uid === uidDueno)) return usuario;
+  if (sesion && (esStaff(sesion) || sesion.uid === uidDueno)) return usuario;
   const copia = { ...usuario };
   CAMPOS_PRIVADOS.forEach(c => delete copia[c]);
   return copia;
