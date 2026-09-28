@@ -1,5 +1,7 @@
 // firebase.js
-require('dotenv').config();
+// El .env está en la raíz del proyecto, pero PM2 arranca la API desde src/:
+// sin la ruta explícita dotenv no lo encontraba y BREVO_API_KEY nunca cargaba.
+require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 
 const { initializeApp, applicationDefault } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
