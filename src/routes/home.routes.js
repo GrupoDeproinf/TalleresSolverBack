@@ -18,5 +18,6 @@ router.post("/validatePhone", Home.validatePhone);
 router.post("/validateEmail", Home.validateEmail);
 router.post("/savePerfilView", Home.savePerfilView);
 router.post("/saveServiceContactView", Home.saveServiceContactView);
+router.post("/notificarContactoTaller", Home.notificarContactoTaller);
 
 module.exports = router;

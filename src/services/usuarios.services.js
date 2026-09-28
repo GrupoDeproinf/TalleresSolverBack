@@ -1,5 +1,6 @@
 const admin = require("firebase-admin");
 const { db, bucket } = require("../firebase");
+const { limpiarUsuarioPublico } = require("../middlewares/auth");
 const { Buffer } = require('buffer');
 
 const { getAuth, signInWithEmailAndPassword } = require("firebase/auth");
@@ -1515,6 +1516,20 @@ const SaveTallerExtended = async (req, res) => {
 };
 
 // Función para autenticar usuarios
+/**
+ * Token para que la app abra una sesión de Firebase Auth (signInWithCustomToken)
+ * y mande un ID token verificable en cada llamada (middlewares/auth.js).
+ * Si falla no se bloquea el inicio de sesión: la app sigue como antes.
+ */
+const crearTokenSesion = async uid => {
+  try {
+    return await admin.auth().createCustomToken(uid);
+  } catch (e) {
+    console.warn("[auth] no se pudo crear el customToken:", e.message);
+    return null;
+  }
+};
+
 const authenticateUser = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -1566,6 +1581,7 @@ const authenticateUser = async (req, res) => {
         return res.status(200).send({
           message: "Usuario autenticado exitosamente como Admin",
           userData: adminData[0], // Enviar el primer documento encontrado con el UID
+          customToken: await crearTokenSesion(user.uid),
         });
       }
     } else {
@@ -1577,6 +1593,7 @@ const authenticateUser = async (req, res) => {
       return res.status(200).send({
         message: "Usuario autenticado exitosamente",
         userData: userData[0], // Enviar el primer documento encontrado con el UID
+        customToken: await crearTokenSesion(user.uid),
       });
     }
   } catch (error) {
@@ -1618,7 +1635,8 @@ const getUserByUid = async (req, res) => {
       // Si el documento existe, devolver los datos del usuario
       return res.status(200).send({
         message: "Usuario encontrado",
-        userData: userDoc.data(), // Devuelve los datos del documento
+        // Sin token push ni contraseña para terceros (sí para el dueño y admin).
+        userData: limpiarUsuarioPublico(userDoc.data(), req.sesion, uid),
       });
     } else {
       console.log("No Existe");
@@ -4735,7 +4753,19 @@ const getPlanesVencidos = async () => {
 }
 
 const sendNotification = async (req, res) => {
-  const { token, title, body, secretCode } = req.body;
+  const { title, body, secretCode, uid_destino } = req.body;
+  let { token } = req.body;
+  // Lo normal: se indica a quién (uid_destino) y el servidor busca su token,
+  // así los tokens push no tienen que viajar a otros usuarios.
+  if (uid_destino) {
+    try {
+      const d = await db.collection("Usuarios").doc(String(uid_destino)).get();
+      token = d.exists ? d.data()?.token : null;
+    } catch (e) {
+      token = null;
+    }
+    if (!token) return res.status(200).send({ message: "El destinatario no tiene notificaciones activas." });
+  }
 
   const message = {
     notification: {

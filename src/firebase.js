@@ -16,6 +16,7 @@ const db = getFirestore();
 const bucket = getStorage().bucket();
 
 module.exports = {
+  admin,
   db,
   bucket
 };

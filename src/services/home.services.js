@@ -1,4 +1,13 @@
 const admin = require("firebase-admin");
+const { CAMPOS_PRIVADOS } = require("../middlewares/auth");
+
+/** Datos del taller que se pueden mostrar a cualquier conductor. */
+const tallerPublico = t => {
+  if (!t || typeof t !== "object") return t;
+  const copia = { ...t };
+  CAMPOS_PRIVADOS.forEach(c => delete copia[c]);
+  return copia;
+};
 const { db } = require("../firebase");
 
 const { getAuth, signInWithEmailAndPassword } = require("firebase/auth");
@@ -50,7 +59,7 @@ const getServicios = async (req, res) => {
             // Agregar el servicio junto con el taller a la lista
             serviciosConTalleres.push({
               ...servicioData,
-              taller: tallerData,
+              taller: tallerPublico(tallerData),
             });
           } else {
             console.warn(
@@ -217,7 +226,7 @@ const getServiciosPaginados = async (req, res) => {
         const item = {
           id: servicioDoc.id,
           ...servicioData,
-          taller: tallerData,
+          taller: tallerPublico(tallerData),
         };
 
         if (sortByDistance) {
@@ -870,7 +879,36 @@ const validateEmail = async (req, res) => {
   }
 };
 
+/* ─── Aviso push al taller cuando un conductor lo contacta ─────────────────
+ * Reemplaza el sendNotification con token desde la app: el token del taller
+ * ya no sale del servidor. Requiere sesión (middlewares/auth.js). */
+async function notificarContactoTaller(req, res) {
+  try {
+    const { uid_taller, nombre_servicio } = req.body || {};
+    if (!uid_taller) return res.status(400).json({ error: "uid_taller es obligatorio." });
+    const d = await db.collection("Usuarios").doc(String(uid_taller)).get();
+    const token = d.exists ? d.data()?.token : null;
+    if (!token) return res.status(200).json({ enviado: false });
+    const servicio = String(nombre_servicio || "").slice(0, 80);
+    await admin.messaging().send({
+      token,
+      notification: {
+        title: "Contacto de Usuario",
+        body: servicio
+          ? `Hola, un usuario está interesado en contactarte para el servicio de ${servicio}.`
+          : "Hola, un usuario está interesado en contactarte.",
+      },
+      data: { secretCode: "Usuario contacta a taller" },
+    });
+    return res.status(200).json({ enviado: true });
+  } catch (error) {
+    console.error("[notificarContactoTaller]", error.message);
+    return res.status(200).json({ enviado: false });
+  }
+}
+
 module.exports = {
+  notificarContactoTaller,
   getSubscriptionsById,
   getServicios,
   getServicesCategories,

@@ -11,6 +11,7 @@ const Usuarios = require('../src/services/usuarios.services');
 const usuarios = require('./routes/usuarios.routes');
 const home = require('./routes/home.routes');
 const distance = require('./routes/distance.routes');
+const { autenticacion, MODO: AUTH_MODE } = require('./middlewares/auth');
 
 const app = express();
 
@@ -56,6 +57,10 @@ app.use(morgan('dev'));
 app.get('/', async (req, res) => {
   res.send('API arriba');
 });
+
+// Seguridad: verifica la sesión y aplica la regla de cada ruta (ver middlewares/auth.js).
+console.log(`[auth] modo ${AUTH_MODE}`);
+app.use('/api', autenticacion);
 
 app.use('/api/usuarios', usuarios);
 app.use('/api/home', home);
