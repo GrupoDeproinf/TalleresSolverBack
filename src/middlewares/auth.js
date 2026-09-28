@@ -112,6 +112,13 @@ const POLITICA = {
   '/home/addCommentToTaller': AUTH,
   '/home/notificarContactoTaller': AUTH,
 
+  // /api/citas: la regla fina (dueño de la cita) la aplica citas.services.
+  '/citas/disponibilidad': P,
+  '/citas/crear': AUTH,
+  '/citas/misCitas': AUTH,
+  '/citas/agendaTaller': AUTH,
+  '/citas/actualizar': AUTH,
+
   // /api/distance
   '/distance/getNearbyWithCategories': P,
 };

@@ -11,6 +11,8 @@ const Usuarios = require('../src/services/usuarios.services');
 const usuarios = require('./routes/usuarios.routes');
 const home = require('./routes/home.routes');
 const distance = require('./routes/distance.routes');
+const citas = require('./routes/citas.routes');
+const Citas = require('./services/citas.services');
 const { autenticacion, MODO: AUTH_MODE } = require('./middlewares/auth');
 
 const app = express();
@@ -65,6 +67,7 @@ app.use('/api', autenticacion);
 app.use('/api/usuarios', usuarios);
 app.use('/api/home', home);
 app.use('/api/distance', distance);
+app.use('/api/citas', citas);
 
 
 
@@ -148,5 +151,10 @@ cronSchedule('0 8 * * *', () => {
 
 
 
+
+// Cada hora (minuto 5, Caracas): recordatorio 24 h antes de cada cita confirmada.
+cronSchedule('5 * * * *', () => {
+  Citas.jobRecordatorios24h();
+});
 
 module.exports = app;
