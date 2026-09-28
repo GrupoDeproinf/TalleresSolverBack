@@ -3701,11 +3701,13 @@ const getSolicitudesByUsuario = async (req, res) => {
         .json({ error: "uid_usuario es requerido." });
     }
 
-    const snapshot = await db
-      .collection("Solicitudes")
-      .where("uid_usuario", "==", uid_usuario.trim())
-      .where("status", "==", status.trim())
-      .get();
+    // `status` es opcional: "Mis solicitudes" pide todas las del usuario sin
+    // filtrar y antes status.trim() fallaba (500) cuando no venía.
+    let consulta = db.collection("Solicitudes").where("uid_usuario", "==", uid_usuario.trim());
+    if (typeof status === "string" && status.trim() !== "") {
+      consulta = consulta.where("status", "==", status.trim());
+    }
+    const snapshot = await consulta.get();
 
     if (snapshot.empty) {
       return res.status(200).json(solo_ultima ? null : []);
