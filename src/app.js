@@ -95,6 +95,17 @@ cronSchedule('0 */5 * * *', () => {
 });
 
 
+// Cada 5 minutos: aviso de registros de taller sin terminar (Req. 003).
+// Solo envía si está configurado REGISTRO_INCOMPLETO_WEBHOOK_URL.
+cronSchedule('*/5 * * * *', () => {
+  require('./services/registroIncompleto')
+    .revisarRegistrosIncompletos()
+    .then((r) => {
+      if (r.avisados || r.fallidos) console.log('Registros incompletos:', JSON.stringify(r));
+    })
+    .catch(() => {});
+});
+
 // Diario a las 8:00 (Caracas): pushes de mantenimiento según notificacionesVehiculos activas.
 cronSchedule('0 8 * * *', () => {
   Usuarios.getUsuariosConNotificacionesVehiculos();

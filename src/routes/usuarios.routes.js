@@ -18,6 +18,8 @@ router.post('/SaveTallerExtended', Usuarios.SaveTallerExtended);
 
 router.post('/validarRifDocumento', Usuarios.validarRifDocumento);
 
+router.post('/registroProgreso', require('../services/registroIncompleto').guardarProgreso);
+
 router.post('/authenticateUser', Usuarios.authenticateUser);  
 
 router.post('/deleteUserFromAuth', Usuarios.deleteUserFromAuth);  

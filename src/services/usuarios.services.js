@@ -1521,6 +1521,9 @@ const SaveTallerExtended = async (req, res) => {
       // No interrumpimos el flujo si falla el envío del correo
     }
 
+    // Req. 003: el registro se completó; se retira su borrador de "incompletos".
+    require("./registroIncompleto").marcarCompletado({ email, phone: phone || whatsapp });
+
     // Responder con el ID del documento creado o actualizado
     res.status(201).send({ message: "Usuario guardado con éxito", uid: uid });
   } catch (error) {

@@ -43,6 +43,7 @@ const POLITICA = {
   '/usuarios/SaveTaller': P,
   '/usuarios/SaveTallerExtended': P,
   '/usuarios/validarRifDocumento': P, // se usa durante el registro, aún sin sesión
+  '/usuarios/registroProgreso': P, // avance del registro, aún sin cuenta
   '/usuarios/restorePass': P,
   '/usuarios/getActiveCategories': P,
   '/usuarios/getSubcategoriesByCategoryUid': P,
