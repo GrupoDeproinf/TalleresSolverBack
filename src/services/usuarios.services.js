@@ -1,6 +1,35 @@
 const admin = require("firebase-admin");
 const { db, bucket } = require("../firebase");
 const { limpiarUsuarioPublico } = require("../middlewares/auth");
+const { validarDocumentoRif } = require("./rifDocumento");
+
+// Req. 003: compara el documento RIF con el RIF declarado. Nunca lanza ni
+// bloquea: si algo falla queda "no_legible" y lo revisa el certificador.
+const verificarRifSeguro = async ({ base64, rif, nombre }) => {
+  try {
+    const r = await validarDocumentoRif({ base64, rif, nombre });
+    return { ...r, revisadoEn: new Date() };
+  } catch (error) {
+    console.error("verificarRifSeguro:", error && error.message);
+    return {
+      estado: "no_legible",
+      metodo: null,
+      mensaje: "No pudimos revisar el documento automáticamente.",
+      revisadoEn: new Date(),
+    };
+  }
+};
+
+// Consulta previa desde la app o el panel, antes de enviar el registro.
+// Body: { rif, nombre, documento (base64, con o sin prefijo data:) }
+const validarRifDocumento = async (req, res) => {
+  const { rif, nombre, documento } = req.body || {};
+  if (!documento || !String(documento).trim()) {
+    return res.status(400).send({ message: "Falta el documento a revisar." });
+  }
+  const { revisadoEn, ...resultado } = await verificarRifSeguro({ base64: documento, rif, nombre });
+  return res.status(200).send(resultado);
+};
 const { Buffer } = require('buffer');
 
 const { getAuth, signInWithEmailAndPassword } = require("firebase/auth");
@@ -1318,7 +1347,9 @@ const SaveTallerExtended = async (req, res) => {
     }
 
     // Subir RIF ID Fiscal (detecta el tipo real: PDF o imagen)
+    let rifVerificacion = null;
     if (rifIdFiscal && rifIdFiscal !== "") {
+      rifVerificacion = await verificarRifSeguro({ base64: rifIdFiscal, rif, nombre });
       rifIdFiscalUrl = (await uploadTallerDoc(uid, "rifIdFiscal", rifIdFiscal)) || rifIdFiscalUrl;
     }
 
@@ -1370,6 +1401,8 @@ const SaveTallerExtended = async (req, res) => {
       estado: estado == undefined ? '' : estado,
       image_perfil: imageUrl, // Guardar la URL de la imagen de perfil
       rifIdFiscal: rifIdFiscalUrl, // URL del RIF ID Fiscal
+      // Resultado de comparar el documento con el RIF declarado (para el certificador)
+      ...(rifVerificacion ? { rif_verificacion: rifVerificacion } : {}),
       permisoOperacion: permisoOperacionUrl, // URL del Permiso de Operación
       logotipoNegocio: logotipoNegocioUrl, // URL del Logotipo del Negocio
       fotoFrenteTaller: fotoFrenteTallerUrl, // URL de la Foto Frente del Taller
@@ -2026,6 +2059,23 @@ const UpdateTallerUsuarioDocs = async (req, res) => {
       "fotoFrenteTaller",
       "fotoInternaTaller",
     ];
+
+    // Req. 003: si llega un documento RIF nuevo (no la URL ya guardada), se revisa.
+    const rifNuevo = String(payload.rifIdFiscal ?? "").trim();
+    if (rifNuevo && !/^https?:\/\//i.test(rifNuevo)) {
+      let rifDeclarado = payload.rif;
+      let nombreDeclarado = payload.nombre;
+      if (!rifDeclarado) {
+        const actual = await db.collection("Usuarios").doc(uid).get();
+        rifDeclarado = actual.exists ? actual.data().rif : "";
+        nombreDeclarado = nombreDeclarado || (actual.exists ? actual.data().nombre : "");
+      }
+      payload.rif_verificacion = await verificarRifSeguro({
+        base64: rifNuevo,
+        rif: rifDeclarado,
+        nombre: nombreDeclarado,
+      });
+    }
 
     const resolved = await Promise.all(
       keys.map((k) =>
@@ -6231,6 +6281,7 @@ module.exports = {
   SaveTallerAll,
   UpdateTallerUsuarioDocs,
   SaveTallerExtended,
+  validarRifDocumento,
   restorePass,
   getTalleres,
   actualizarStatusUsuario,

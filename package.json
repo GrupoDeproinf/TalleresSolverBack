@@ -19,9 +19,12 @@
     "express": "^4.21.1",
     "firebase": "^11.0.1",
     "firebase-admin": "^12.6.0",
+    "jimp": "^0.22.12",
+    "jsqr": "^1.4.0",
     "morgan": "^1.10.0",
     "node-cron": "^3.0.3",
-    "nodemailer": "^6.9.15"
+    "nodemailer": "^6.9.15",
+    "pdf-parse": "^1.1.1"
   },
   "devDependencies": {
     "@babel/cli": "^7.25.9",

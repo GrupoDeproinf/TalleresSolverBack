@@ -16,6 +16,8 @@ router.post('/SaveTaller', Usuarios.SaveTaller);
  
 router.post('/SaveTallerExtended', Usuarios.SaveTallerExtended); 
 
+router.post('/validarRifDocumento', Usuarios.validarRifDocumento);
+
 router.post('/authenticateUser', Usuarios.authenticateUser);  
 
 router.post('/deleteUserFromAuth', Usuarios.deleteUserFromAuth);  

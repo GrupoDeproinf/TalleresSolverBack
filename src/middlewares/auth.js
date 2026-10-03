@@ -42,6 +42,7 @@ const POLITICA = {
   '/usuarios/SaveClientGoogle': P,
   '/usuarios/SaveTaller': P,
   '/usuarios/SaveTallerExtended': P,
+  '/usuarios/validarRifDocumento': P, // se usa durante el registro, aún sin sesión
   '/usuarios/restorePass': P,
   '/usuarios/getActiveCategories': P,
   '/usuarios/getSubcategoriesByCategoryUid': P,
