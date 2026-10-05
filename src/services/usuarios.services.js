@@ -1432,6 +1432,15 @@ const SaveTallerExtended = async (req, res) => {
       .doc(uid)
       .set(infoUserCreated, { merge: true });
 
+    // Observación 2.1: un servicio ya creado (sin publicar) por cada categoría
+    // elegida, hasta el cupo del plan gratuito. No bloquea el registro.
+    const serviciosCreados = await require("./serviciosPorDefecto").crearServiciosPorDefecto({
+      uidTaller: uid,
+      nombreTaller: nombre,
+      categorias: infoUserCreated.categorias,
+    });
+    console.log("SaveTallerExtended: servicios por defecto", uid, serviciosCreados);
+
     const htmlContent = `
       <!DOCTYPE html>
           <html>
@@ -2323,6 +2332,18 @@ const activarComercioTrasAprobacion = async (uid) => {
 
   try {
     const servicios = await activarServiciosDelTaller(tallerId);
+    // Publicar un servicio consume un cupo del plan (igual que al publicarlo a
+    // mano). Antes la aprobación publicaba todo sin descontar, y el taller
+    // quedaba con más servicios publicados que los que su plan permite.
+    if (servicios.encendidos > 0) {
+      const userRef = db.collection("Usuarios").doc(tallerId);
+      const userSnap = await userRef.get();
+      const sub = userSnap.exists ? (userSnap.data() || {}).subscripcion_actual : null;
+      if (sub && sub.cantidad_servicios !== undefined && sub.cantidad_servicios !== "") {
+        const restante = Math.max(0, (parseInt(sub.cantidad_servicios, 10) || 0) - servicios.encendidos);
+        await userRef.update({ "subscripcion_actual.cantidad_servicios": restante.toString() });
+      }
+    }
     const plan = await arrancarVigenciaPlan(tallerId);
     console.log("activarComercioTrasAprobacion", tallerId, servicios, plan);
   } catch (e) {
