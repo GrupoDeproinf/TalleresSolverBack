@@ -20,6 +20,8 @@ router.post('/validarRifDocumento', Usuarios.validarRifDocumento);
 
 router.post('/registroProgreso', require('../services/registroIncompleto').guardarProgreso);
 
+router.post('/actualizarPerfilTaller', require('../services/perfilTaller').actualizarPerfilTaller);
+
 router.post('/authenticateUser', Usuarios.authenticateUser);  
 
 router.post('/deleteUserFromAuth', Usuarios.deleteUserFromAuth);  
