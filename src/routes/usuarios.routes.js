@@ -22,6 +22,8 @@ router.post('/registroProgreso', require('../services/registroIncompleto').guard
 
 router.post('/actualizarPerfilTaller', require('../services/perfilTaller').actualizarPerfilTaller);
 
+router.post('/resumenTaller', require('../services/resumenTaller').resumenTaller);
+
 router.post('/authenticateUser', Usuarios.authenticateUser);  
 
 router.post('/deleteUserFromAuth', Usuarios.deleteUserFromAuth);  

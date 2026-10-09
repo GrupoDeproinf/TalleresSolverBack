@@ -69,6 +69,7 @@ const POLITICA = {
   '/usuarios/UpdateClient': owner('uid'),
   '/usuarios/UpdateTaller': owner('uid'),
   '/usuarios/actualizarPerfilTaller': owner('uid'),
+  '/usuarios/resumenTaller': owner('uid'),
   '/usuarios/SaveTallerAll': owner('uid'),
   '/usuarios/UpdateUsuariosAll': owner('uid'),
   '/usuarios/UpdateTallerUsuarioDocs': AUTH,
