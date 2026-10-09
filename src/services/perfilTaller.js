@@ -33,6 +33,10 @@ const validarCambios = (b) => {
     c[campo] = v;
   }
 
+  // Req. 005: el perfil maneja un solo número. Si cambia el teléfono y no se
+  // envía un WhatsApp aparte, el WhatsApp del taller pasa a ser ese mismo.
+  if (c.phone && c.whatsapp === undefined) c.whatsapp = c.phone;
+
   if (b.estado !== undefined) {
     const v = texto(b.estado, 40);
     if (!v) return { error: 'Elige el estado donde está el taller.' };

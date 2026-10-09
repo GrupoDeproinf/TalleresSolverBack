@@ -1432,14 +1432,11 @@ const SaveTallerExtended = async (req, res) => {
       .doc(uid)
       .set(infoUserCreated, { merge: true });
 
-    // Observación 2.1: un servicio ya creado (sin publicar) por cada categoría
-    // elegida, hasta el cupo del plan gratuito. No bloquea el registro.
-    const serviciosCreados = await require("./serviciosPorDefecto").crearServiciosPorDefecto({
-      uidTaller: uid,
-      nombreTaller: nombre,
-      categorias: infoUserCreated.categorias,
-    });
-    console.log("SaveTallerExtended: servicios por defecto", uid, serviciosCreados);
+    // Req. 005: NO se crean servicios automáticos al registrarse. El cliente
+    // eligió el "estado vacío guiado": las categorías quedan en el perfil y la
+    // app sugiere "+ Crear servicio de ..." en la bandeja de Servicios, para
+    // no publicar servicios sin precio ni foto. (serviciosPorDefecto.js se
+    // conserva sin uso por si se retoma la idea.)
 
     const htmlContent = `
       <!DOCTYPE html>
