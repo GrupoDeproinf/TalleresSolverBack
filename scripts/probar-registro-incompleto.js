@@ -52,12 +52,14 @@ const ok = (cond, texto) => { console.log(`${cond ? '✔' : '✘ FALLO'}  ${text
   ok(r.body.guardado === false && store.size === 0, 'sin número de WhatsApp no guarda nada');
 
   r = res();
-  await R.guardarProgreso({ body: { borradorId: 'borrador-taller-0001', paso: 2, responsable: 'Luis Pérez', nombre: 'Tallerss', email: 'Taller2025@Gmail.com', phone: '+58 414 508 9640', whatsapp: '', faltantes: ['RIF', 'Dirección', 'Foto del frente'] } }, r);
+  await R.guardarProgreso({ body: { borradorId: 'borrador-taller-0001', paso: 2, responsable: 'Luis Pérez', nombre: 'Tallerss', email: 'Taller2025@Gmail.com', phone: '+58 414 508 9640', whatsapp: '', faltantes: ['Documento: RIF', 'Dirección', 'Documento: Frente del taller'] } }, r);
   const d = store.get('borrador-taller-0001');
   ok(r.body.guardado && d.whatsapp === '+584145089640' && d.email === 'taller2025@gmail.com' && d.avisado === false, 'guarda el avance con WhatsApp y correo normalizados');
 
+  process.env.REGISTRO_INCOMPLETO_ACTIVO = '0';
   let s = await R.revisarRegistrosIncompletos();
-  ok(s.activo === false && recibidos.length === 0, 'sin enlace configurado no envía nada');
+  ok(s.activo === false && recibidos.length === 0, 'con REGISTRO_INCOMPLETO_ACTIVO=0 no envía nada');
+  delete process.env.REGISTRO_INCOMPLETO_ACTIVO;
 
   process.env.REGISTRO_INCOMPLETO_WEBHOOK_URL = url;
   process.env.REGISTRO_INCOMPLETO_TOKEN = 'secreto-de-prueba';
@@ -68,7 +70,10 @@ const ok = (cond, texto) => { console.log(`${cond ? '✔' : '✘ FALLO'}  ${text
   s = await R.revisarRegistrosIncompletos();
   const a = recibidos[0];
   ok(s.avisados === 1 && recibidos.length === 1, 'avisa cuando pasan 60 minutos sin actividad');
-  ok(a && a.body.whatsapp === '+584145089640' && a.body.faltantes.length === 3 && a.body.pasoActual === 2, 'el aviso lleva el WhatsApp y el detalle de lo que falta');
+  ok(a && a.body.telefono === '+584145089640' && a.body.campos_faltantes.length === 3 && a.body.paso_actual === 2 && a.body.nombre_negocio === 'Tallerss', 'el aviso lleva el formato de iaolivia: telefono, campos_faltantes, paso_actual');
+  ok(JSON.stringify(a.body.campos_faltantes) === JSON.stringify(['foto_rif', 'direccion', 'foto_externa']), 'traduce lo que falta a los códigos del webhook');
+  ok(JSON.stringify(R.camposParaWebhook(['Horario de atención', 'Teléfono'])) === JSON.stringify(['terminar y enviar el registro']), 'si no falta nada que recordar, no envía la lista vacía');
+  ok(JSON.stringify(R.camposParaWebhook(['Número de RIF', 'Documento: Interior del taller', 'Servicios que ofrece'])) === JSON.stringify(['el número de RIF', 'foto_interna', 'servicios']), 'campos sin código viajan como frase legible');
   ok(a && a.auth === 'Bearer secreto-de-prueba', 'el aviso lleva el token de autorización');
 
   s = await R.revisarRegistrosIncompletos();

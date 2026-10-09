@@ -4,11 +4,17 @@
 // tiempo se avisa a un sistema externo (webhook) con su WhatsApp y el detalle
 // de lo que le falta, para que puedan escribirle.
 //
-// Configuración (variables de entorno):
-//   REGISTRO_INCOMPLETO_WEBHOOK_URL  → enlace que recibe el aviso. Sin esto no
-//                                      se envía nada (la función queda inactiva).
+// Destino: el webhook de iaolivia (n8n), que redacta y envía el WhatsApp.
+//   POST { telefono, campos_faltantes[], nombre_responsable, nombre_negocio, paso_actual }
+//   200 si lo recibió; 400 con el detalle si falta algo.
+//
+// Configuración (variables de entorno, todas opcionales):
+//   REGISTRO_INCOMPLETO_WEBHOOK_URL  → cambia el enlace de destino.
+//   REGISTRO_INCOMPLETO_ACTIVO=0     → apaga el envío (la app sigue guardando).
 //   REGISTRO_INCOMPLETO_MINUTOS      → espera desde la última actividad (60).
-//   REGISTRO_INCOMPLETO_TOKEN        → opcional; viaja como "Authorization: Bearer".
+//   REGISTRO_INCOMPLETO_TOKEN        → cuando pidan el header de seguridad.
+//   REGISTRO_INCOMPLETO_HEADER       → nombre de ese header (por defecto
+//                                      "Authorization", con "Bearer <token>").
 //
 // Datos: colección `RegistrosIncompletos`, un documento por borrador del
 // teléfono. Se borra al completarse el registro y a los 30 días.
@@ -21,7 +27,46 @@ const TOTAL_PASOS = 3; // Req. 005: registro en 3 pasos
 const MAX_INTENTOS = 5;
 const DIAS_RETENCION = 30;
 
-const webhookUrl = () => String(process.env.REGISTRO_INCOMPLETO_WEBHOOK_URL || '').trim();
+const WEBHOOK_POR_DEFECTO = 'https://n8n.iaolivia.com/webhook/solvers-registro-incompleto';
+const webhookUrl = () => {
+  if (String(process.env.REGISTRO_INCOMPLETO_ACTIVO || '').trim() === '0') return '';
+  return String(process.env.REGISTRO_INCOMPLETO_WEBHOOK_URL || WEBHOOK_POR_DEFECTO).trim();
+};
+
+// La app informa lo que falta con las etiquetas que ve el taller. El webhook
+// reconoce estos códigos y los convierte en frases; lo que no reconoce lo
+// repite tal cual, así que para el resto se envía ya una frase legible.
+const CAMPO_WEBHOOK = {
+  'documento: rif': 'foto_rif',
+  'documento: frente del taller': 'foto_externa',
+  'documento: interior del taller': 'foto_interna',
+  'documento: logo del negocio': 'logo',
+  'dirección': 'direccion',
+  'servicios que ofrece': 'servicios',
+  'número de rif': 'el número de RIF',
+  'nombre del taller': 'el nombre del negocio',
+  'estado': 'el estado donde está el taller',
+  'ubicación en el mapa': 'la ubicación en el mapa',
+  'nombre del responsable': 'el nombre del responsable',
+  'correo': 'el correo',
+  // ya no se piden en el registro o no tiene sentido recordarlos
+  'horario de atención': null,
+  'teléfono': null,
+  'whatsapp': null,
+  'contraseña': null,
+};
+
+const camposParaWebhook = (faltantes) => {
+  const salida = [];
+  (Array.isArray(faltantes) ? faltantes : []).forEach((f) => {
+    const clave = String(f || '').trim().toLowerCase();
+    if (!clave) return;
+    const campo = clave in CAMPO_WEBHOOK ? CAMPO_WEBHOOK[clave] : String(f).trim();
+    if (campo && !salida.includes(campo)) salida.push(campo);
+  });
+  // El webhook rechaza la lista vacía: si llenó todo y solo falta enviar, se dice eso.
+  return salida.length ? salida : ['terminar y enviar el registro'];
+};
 const minutosEspera = () => {
   const n = Number(process.env.REGISTRO_INCOMPLETO_MINUTOS);
   return Number.isFinite(n) && n >= 5 ? n : 60;
@@ -103,19 +148,13 @@ const marcarCompletado = async ({ email, phone }) => {
 
 const aFecha = (v) => (v && typeof v.toDate === 'function' ? v.toDate() : v instanceof Date ? v : null);
 
+// Formato acordado con iaolivia. Obligatorios: telefono y campos_faltantes.
 const cuerpoAviso = (id, d) => ({
-  evento: 'registro_incompleto',
-  borradorId: id,
-  whatsapp: d.whatsapp,
-  telefono: d.phone || d.whatsapp,
-  responsable: d.responsable || '',
-  nombreNegocio: d.nombre || '',
-  correo: d.email || '',
-  pasoActual: d.paso,
-  totalPasos: TOTAL_PASOS,
-  faltantes: d.faltantes || [],
-  iniciadoEn: aFecha(d.creadoEn) ? aFecha(d.creadoEn).toISOString() : null,
-  ultimaActividad: aFecha(d.actualizadoEn) ? aFecha(d.actualizadoEn).toISOString() : null,
+  telefono: d.whatsapp || d.phone,
+  campos_faltantes: camposParaWebhook(d.faltantes),
+  nombre_responsable: d.responsable || '',
+  nombre_negocio: d.nombre || '',
+  paso_actual: d.paso,
 });
 
 /** Tarea programada: avisa de los borradores sin actividad y limpia los viejos. */
@@ -151,7 +190,11 @@ const revisarRegistrosIncompletos = async () => {
           timeout: 15000,
           headers: {
             'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...(token
+              ? process.env.REGISTRO_INCOMPLETO_HEADER
+                ? { [process.env.REGISTRO_INCOMPLETO_HEADER]: token }
+                : { Authorization: `Bearer ${token}` }
+              : {}),
           },
         });
         await doc.ref.set({ avisado: true, avisadoEn: new Date() }, { merge: true });
@@ -173,4 +216,5 @@ module.exports = {
   marcarCompletado,
   revisarRegistrosIncompletos,
   cuerpoAviso,
+  camposParaWebhook,
 };
