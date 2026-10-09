@@ -106,6 +106,18 @@ cronSchedule('*/5 * * * *', () => {
     .catch(() => {});
 });
 
+// Tasa oficial del BCV para la validación de pagos: al arrancar y cada hora.
+const actualizarTasaBcv = () =>
+  require('./services/tasaBcv')
+    .actualizarTasa()
+    .then((r) => {
+      if (r.guardadas.length || r.historico) console.log('Tasa BCV:', JSON.stringify(r));
+      else if (r.errores.length) console.error('Tasa BCV:', r.errores.join(' | '));
+    })
+    .catch(() => {});
+cronSchedule('7 * * * *', actualizarTasaBcv);
+setTimeout(actualizarTasaBcv, 15000);
+
 // Diario a las 8:00 (Caracas): pushes de mantenimiento según notificacionesVehiculos activas.
 cronSchedule('0 8 * * *', () => {
   Usuarios.getUsuariosConNotificacionesVehiculos();

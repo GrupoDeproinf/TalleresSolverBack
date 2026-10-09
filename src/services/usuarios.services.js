@@ -4472,6 +4472,10 @@ const ReportarPagoData = async (req, res) => {
       fecha_inicio: admin.firestore.Timestamp.now(),
       fecha_fin: vigencia ? admin.firestore.Timestamp.fromMillis(Date.now() + parseInt(vigencia) * 24 * 60 * 60 * 1000) : "",
       nombre_taller: nombre_taller == undefined ? "" : nombre_taller,
+      // Validación de pagos: fecha en que se reportó y copia de la tasa BCV y
+      // de los montos (subtotal, IVA, total y Bs) de ese día.
+      fecha_registro: admin.firestore.Timestamp.now(),
+      ...(await require('./tasaBcv').fotoParaPago(amount)),
     };
 
     // Guardar en la colección Subscripciones

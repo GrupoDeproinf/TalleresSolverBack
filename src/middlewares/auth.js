@@ -48,6 +48,7 @@ const POLITICA = {
   '/usuarios/getActiveCategories': P,
   '/usuarios/getSubcategoriesByCategoryUid': P,
   '/usuarios/getPlanes': P,
+  '/usuarios/tasaBcv': P, // dato público del BCV
   '/usuarios/getMetodosPago': P,
   '/usuarios/getTiposVehiculo': P,
   '/usuarios/getServiceByUid': P,
