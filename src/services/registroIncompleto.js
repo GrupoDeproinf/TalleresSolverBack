@@ -17,7 +17,7 @@ const axios = require('axios');
 const { db } = require('../firebase');
 
 const COLECCION = 'RegistrosIncompletos';
-const TOTAL_PASOS = 4;
+const TOTAL_PASOS = 3; // Req. 005: registro en 3 pasos
 const MAX_INTENTOS = 5;
 const DIAS_RETENCION = 30;
 
