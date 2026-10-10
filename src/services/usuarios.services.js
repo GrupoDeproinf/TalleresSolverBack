@@ -4478,6 +4478,29 @@ const ReportarPagoData = async (req, res) => {
       ...(await require('./tasaBcv').fotoParaPago(amount)),
     };
 
+    // Un mismo pago no se registra dos veces: si el taller ya tiene uno por
+    // aprobar con la misma referencia, o uno igual enviado hace menos de dos
+    // minutos (doble toque en "Enviar"), se responde bien sin crear otro.
+    try {
+      const previos = await db.collection('Subscripciones').where('taller_uid', '==', userId).get();
+      const ref = String(cod_ref == undefined ? '' : cod_ref).trim();
+      const repetido = previos.docs.some((d) => {
+        const p = d.data() || {};
+        if (p.status !== 'Por Aprobar') return false;
+        const c = p.comprobante_pago || {};
+        const mismaRef = ref !== '' && String(c.numReferencia || '').trim() === ref && c.metodo === paymentMethod;
+        const creado = p.fecha_registro || p.fecha_inicio;
+        const ms = creado && typeof creado.toMillis === 'function' ? creado.toMillis() : 0;
+        const reciente = Date.now() - ms < 2 * 60 * 1000 && p.nombre === nombre && c.metodo === paymentMethod;
+        return mismaRef || reciente;
+      });
+      if (repetido) {
+        return res.status(201).send({ message: "Suscripción guardada con éxito.", repetido: true });
+      }
+    } catch (e) {
+      console.error('ReportarPagoData: no se pudo revisar duplicados:', e && e.message);
+    }
+
     // Guardar en la colección Subscripciones
     const subscripcionRef = await db.collection('Subscripciones').add(subscripcionData);
     const subscripcionId = subscripcionRef.id;
