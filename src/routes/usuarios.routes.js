@@ -26,6 +26,8 @@ router.post('/resumenTaller', require('../services/resumenTaller').resumenTaller
 
 router.get('/tasaBcv', require('../services/tasaBcv').obtenerTasa);
 
+router.get('/buscarDireccion', require('../services/direcciones').buscarDireccion);
+
 router.post('/authenticateUser', Usuarios.authenticateUser);  
 
 router.post('/deleteUserFromAuth', Usuarios.deleteUserFromAuth);  

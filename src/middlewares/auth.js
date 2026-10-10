@@ -49,6 +49,7 @@ const POLITICA = {
   '/usuarios/getSubcategoriesByCategoryUid': P,
   '/usuarios/getPlanes': P,
   '/usuarios/tasaBcv': P, // dato público del BCV
+  '/usuarios/buscarDireccion': P, // se usa durante el registro, aún sin sesión
   '/usuarios/getMetodosPago': P,
   '/usuarios/getTiposVehiculo': P,
   '/usuarios/getServiceByUid': P,
