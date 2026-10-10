@@ -12,6 +12,32 @@ const METODOS = ['efectivo', 'pagoMovil', 'puntoVenta', 'transferencia', 'tarjet
 const HORA = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 const texto = (v, max) => String(v == null ? '' : v).trim().slice(0, max);
+
+// Datos para pagarle al taller (opcionales). El taller los escribe si quiere
+// que los conductores los vean en su perfil; solo se guardan estos campos.
+const CAMPOS_PAGO = {
+  pagoMovil: ['banco', 'telefono', 'documento'],
+  transferencia: ['banco', 'cuenta', 'titular', 'documento'],
+  zelle: ['correo', 'titular'],
+  zinli: ['correo'],
+};
+
+/** Deja solo los métodos y campos conocidos, como texto corto. Función pura. */
+const limpiarDatosPago = (datos) => {
+  const salida = {};
+  if (!datos || typeof datos !== 'object' || Array.isArray(datos)) return salida;
+  Object.keys(CAMPOS_PAGO).forEach((metodo) => {
+    const d = datos[metodo];
+    if (!d || typeof d !== 'object' || Array.isArray(d)) return;
+    const limpio = {};
+    CAMPOS_PAGO[metodo].forEach((campo) => {
+      const v = texto(d[campo], 80).replace(/[\u0000-\u001f<>]/g, '');
+      if (v) limpio[campo] = v;
+    });
+    if (Object.keys(limpio).length) salida[metodo] = limpio;
+  });
+  return salida;
+};
 const telefono = (v) => String(v == null ? '' : v).replace(/[^\d+]/g, '').slice(0, 20);
 
 /** Devuelve { cambios } con lo válido, o { error } con el primer problema. */
@@ -75,6 +101,10 @@ const validarCambios = (b) => {
     c.horarios_atencion = limpio;
   }
 
+  if (b.metodos_pago_datos !== undefined) {
+    c.metodos_pago_datos = limpiarDatosPago(b.metodos_pago_datos);
+  }
+
   if (b.metodos_pago !== undefined) {
     const m = b.metodos_pago;
     if (!m || typeof m !== 'object' || Array.isArray(m)) return { error: 'Los métodos de pago no son válidos.' };
@@ -109,4 +139,4 @@ const actualizarPerfilTaller = async (req, res) => {
   }
 };
 
-module.exports = { actualizarPerfilTaller, validarCambios };
+module.exports = { actualizarPerfilTaller, validarCambios, limpiarDatosPago, CAMPOS_PAGO };

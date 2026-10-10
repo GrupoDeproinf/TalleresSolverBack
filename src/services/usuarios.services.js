@@ -1295,6 +1295,7 @@ const SaveTallerExtended = async (req, res) => {
       checked,
       whatsapp,
       metodos_pago,
+      metodos_pago_datos,
       estado,
       base64,
       rifIdFiscal,
@@ -1398,6 +1399,8 @@ const SaveTallerExtended = async (req, res) => {
       agenteAutorizado: checked == undefined ? false : checked,
       whatsapp: whatsapp == undefined ? '' : whatsapp,
       metodos_pago: metodos_pago == undefined ? [] : metodos_pago,
+      // Datos opcionales para pagarle al taller (banco, teléfono, correo…).
+      metodos_pago_datos: require('./perfilTaller').limpiarDatosPago(metodos_pago_datos),
       estado: estado == undefined ? '' : estado,
       image_perfil: imageUrl, // Guardar la URL de la imagen de perfil
       rifIdFiscal: rifIdFiscalUrl, // URL del RIF ID Fiscal
