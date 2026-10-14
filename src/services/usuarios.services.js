@@ -2,6 +2,7 @@ const admin = require("firebase-admin");
 const { db, bucket } = require("../firebase");
 const { limpiarUsuarioPublico } = require("../middlewares/auth");
 const { validarDocumentoRif } = require("./rifDocumento");
+const { estadoCupo, sincronizarCupo, totalDelPlan, mensajeSinCupo } = require("./cupoServicios");
 
 // Req. 003: compara el documento RIF con el RIF declarado. Nunca lanza ni
 // bloquea: si algo falla queda "no_legible" y lo revisa el certificador.
@@ -2260,19 +2261,37 @@ const activarServiciosDelTaller = async (tallerId) => {
 
   if (snap.empty) return { total: 0, encendidos: 0 };
 
-  const docs = snap.docs;
+  // Req. 006: al aprobar se publican solo los que permite el plan (antes se
+  // publicaban todos y el plan GRATIS quedaba con más de 5). Primero los que
+  // ya estaban publicados y luego los más antiguos.
+  const fecha = (d) => {
+    const v = (d.data() || {}).createdAt || (d.data() || {}).fecha_creacion;
+    return v && typeof v.toMillis === "function" ? v.toMillis() : 0;
+  };
+  const docs = [...snap.docs].sort(
+    (a, b) => ((b.data() || {}).estatus === true) - ((a.data() || {}).estatus === true) || fecha(a) - fecha(b)
+  );
+  let limite = docs.length;
+  try {
+    const userSnap = await db.collection("Usuarios").doc(tallerId).get();
+    const total = await totalDelPlan(userSnap.exists ? (userSnap.data() || {}).subscripcion_actual : null);
+    if (total != null) limite = Math.min(docs.length, total);
+  } catch (e) {
+    console.error("activarServiciosDelTaller cupo:", e && e.message);
+  }
   let encendidos = 0;
 
   for (let i = 0; i < docs.length; i += 400) {
     const batch = db.batch();
-    docs.slice(i, i + 400).forEach((d) => {
-      if ((d.data() || {}).estatus !== true) encendidos += 1;
-      batch.update(d.ref, { estatus: true, lastActive: true });
+    docs.slice(i, i + 400).forEach((d, j) => {
+      const publicar = i + j < limite;
+      if (publicar && (d.data() || {}).estatus !== true) encendidos += 1;
+      batch.update(d.ref, publicar ? { estatus: true, lastActive: true } : { estatus: false });
     });
     await batch.commit();
   }
 
-  return { total: docs.length, encendidos };
+  return { total: docs.length, encendidos, publicados: limite };
 };
 
 // Punto 6: los dias del plan no corren hasta que el negocio este aprobado.
@@ -2335,15 +2354,7 @@ const activarComercioTrasAprobacion = async (uid) => {
     // Publicar un servicio consume un cupo del plan (igual que al publicarlo a
     // mano). Antes la aprobación publicaba todo sin descontar, y el taller
     // quedaba con más servicios publicados que los que su plan permite.
-    if (servicios.encendidos > 0) {
-      const userRef = db.collection("Usuarios").doc(tallerId);
-      const userSnap = await userRef.get();
-      const sub = userSnap.exists ? (userSnap.data() || {}).subscripcion_actual : null;
-      if (sub && sub.cantidad_servicios !== undefined && sub.cantidad_servicios !== "") {
-        const restante = Math.max(0, (parseInt(sub.cantidad_servicios, 10) || 0) - servicios.encendidos);
-        await userRef.update({ "subscripcion_actual.cantidad_servicios": restante.toString() });
-      }
-    }
+    await sincronizarCupo(tallerId);
     const plan = await arrancarVigenciaPlan(tallerId);
     console.log("activarComercioTrasAprobacion", tallerId, servicios, plan);
   } catch (e) {
@@ -3126,6 +3137,28 @@ const saveOrUpdateService = async (req, res) => {
 
     console.log(serviceData)
 
+    // Req. 006: el cupo del plan se valida con datos reales. Si no queda
+    // cupo, el servicio se guarda igual pero oculto, y se avisa.
+    let avisoCupo = '';
+    if (serviceData.estatus === true || serviceData.estatus === 'true') {
+      try {
+        let yaPublicado = false;
+        if (id) {
+          const previo = await db.collection("Servicios").doc(id).get();
+          yaPublicado = previo.exists && (previo.data() || {}).estatus === true;
+        }
+        if (!yaPublicado) {
+          const cupo = await estadoCupo(uid_taller, { excluirId: id || undefined });
+          if (cupo.total != null && cupo.publicados >= cupo.total) {
+            serviceData.estatus = false;
+            avisoCupo = mensajeSinCupo(cupo.total);
+          }
+        }
+      } catch (e) {
+        console.error('saveOrUpdateService cupo:', e && e.message);
+      }
+    }
+
     const getLastImageIndex = (id) => {
       return new Promise((resolve, reject) => {
         const prefix = `service_images/${id}`;
@@ -3224,8 +3257,10 @@ const saveOrUpdateService = async (req, res) => {
 
 
 
+        await sincronizarCupo(uid_taller);
         return res.status(200).send({
           message: "Servicio actualizado exitosamente",
+          ...(avisoCupo ? { aviso: avisoCupo } : {}),
           service: { id, ...serviceData },
         });
       } else {
@@ -3254,8 +3289,10 @@ const saveOrUpdateService = async (req, res) => {
 
         await serviceRef.update(serviceData);
 
+        await sincronizarCupo(uid_taller);
         return res.status(200).send({
           message: "Servicio actualizado exitosamente",
+          ...(avisoCupo ? { aviso: avisoCupo } : {}),
           service: { id, ...serviceData },
         });
       }
@@ -3286,8 +3323,10 @@ const saveOrUpdateService = async (req, res) => {
 
         await newServiceRef.update(serviceData);
 
+        await sincronizarCupo(uid_taller);
         return res.status(201).send({
           message: "Servicio creado exitosamente",
+          ...(avisoCupo ? { aviso: avisoCupo } : {}),
           service: { id: newServiceRef.id, ...serviceData },
         });
       } else {
@@ -3314,8 +3353,10 @@ const saveOrUpdateService = async (req, res) => {
 
         await newServiceRef.update(serviceData);
 
+        await sincronizarCupo(uid_taller);
         return res.status(201).send({
           message: "Servicio creado exitosamente",
+          ...(avisoCupo ? { aviso: avisoCupo } : {}),
           service: { id: newServiceRef.id, ...serviceData },
         });
       }

@@ -52,6 +52,30 @@ const validarCambios = (b) => {
   if (b.Caracteristicas !== undefined) c.Caracteristicas = texto(b.Caracteristicas, 400);
   if (b.responsable !== undefined) c.responsable = texto(b.responsable, 80);
 
+  // Req. 006: redes sociales del negocio. Se acepta el enlace o el usuario
+  // (@taller); se guarda como enlace completo.
+  const REDES = {
+    LinkInstagram: (u) => `https://instagram.com/${u}`,
+    LinkFacebook: (u) => `https://facebook.com/${u}`,
+    LinkTiktok: (u) => `https://tiktok.com/@${u}`,
+  };
+  for (const campo of Object.keys(REDES)) {
+    if (b[campo] === undefined) continue;
+    let v = texto(b[campo], 200).replace(/\s+/g, '');
+    if (!v) {
+      c[campo] = '';
+      continue;
+    }
+    if (/^(https?:\/\/)?(www\.)?(instagram|facebook|fb|tiktok)\.(com|me)\//i.test(v)) {
+      v = /^https?:\/\//i.test(v) ? v : `https://${v}`;
+    } else if (/^@?[A-Za-z0-9._-]{1,60}$/.test(v)) {
+      v = REDES[campo](v.replace(/^@/, ''));
+    } else {
+      return { error: 'Revisa el enlace de tus redes sociales: escribe tu usuario (@tutaller) o el enlace completo.' };
+    }
+    c[campo] = v;
+  }
+
   for (const campo of ['phone', 'whatsapp']) {
     if (b[campo] === undefined) continue;
     const v = telefono(b[campo]);

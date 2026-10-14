@@ -122,10 +122,17 @@ const resumenTaller = async (req, res) => {
       return res.status(404).send({ message: 'No encontramos el negocio.' });
     }
 
+    // Req. 006: lo que queda del cupo se recalcula con datos reales.
+    const cupo = await require('./cupoServicios').sincronizarCupo(uid);
+    const usuario = usuarioSnap.data() || {};
+    if (cupo && cupo.restante != null && usuario.subscripcion_actual) {
+      usuario.subscripcion_actual = { ...usuario.subscripcion_actual, cantidad_servicios: String(cupo.restante) };
+    }
+
     const datos = (snap) => snap.docs.map((d) => d.data());
     return res.status(200).send(
       armarResumen({
-        usuario: usuarioSnap.data(),
+        usuario,
         vistas: datos(vistas),
         contactos: datos(contactos),
         propuestas: datos(propuestas),
