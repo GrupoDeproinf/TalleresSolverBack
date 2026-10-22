@@ -111,6 +111,57 @@ const CATALOGO = [
     servicios: ['Silenciadores y tubos', 'Soldadura de soportes', 'Catalizador', 'Válvula EGR'],
     relacionadas: ['silenciadores', 'escape'],
   },
+  // Áreas que ya existían en la app y no estaban en la lista del cliente
+  // (se agregaron a pedido del cliente para no perderlas).
+  {
+    id: 'latoneria',
+    nombre: 'Latonería y pintura',
+    icono: 'spray',
+    servicios: [
+      'Latonería y enderezado',
+      'Pintura completa',
+      'Pintura por pieza',
+      'Reparación de parachoques',
+      'Retoques y rayones',
+      'Pulitura y brillo',
+    ],
+    relacionadas: ['latoneria', 'pintura'],
+  },
+  {
+    id: 'autolavado',
+    nombre: 'Autolavado',
+    icono: 'car-wash',
+    servicios: ['Lavado exterior', 'Lavado completo', 'Lavado de motor', 'Aspirado y limpieza interior', 'Lavado de tapicería', 'Encerado'],
+    relacionadas: ['autolavado', 'lavado'],
+  },
+  {
+    id: 'tapiceria',
+    nombre: 'Tapicería',
+    icono: 'car-seat',
+    servicios: ['Tapizado de asientos', 'Forros para asientos', 'Techo interior', 'Alfombras', 'Reparación de cuero y vinil'],
+    relacionadas: ['tapiceria'],
+  },
+  {
+    id: 'vidrios',
+    nombre: 'Parabrisas y vidrios',
+    icono: 'car-windshield',
+    servicios: ['Cambio de parabrisas', 'Reparación de parabrisas', 'Vidrios laterales y trasero', 'Papel ahumado'],
+    relacionadas: ['parabrisas', 'vidrio'],
+  },
+  {
+    id: 'gas',
+    nombre: 'Gas vehicular',
+    icono: 'gas-cylinder',
+    servicios: ['Instalación de sistema a gas', 'Mantenimiento del sistema a gas', 'Revisión de fugas', 'Cambio de cilindro'],
+    relacionadas: ['gas'],
+  },
+  {
+    id: 'motos',
+    nombre: 'Taller de motos',
+    icono: 'motorbike',
+    servicios: ['Mantenimiento de motos', 'Mecánica de motos', 'Frenos de motos', 'Electricidad de motos', 'Cauchos de motos'],
+    relacionadas: ['motos'],
+  },
 ];
 
 const sinAcentos = (v) =>
