@@ -4160,6 +4160,21 @@ const savePropuesta = async (req, res) => {
 
      body.fecha_propuesta = admin.firestore.Timestamp.now();
 
+    // El presupuesto lleva el número de la solicitud (S-000123).
+    try {
+      const sid = String(body.uid_solicitud || "").trim();
+      if (sid && !body.codigo_solicitud) {
+        const sol = await db.collection("Solicitudes").doc(sid).get();
+        const d = sol.exists ? sol.data() || {} : {};
+        if (d.codigo_solicitud) {
+          body.codigo_solicitud = d.codigo_solicitud;
+          body.numero_solicitud = d.numero_solicitud;
+        }
+      }
+    } catch (e) {
+      console.error("savePropuesta codigo:", e && e.message);
+    }
+
     const docRef = await db.collection("Propuestas").add(body);
     await docRef.update({ id: docRef.id });
 

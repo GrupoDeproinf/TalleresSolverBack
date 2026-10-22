@@ -123,6 +123,8 @@ setTimeout(() => {
   require('./services/numeroSolicitud')
     .numerarSolicitudesAnteriores()
     .then((n) => n && console.log('Solicitudes numeradas:', n))
+    .then(() => require('./services/numeroSolicitud').copiarNumeroAPropuestas())
+    .then((n) => n && console.log('Presupuestos con número:', n))
     .catch((e) => console.error('numerarSolicitudesAnteriores:', e && e.message));
 }, 20000);
 setTimeout(actualizarTasaBcv, 15000);

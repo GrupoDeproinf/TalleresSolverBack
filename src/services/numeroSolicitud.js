@@ -66,4 +66,30 @@ const numerarSolicitudesAnteriores = async () => {
   return sinNumero.length;
 };
 
-module.exports = { numeroParaSolicitudNueva, numerarSolicitudesAnteriores, codigo };
+/** Copia el número de la solicitud a sus presupuestos que aún no lo tienen. */
+const copiarNumeroAPropuestas = async () => {
+  const [sols, props] = await Promise.all([
+    db.collection('Solicitudes').get(),
+    db.collection('Propuestas').get(),
+  ]);
+  const porId = new Map();
+  sols.docs.forEach((d) => {
+    const x = d.data() || {};
+    if (x.codigo_solicitud) porId.set(d.id, x);
+  });
+  const pendientes = props.docs.filter((d) => {
+    const x = d.data() || {};
+    return !x.codigo_solicitud && porId.has(String(x.uid_solicitud || '').trim());
+  });
+  for (let i = 0; i < pendientes.length; i += 400) {
+    const batch = db.batch();
+    pendientes.slice(i, i + 400).forEach((d) => {
+      const sol = porId.get(String(d.data().uid_solicitud).trim());
+      batch.update(d.ref, { codigo_solicitud: sol.codigo_solicitud, numero_solicitud: sol.numero_solicitud });
+    });
+    await batch.commit();
+  }
+  return pendientes.length;
+};
+
+module.exports = { numeroParaSolicitudNueva, numerarSolicitudesAnteriores, copiarNumeroAPropuestas, codigo };
