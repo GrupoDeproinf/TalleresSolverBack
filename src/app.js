@@ -116,6 +116,15 @@ const actualizarTasaBcv = () =>
     })
     .catch(() => {});
 cronSchedule('7 * * * *', actualizarTasaBcv);
+
+// Número de referencia de las solicitudes (S-000123): al arrancar, numera las
+// que se crearon antes de que existiera.
+setTimeout(() => {
+  require('./services/numeroSolicitud')
+    .numerarSolicitudesAnteriores()
+    .then((n) => n && console.log('Solicitudes numeradas:', n))
+    .catch((e) => console.error('numerarSolicitudesAnteriores:', e && e.message));
+}, 20000);
 setTimeout(actualizarTasaBcv, 15000);
 
 // Diario a las 8:00 (Caracas): pushes de mantenimiento según notificacionesVehiculos activas.

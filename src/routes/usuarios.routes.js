@@ -28,6 +28,8 @@ router.get('/tasaBcv', require('../services/tasaBcv').obtenerTasa);
 
 router.get('/buscarDireccion', require('../services/direcciones').buscarDireccion);
 
+router.get('/catalogoServicios', require('../services/catalogoServicios').obtenerCatalogo);
+
 router.post('/authenticateUser', Usuarios.authenticateUser);  
 
 router.post('/deleteUserFromAuth', Usuarios.deleteUserFromAuth);  

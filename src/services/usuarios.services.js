@@ -1310,7 +1310,8 @@ const SaveTallerExtended = async (req, res) => {
       horarios_atencion,
       authProvider,
       responsable,
-      categorias
+      categorias,
+      especialidades
     } = req.body;
 
     let userRecord;
@@ -1420,9 +1421,22 @@ const SaveTallerExtended = async (req, res) => {
       horarios_atencion: horarios_atencion == undefined ? [] : horarios_atencion
     };
 
-    // Categorías elegidas en el registro (paso "Servicios").
-    if (Array.isArray(categorias) && categorias.length) {
-      const limpias = categorias
+    // Especialidades elegidas en el registro (catálogo del cliente, con los
+    // servicios que el negocio agregó a mano).
+    const catalogo = require('./catalogoServicios');
+    const espLimpias = catalogo.limpiarEspecialidades(especialidades);
+    if (espLimpias.length) infoUserCreated.especialidades = espLimpias;
+
+    // Categorías elegidas en el registro (paso "Servicios"). Con la app nueva
+    // salen de las especialidades, para que los conductores lo encuentren.
+    const categoriasEntrada =
+      Array.isArray(categorias) && categorias.length
+        ? categorias
+        : espLimpias.length
+          ? await catalogo.categoriasDeEspecialidades(espLimpias)
+          : [];
+    if (categoriasEntrada.length) {
+      const limpias = categoriasEntrada
         .map((c) => ({ uid: String(c?.uid || '').trim(), nombre: String(c?.nombre || '').trim() }))
         .filter((c) => c.uid && c.nombre);
       if (limpias.length) {
@@ -3648,7 +3662,7 @@ const filterTalleresCercanos = (talleres, userLat, userLng, radiusKm = 10, limit
 
 const saveSolicitud = async (req, res) => {
   try {
-    const {
+    let {
       nombreSolicitud,
       vehiculo,
       categoriaId,
@@ -3663,6 +3677,14 @@ const saveSolicitud = async (req, res) => {
       uid_taller,
 
     } = req.body || {};
+
+    // Req. 006: la app pide un solo campo (la descripción). Si no llega un
+    // título, se arma con el comienzo de la descripción.
+    if (!String(nombreSolicitud || "").trim()) {
+      const d = String(descripcion || "").trim().replace(/\s+/g, " ");
+      const primera = (d.split(/[.!?]\s/)[0] || d).trim();
+      nombreSolicitud = primera.length <= 50 ? primera.replace(/[.\s]+$/, "") : `${primera.slice(0, 50).replace(/\s+\S*$/, "")}…`;
+    }
 
     if (!nombreSolicitud || !vehiculo || !vehiculo.id || !categoriaId) {
       return res.status(400).json({
@@ -3687,6 +3709,8 @@ const saveSolicitud = async (req, res) => {
       solicitud_images: [],
       fecha_solicitud: admin.firestore.Timestamp.now(),
       uid_taller: uid_taller || "",
+      // Número de referencia para el negocio y el conductor (S-000123).
+      ...(await require("./numeroSolicitud").numeroParaSolicitudNueva()),
     };
 
     const solicitudRef = await db.collection("Solicitudes").add(solicitudData);
@@ -3795,6 +3819,7 @@ const saveSolicitud = async (req, res) => {
     return res.status(201).json({
       message: "Solicitud creada correctamente.",
       id: solicitudId,
+      codigo_solicitud: solicitudData.codigo_solicitud || "",
       solicitud_images: imageUrls,
       talleres: talleresCercanos,
     });
