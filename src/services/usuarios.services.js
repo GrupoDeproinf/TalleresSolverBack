@@ -1,6 +1,14 @@
 const admin = require("firebase-admin");
 const { db, bucket } = require("../firebase");
-const { limpiarUsuarioPublico } = require("../middlewares/auth");
+const { limpiarUsuarioPublico, esStaff } = require("../middlewares/auth");
+const {
+  CAMPOS_PERFIL_TALLER,
+  CAMPOS_DOCUMENTOS_TALLER,
+  CAMPOS_PREFERENCIAS,
+  soloPermitidos,
+  fotoPropiaParaBorrar,
+  esCuentaAjena,
+} = require("./camposUsuario");
 const { validarDocumentoRif } = require("./rifDocumento");
 const { estadoCupo, sincronizarCupo, totalDelPlan, mensajeSinCupo } = require("./cupoServicios");
 
@@ -1715,11 +1723,23 @@ const getUserByUid = async (req, res) => {
 
 const SaveTallerAll = (req, res) => {
   try {
-    const { uid, base64, imageTodelete } = req.body;
+    const { uid, base64 } = req.body || {};
 
     // Verificar que el UID no esté vacío
     if (!uid) {
       return res.status(400).send({ message: "El UID es obligatorio." });
+    }
+    if (esCuentaAjena(req.sesion, uid, esStaff)) {
+      return res.status(403).send({ message: "No tienes permiso para esta acción." });
+    }
+    const imageTodelete = fotoPropiaParaBorrar(uid, req.body.imageTodelete);
+
+    // Solo los campos del perfil (ver camposUsuario.js). Editar el perfil
+    // devuelve el taller a revisión, como hasta ahora; ningún otro estatus
+    // puede llegar desde la app.
+    const datos = soloPermitidos(req.body, CAMPOS_PERFIL_TALLER);
+    if (Object.prototype.hasOwnProperty.call(req.body, "status")) {
+      datos.status = "En espera por aprobación";
     }
 
     const getLastImageIndex = () => {
@@ -1760,7 +1780,7 @@ const SaveTallerAll = (req, res) => {
           })
             .then(() => {
               const imageUrl = `https://storage.googleapis.com/${bucket.name}/${newFileName}`;
-              req.body.image_perfil = imageUrl;
+              datos.image_perfil = imageUrl;
               resolve();
             })
             .catch(error => {
@@ -1816,11 +1836,7 @@ const SaveTallerAll = (req, res) => {
           return processImage(index);
         }
       })
-      .then(() => {
-        delete req.body.base64;
-        delete req.body.imageTodelete;
-        return db.collection("Usuarios").doc(uid).set(req.body, { merge: true });
-      })
+      .then(() => db.collection("Usuarios").doc(uid).set(datos, { merge: true }))
       .then(() => {
         // Responder con el ID del documento creado y un mensaje de éxito
         res.status(201).send({ message: "Usuario actualizado con éxito", uid: uid });
@@ -1977,12 +1993,24 @@ const resolveTallerDocumentacionField = async (uid, fieldName, value) => {
 
 const UpdateTallerUsuarioDocs = async (req, res) => {
   try {
-    const payload = { ...(req.body || {}) };
-    const { uid, base64, imageTodelete } = payload;
+    const cuerpo = req.body || {};
+    const { uid, base64 } = cuerpo;
 
     if (!uid) {
       return res.status(400).send({ message: "El UID es obligatorio." });
     }
+    if (esCuentaAjena(req.sesion, uid, esStaff)) {
+      return res.status(403).send({ message: "No tienes permiso para esta acción." });
+    }
+    const imageTodelete = fotoPropiaParaBorrar(uid, cuerpo.imageTodelete);
+
+    // Solo perfil y documentos (ver camposUsuario.js). El estatus lo decide
+    // el servidor más abajo.
+    const payload = soloPermitidos(
+      cuerpo,
+      [...CAMPOS_PERFIL_TALLER, ...CAMPOS_DOCUMENTOS_TALLER],
+      { documentos: CAMPOS_DOCUMENTOS_TALLER },
+    );
 
     // Misma lógica que SaveTallerAll para foto de perfil (base64 / imageTodelete), sobre `payload`.
     const getLastImageIndex = () =>
@@ -5076,9 +5104,17 @@ const updateUsuarioDocumentacionConductor = async (req, res) => {
 
 const UpdateUsuariosAll = async (req, res) => {
   try {
-    const { uid } = req.body;
+    const cuerpo = req.body || {};
+    const { uid } = cuerpo;
+    if (!uid) {
+      return res.status(400).send({ message: "El UID es obligatorio." });
+    }
+    if (esCuentaAjena(req.sesion, uid, esStaff)) {
+      return res.status(403).send({ message: "No tienes permiso para esta acción." });
+    }
 
-    const updateData = { ...req.body };
+    // Solo token de notificaciones y preferencias (ver camposUsuario.js).
+    const updateData = soloPermitidos(cuerpo, CAMPOS_PREFERENCIAS);
     if (Array.isArray(updateData.categorias)) {
       updateData.categoriasUids = updateData.categorias
         .map((c) => (c && typeof c.uid === "string" ? c.uid.trim() : null))
@@ -5086,10 +5122,8 @@ const UpdateUsuariosAll = async (req, res) => {
     }
 
     // Manejo de imagen de perfil: subir base64 a Storage y NO escribirlo en Firestore.
-    const base64 = updateData.base64;
-    const imageTodelete = updateData.imageTodelete;
-    delete updateData.base64;
-    delete updateData.imageTodelete;
+    const base64 = typeof cuerpo.base64 === "string" ? cuerpo.base64 : "";
+    const imageTodelete = fotoPropiaParaBorrar(uid, cuerpo.imageTodelete);
 
     if (base64 && String(base64).trim() !== "") {
       // Índice incremental (mismo patrón que UpdateClient)
@@ -5125,7 +5159,9 @@ const UpdateUsuariosAll = async (req, res) => {
       }
     }
 
-    await db.collection("Usuarios").doc(uid).update(updateData);
+    if (Object.keys(updateData).length) {
+      await db.collection("Usuarios").doc(uid).update(updateData);
+    }
 
     // Responder con un mensaje de éxito
     res

@@ -75,7 +75,7 @@ const POLITICA = {
   '/usuarios/resumenTaller': owner('uid'),
   '/usuarios/SaveTallerAll': owner('uid'),
   '/usuarios/UpdateUsuariosAll': owner('uid'),
-  '/usuarios/UpdateTallerUsuarioDocs': AUTH,
+  '/usuarios/UpdateTallerUsuarioDocs': owner('uid'),
   '/usuarios/updateUsuarioDocumentacionConductor': AUTH,
   '/usuarios/ReportarPagoData': owner('uid'),
   '/usuarios/saveSolicitud': owner('uid_usuario'),
@@ -246,4 +246,4 @@ const limpiarUsuarioPublico = (usuario, sesion, uidDueno) => {
   return copia;
 };
 
-module.exports = { autenticacion, limpiarUsuarioPublico, POLITICA, MODO, CAMPOS_PRIVADOS };
+module.exports = { autenticacion, limpiarUsuarioPublico, esStaff, POLITICA, MODO, CAMPOS_PRIVADOS };
