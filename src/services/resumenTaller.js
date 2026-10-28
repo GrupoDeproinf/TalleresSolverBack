@@ -50,6 +50,23 @@ const seriePorDia = (fechas, ahora) => {
   return dias.map((d) => ({ dia: d, cantidad: conteo[d] }));
 };
 
+const normal = (v) =>
+  String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+
+/**
+ * Cuántos servicios elegidos en el registro (especialidades) aún no tienen un
+ * servicio creado con ese nombre. La app los muestra como "por completar".
+ */
+const contarPorCompletar = (especialidades, servicios) => {
+  const creados = new Set(servicios.map((s) => normal(s.nombre_servicio)));
+  const pendientes = new Set();
+  (Array.isArray(especialidades) ? especialidades : []).forEach((e) => {
+    const k = normal(e && e.servicio);
+    if (k && !creados.has(k)) pendientes.add(k);
+  });
+  return pendientes.size;
+};
+
 /** Arma el resumen a partir de los datos crudos. Función pura. */
 const armarResumen = ({ usuario, vistas, contactos, propuestas, servicios, ahora = new Date() }) => {
   const u = usuario || {};
@@ -88,6 +105,7 @@ const armarResumen = ({ usuario, vistas, contactos, propuestas, servicios, ahora
       total: servicios.length,
       publicados,
       sinPublicar: servicios.length - publicados,
+      porCompletar: contarPorCompletar(u.especialidades, servicios),
       cupoRestante: Number.isFinite(cupo) ? Math.max(0, cupo) : null,
     },
     plan: sub
