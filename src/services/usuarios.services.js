@@ -1,5 +1,6 @@
 const admin = require("firebase-admin");
 const { db, bucket } = require("../firebase");
+const { subirArchivoPrivado, esRutaSensible } = require("./archivosPrivados");
 const { limpiarUsuarioPublico, esStaff } = require("../middlewares/auth");
 const {
   CAMPOS_PERFIL_TALLER,
@@ -489,16 +490,8 @@ const vehiculoUploadDocumentFile = async (uidTrim, vehicleId, fileBaseName, base
   const parsed = vehiculoParseBase64File(base64Input);
   if (!parsed) return "";
   const storagePath = `vehicles/${uidTrim}/${vehicleId}/documents/${fileBaseName}.${parsed.ext}`;
-  const file = bucket.file(storagePath);
-  await new Promise((resolve, reject) => {
-    file.save(parsed.buffer, {
-      metadata: { contentType: parsed.contentType },
-      public: true,
-      validation: "md5",
-    }, (err) => (err ? reject(err) : resolve()));
-  });
-  const baseUrl = `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
-  return `${baseUrl}?t=${Date.now()}`;
+  // Documento sensible: privado, con enlace de descarga con clave.
+  return subirArchivoPrivado(storagePath, parsed.buffer, parsed.contentType);
 };
 
 const vehiculoUploadMainImage = async (uidTrim, vehicleId, imagenBase64) => {
@@ -541,16 +534,8 @@ const usuarioConductorUploadDoc = async (uidTrim, fileBaseName, base64Input) => 
   const parsed = vehiculoParseBase64File(base64Input);
   if (!parsed) return "";
   const storagePath = `usuarios/${uidTrim}/documentos_conductor/${fileBaseName}.${parsed.ext}`;
-  const file = bucket.file(storagePath);
-  await new Promise((resolve, reject) => {
-    file.save(parsed.buffer, {
-      metadata: { contentType: parsed.contentType },
-      public: true,
-      validation: "md5",
-    }, (err) => (err ? reject(err) : resolve()));
-  });
-  const baseUrl = `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
-  return `${baseUrl}?t=${Date.now()}`;
+  // Licencia y certificado médico: privados, con enlace de descarga con clave.
+  return subirArchivoPrivado(storagePath, parsed.buffer, parsed.contentType);
 };
 
 /** Misma regla que vehículos: vacío → limpiar; URL http(s) → mantener; base64 → subir. El nombre en Firestore = bodyKey (ej. licencia_frente_base64 guarda la URL). */
@@ -1948,6 +1933,8 @@ const uploadTallerDoc = async (uid, fieldName, base64Raw) => {
   // Magic bytes = fuente de verdad; si no se reconoce, usa el mime del data URL; si no, jpg.
   const { ext, contentType } = sniffBufferType(buffer) || extAndContentType(mimeHint);
   const storagePath = pathFn(uid, ext);
+  // RIF y permiso de operación: privados. Logo y fotos del taller: públicos.
+  if (esRutaSensible(storagePath)) return subirArchivoPrivado(storagePath, buffer, contentType);
   await uploadBufferToPath(storagePath, buffer, contentType);
   return `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
 };
@@ -1991,6 +1978,8 @@ const resolveTallerDocumentacionField = async (uid, fieldName, value) => {
   // Tipo real por magic bytes (PDF/PNG/JPEG/...); si no se reconoce, por el mime del data URL.
   const { ext, contentType } = sniffBufferType(buffer) || extAndContentType(mimeHint);
   const storagePath = pathFn(uid, ext);
+  // RIF y permiso de operación: privados. Logo y fotos del taller: públicos.
+  if (esRutaSensible(storagePath)) return subirArchivoPrivado(storagePath, buffer, contentType);
   await uploadBufferToPath(storagePath, buffer, contentType);
   return `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
 };
@@ -4558,12 +4547,8 @@ const ReportarPagoData = async (req, res) => {
     if (base64 && base64.trim() !== '') {
       const newFileName = `paymentcommitment/${paymentMethod}_${userId}_${timestamp}.jpg`;
       const buffer = Buffer.from(base64, 'base64');
-      const file = bucket.file(newFileName);
-
-      // Subir la nueva imagen usando la función `uploadImage`
-      await uploadImage(file, buffer);
-
-      imageUrl = `https://storage.googleapis.com/${bucket.name}/${newFileName}`;
+      // Comprobante: privado, con enlace de descarga con clave.
+      imageUrl = await subirArchivoPrivado(newFileName, buffer, 'image/jpeg');
     }
 
     const subscripcionData = {
