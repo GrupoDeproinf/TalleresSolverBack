@@ -1432,7 +1432,11 @@ const SaveTallerExtended = async (req, res) => {
     // Especialidades elegidas en el registro (catálogo del cliente, con los
     // servicios que el negocio agregó a mano).
     const catalogo = require('./catalogoServicios');
-    const espLimpias = catalogo.limpiarEspecialidades(especialidades);
+    // Un taller nuevo empieza con el plan gratuito: solo se guardan tantos
+    // servicios como incluye ese plan (los primeros; el primero es la
+    // especialidad destacada). Así también con versiones viejas de la app.
+    const topeGratis = (await totalDelPlan({ nombre: "GRATIS" }).catch(() => null)) || 5;
+    const espLimpias = catalogo.limpiarEspecialidades(especialidades).slice(0, topeGratis);
     if (espLimpias.length) infoUserCreated.especialidades = espLimpias;
 
     // Categorías elegidas en el registro (paso "Servicios"). Con la app nueva
