@@ -4,3 +4,4 @@ firebase.json
 .codegpt
 dist
 .gitignore
+.cache-ocr

@@ -19,6 +19,7 @@
 const pdfParse = require('pdf-parse/lib/pdf-parse.js');
 const Jimp = require('jimp');
 const jsQR = require('jsqr');
+const { domicilioDesdeTexto, domicilioDesdeImagen } = require('./rifDomicilio');
 
 const MAX_BYTES = 8 * 1024 * 1024;
 
@@ -121,6 +122,7 @@ const leerPdf = async (buffer) => {
     fechaVencimiento: venc ? parseFecha(venc[1]) : null,
     comprobante: comprobante ? comprobante[1] : null,
     esComprobanteSeniat: /REGISTRO\s+[ÚU]NICO\s+DE\s+INFORMACI[ÓO]N\s+FISCAL/i.test(plano),
+    domicilio: domicilioDesdeTexto(plano),
   };
 };
 
@@ -184,6 +186,7 @@ const resultadoBase = (extra) => ({
   fechaVencimiento: null,
   vencido: null,
   comprobante: null,
+  domicilio: null, // { direccion, estado } si se pidió y se pudo leer
   mensaje: '',
   ...extra,
 });
@@ -192,7 +195,7 @@ const resultadoBase = (extra) => ({
  * @param {{ base64: string, rif?: string, nombre?: string, hoy?: Date }} entrada
  * @returns {Promise<object>} estado: 'verificado' | 'no_coincide' | 'no_legible'
  */
-const validarDocumentoRif = async ({ base64, rif, nombre, hoy = new Date() }) => {
+const validarDocumentoRif = async ({ base64, rif, nombre, hoy = new Date(), conDomicilio = false }) => {
   const declarado = parseRif(rif);
   const base = { rifDeclarado: declarado ? declarado.texto : null };
 
@@ -205,11 +208,19 @@ const validarDocumentoRif = async ({ base64, rif, nombre, hoy = new Date() }) =>
   }
 
   let leido = null;
+  const pdf = esPdf(archivo.buffer);
   try {
-    leido = esPdf(archivo.buffer) ? await leerPdf(archivo.buffer) : await leerImagen(archivo.buffer);
+    leido = pdf ? await leerPdf(archivo.buffer) : await leerImagen(archivo.buffer);
   } catch (error) {
     leido = null; // archivo dañado o formato no soportado: revisión manual
   }
+
+  // Dirección y estado (solo si se pidió): del texto del PDF o por OCR de la foto.
+  let domicilio = null;
+  if (conDomicilio) {
+    domicilio = pdf ? (leido && leido.domicilio) || null : await domicilioDesdeImagen(archivo.buffer).catch(() => null);
+  }
+  base.domicilio = domicilio;
 
   if (!leido || !leido.rif) {
     return resultadoBase({

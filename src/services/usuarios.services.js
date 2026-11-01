@@ -15,9 +15,9 @@ const { estadoCupo, sincronizarCupo, totalDelPlan, mensajeSinCupo } = require(".
 
 // Req. 003: compara el documento RIF con el RIF declarado. Nunca lanza ni
 // bloquea: si algo falla queda "no_legible" y lo revisa el certificador.
-const verificarRifSeguro = async ({ base64, rif, nombre }) => {
+const verificarRifSeguro = async ({ base64, rif, nombre, conDomicilio = false }) => {
   try {
-    const r = await validarDocumentoRif({ base64, rif, nombre });
+    const r = await validarDocumentoRif({ base64, rif, nombre, conDomicilio });
     return { ...r, revisadoEn: new Date() };
   } catch (error) {
     console.error("verificarRifSeguro:", error && error.message);
@@ -31,13 +31,20 @@ const verificarRifSeguro = async ({ base64, rif, nombre }) => {
 };
 
 // Consulta previa desde la app o el panel, antes de enviar el registro.
-// Body: { rif, nombre, documento (base64, con o sin prefijo data:) }
+// Body: { rif, nombre, documento (base64, con o sin prefijo data:), domicilio? }
+// Con `domicilio: true` (app 1.4.8+) también devuelve la dirección y el estado
+// del comprobante, para llenarlos en el registro.
 const validarRifDocumento = async (req, res) => {
-  const { rif, nombre, documento } = req.body || {};
+  const { rif, nombre, documento, domicilio } = req.body || {};
   if (!documento || !String(documento).trim()) {
     return res.status(400).send({ message: "Falta el documento a revisar." });
   }
-  const { revisadoEn, ...resultado } = await verificarRifSeguro({ base64: documento, rif, nombre });
+  const { revisadoEn, ...resultado } = await verificarRifSeguro({
+    base64: documento,
+    rif,
+    nombre,
+    conDomicilio: domicilio === true,
+  });
   return res.status(200).send(resultado);
 };
 const { Buffer } = require('buffer');
