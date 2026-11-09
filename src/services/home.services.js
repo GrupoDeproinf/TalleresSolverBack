@@ -77,8 +77,6 @@ const getServicios = async (req, res) => {
         );
       }
     }
-
-    console.log("Servicios con Talleres:", serviciosConTalleres);
     res.send(serviciosConTalleres);
   } catch (error) {
     console.error("Error obteniendo servicios y talleres:", error);
@@ -370,8 +368,6 @@ const getServicesContact = async (req, res) => {
       })
     );
 
-    console.log("Servicios con detalles:", serviciosContact);
-
     // Enviar los datos como respuesta
     res.status(200).json(serviciosContact);
   } catch (error) {
@@ -460,11 +456,6 @@ const getServicesCategories = async (req, res) => {
       .sort(() => Math.random() - 0.5) // Ordenar aleatoriamente
       .slice(0, 3); // Tomar los primeros 3 elementos
 
-    console.log(
-      `Servicios aleatorios con la categoría "${uid_categoria}":`,
-      serviciosAleatorios
-    );
-
     // Enviar los datos como respuesta
     res.status(200).json(serviciosAleatorios);
   } catch (error) {
@@ -500,11 +491,6 @@ const getSubscriptionsById = async (req, res) => {
       .sort(() => Math.random() - 0.5) // Ordenar aleatoriamente
       .slice(0, 3); // Tomar los primeros 3 elementos
 
-    console.log(
-      `subscripciones aleatorios con el uid "${uid}":`,
-      subscripcionesAleatorios
-    );
-
     // Enviar los datos como respuesta
     res.status(200).json(subscripcionesAleatorios);
   } catch (error) {
@@ -515,7 +501,6 @@ const getSubscriptionsById = async (req, res) => {
 
 const getProductsByCategory = async (req, res) => {
   try {
-    console.log("Cuerpo recibido:", req.body);
     const { uid_categoria } = req.body;
 
     if (!uid_categoria || typeof uid_categoria !== "string" || uid_categoria.trim() === "") {

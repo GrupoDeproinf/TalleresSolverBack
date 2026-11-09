@@ -49,7 +49,6 @@ const getNearby = async (req, res) => {
     console.log(`Buscando talleres en un radio de ${radio} km desde (${lat}, ${lng})`);
     
     console.log(`Distancias calculadas: ${talleres.map(t => t.distancia).join(', ')}`);
-    console.log(`Talleres antes de filtrar por radio:`, talleres);
     const cercanos = talleres
       .filter((t) => t.distancia <= radio)
       .sort((a, b) => a.distancia - b.distancia);
@@ -125,11 +124,6 @@ const getNearbyWithCategories = async (req, res) => {
           const uid_categoria = servData?.uid_categoria ?? 'sin_id';
           const nombre_categoria = servData?.nombre_categoria ?? servData.categoria;
 
-          console.log(`  └─ Servicio ${index + 1}:`, {
-            uid_categoria,
-            nombre_categoria,
-          });
-
           // Solo guardar si no existe o si el nombre previo era "Sin nombre"
           if (!categoriasMap.has(uid_categoria) || categoriasMap.get(uid_categoria) === 'Sin nombre') {
             categoriasMap.set(uid_categoria, nombre_categoria ?? 'Sin nombre');
@@ -140,8 +134,6 @@ const getNearbyWithCategories = async (req, res) => {
           uid_categoria: id,
           nombre_categoria: nombre,
         }));
-
-        console.log(`✅ Categorías únicas para ${tallerId}:`, categoriasUnicas);
 
         return {
           id: tallerId,

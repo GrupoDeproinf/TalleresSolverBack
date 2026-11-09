@@ -1693,9 +1693,6 @@ const getUserByUid = async (req, res) => {
     // Verificar si el documento existe
     if (userDoc.exists) {
       console.log("Existe");
-      console.log(userDoc);
-      console.log("***********************************************");
-      console.log(userDoc.data());
       // Si el documento existe, devolver los datos del usuario
       return res.status(200).send({
         message: "Usuario encontrado",
@@ -3158,7 +3155,6 @@ const saveOrUpdateService = async (req, res) => {
       images,
       edit
     } = req.body;
-    console.log("Datos del servicio:", req.body);
 
 
     const serviceData = {
@@ -3176,8 +3172,6 @@ const saveOrUpdateService = async (req, res) => {
       uid_taller,
       puntuacion
     };
-
-    console.log(serviceData)
 
     // Req. 006: el cupo del plan se valida con datos reales. Si no queda
     // cupo, el servicio se guarda igual pero oculto, y se avisa.
@@ -4692,7 +4686,6 @@ const AsociarPlan = async (req, res) => {
       };
 
       // Guardar en la colección Subscripciones
-      console.log(subscripcionData);
 
 
       const subscripcionRef = await db.collection('Subscripciones').add(subscripcionData);
@@ -4715,7 +4708,6 @@ const AsociarPlan = async (req, res) => {
     } else {
       const planRef = await db.collection("Planes").doc(plan_uid).get();
       const planData = planRef.data();
-      console.log(planData);
     }
   } catch (error) {
     console.error("Error al asociar el plan:", error);
