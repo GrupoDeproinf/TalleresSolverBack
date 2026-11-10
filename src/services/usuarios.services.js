@@ -4760,10 +4760,11 @@ const getPlanesActivos3Days = async () => {
       return console.log("No se encontraron usuarios con subscripción que expire en 3 días");
     }
 
-    // Mostrar los tokens de los usuarios que expiran en 3 días
-    console.log("Usuarios con subscripción que expira en 3 días:");
-    usuariosEn3Dias.forEach(async usuario => {
-      console.log(`Token: ${usuario.token}`);
+    // Sin imprimir tokens (son datos del dispositivo). Se omiten los talleres
+    // sin token: Firebase rechazaba esos mensajes con messaging/invalid-payload.
+    const conToken = usuariosEn3Dias.filter(u => typeof u.token === "string" && u.token.trim() !== "");
+    const resumen = { enviados: 0, sinToken: usuariosEn3Dias.length - conToken.length, tokenVencido: 0, otrosErrores: 0 };
+    await Promise.all(conToken.map(async usuario => {
 
       const fechaFin = usuario.subscripcion_actual.fecha_fin.toDate();
       const hoy = new Date();
@@ -4800,13 +4801,18 @@ const getPlanesActivos3Days = async () => {
       };
 
       try {
-        const response = await admin.messaging().send(message);
-        console.log("Successfully sent message:", response);
+        await admin.messaging().send(message);
+        resumen.enviados += 1;
       } catch (error) {
-        console.error("Error sending message:", error);
+        if (error?.code === "messaging/registration-token-not-registered") {
+          resumen.tokenVencido += 1;
+        } else {
+          resumen.otrosErrores += 1;
+          console.error("Aviso de plan por vencer no enviado:", error?.code || error?.message);
+        }
       }
-    });
-
+    }));
+    console.log("Avisos de plan por vencer:", JSON.stringify(resumen));
 
 
   } catch (error) {
