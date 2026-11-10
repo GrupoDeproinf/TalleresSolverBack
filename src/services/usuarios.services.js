@@ -2246,17 +2246,21 @@ const restorePass = async (req, res) => {
 const getTalleres = async (req, res) => {
   try {
 
-    const { estado } = req.body;
+    const { estado, todos } = req.body;
 
-    // Hacer la consulta base sin el filtro de estado
-    const query = await db
-      .collection("Usuarios")
-      // .where("status", "!=", "Aprobado")
-      .where("status", "in", ["En espera por aprobación", "En espera de documentos"])
-      .where("typeUser", "==", "Taller");
+    // Por defecto solo los negocios por atender (lo que esperan las versiones
+    // anteriores de la app). Con `todos: true` (certificador, 1.4.9+) llegan
+    // todos los estatus para poder filtrarlos: Aprobado, Rechazado, etc.
+    let query = db.collection("Usuarios").where("typeUser", "==", "Taller");
+    if (todos !== true) {
+      query = query.where("status", "in", ["En espera por aprobación", "En espera de documentos"]);
+    }
 
     const result = await query.get();
 
+    if (result.empty && todos === true) {
+      return res.send([]);
+    }
     if (result.empty) {
       return res
         .status(404)
