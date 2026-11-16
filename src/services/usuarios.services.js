@@ -1,4 +1,5 @@
 const admin = require("firebase-admin");
+const { decidirAvisoMantenimiento } = require("../utils/avisosMantenimiento");
 const { db, bucket } = require("../firebase");
 const { subirArchivoPrivado, esRutaSensible } = require("./archivosPrivados");
 const { limpiarUsuarioPublico, esStaff } = require("../middlewares/auth");
@@ -5891,6 +5892,160 @@ const jobNotificacionesVehiculosProximoKm = async () => {
   }
 };
 
+/**
+ * Recordatorios de mantenimiento (fecha y kilometraje) en un solo job diario.
+ * Reemplaza a getUsuariosConNotificacionesVehiculos (fecha) y a
+ * jobNotificacionesVehiculosProximoKm (km), que mandaban un aviso por cada
+ * mantenimiento todos los días, sin fin. Ahora: un aviso por persona al día
+ * con todo junto, y cada mantenimiento avisa según decidirAvisoMantenimiento
+ * (próximo una vez; vencido al detectarlo, a los 3 y 7 días y luego semanal).
+ */
+const jobRecordatoriosMantenimiento = async () => {
+  const resumen = { personas: 0, avisos: 0, mantenimientosIncluidos: 0, sinToken: 0, fallidos: 0 };
+  try {
+    const snapshot = await db
+      .collection("Usuarios")
+      .where("notificacionesVehiculos", "!=", null)
+      .get();
+    if (snapshot.empty) return resumen;
+
+    const hoy = startOfDayLocal(new Date());
+    const hoyMs = hoy.getTime();
+
+    for (const doc of snapshot.docs) {
+      const data = doc.data() || {};
+      const bloques = filterNotificacionesVehiculosSoloActivas(data.notificacionesVehiculos);
+      if (!bloques.length) continue;
+
+      const userRef = db.collection("Usuarios").doc(doc.id);
+      const token = vehiculoCoalesceEmpty(data.token);
+      const nombreUsuario = nombreUsuarioDesdeDocUsuario(data) || "";
+      const previos =
+        data.avisos_mantenimiento && typeof data.avisos_mantenimiento === "object"
+          ? data.avisos_mantenimiento
+          : {};
+      const nuevos = {};
+      const aEnviar = []; // { nombreTipo, estado, vehCorto, item, meta, porKm }
+
+      for (const veh of bloques) {
+        if (!veh || typeof veh !== "object") continue;
+        const uidvehicle = String(veh.uidvehicle ?? "").trim();
+        if (!uidvehicle) continue;
+        const vehSnap = await userRef.collection("Vehiculos").doc(uidvehicle).get();
+        if (!vehSnap.exists) continue;
+        const vehData = vehSnap.data() || {};
+        const camposVeh = vehiculoCamposNotificacionDesdeDoc(vehData);
+        const vehCorto =
+          [camposVeh.vehiculo_marca, camposVeh.vehiculo_modelo].filter(Boolean).join(" ").trim() || "tu carro";
+        const kmVehiculo = cronKmParseEnteroNoNegativo(vehData.KM);
+
+        const notifs = Array.isArray(veh.notificaciones) ? veh.notificaciones : [];
+        for (const notif of notifs) {
+          if (!notif || typeof notif !== "object" || notif.active !== true) continue;
+          const item = { ...notif, ...camposVeh, nombre_usuario: nombreUsuario };
+
+          // Por fecha
+          let estadoFecha = null;
+          let diasRestantes = null;
+          const fechaProx = parseProximaRevisionDDMMYYYY(notif.proximaRevision);
+          if (fechaProx) {
+            diasRestantes = Math.round((fechaProx.getTime() - hoyMs) / 86400000);
+            if (fechaProx < hoy) estadoFecha = "vencido";
+            else if (diasRestantes >= 1 && diasRestantes <= cronGetWarningThresholdDias(item)) estadoFecha = "proximo";
+          }
+          // Por kilometraje
+          let estadoKm = null;
+          const ultimoKM = cronKmParseEnteroNoNegativo(notif.ultimoKM ?? notif.ultimokm ?? notif.ultimo_km);
+          const intervalokm = cronKmParseEnteroNoNegativo(notif.intervalokm ?? notif.intervaloKm ?? notif.intervaloKM);
+          if (kmVehiculo !== null && ultimoKM !== null && intervalokm !== null && intervalokm > 0) {
+            const kmDelta = intervalokm - (kmVehiculo - ultimoKM);
+            if (kmDelta < 0) estadoKm = "vencido";
+            else if (kmDelta >= 1 && kmDelta <= cronGetWarningThresholdKm(notif)) estadoKm = "proximo";
+          }
+
+          const estado = estadoFecha === "vencido" || estadoKm === "vencido"
+            ? "vencido"
+            : estadoFecha === "proximo" || estadoKm === "proximo"
+              ? "proximo"
+              : null;
+          const clave = `${uidvehicle}|${String(notif.secretCode || notif.nombre || notif.id || "")}`.replace(/[.~*/[\]]/g, "_");
+          const ref = `${notif.proximaRevision ?? ""}|${ultimoKM ?? ""}|${intervalokm ?? ""}`;
+          const decision = decidirAvisoMantenimiento(previos[clave], estado, ref, hoyMs);
+          if (decision.estado) nuevos[clave] = decision.estado;
+          if (!decision.enviar) continue;
+
+          aEnviar.push({
+            clave,
+            nombreTipo: vehiculoCoalesceEmpty(notif.nombre) || "mantenimiento",
+            estado,
+            vehCorto,
+            item,
+            meta: estado === "vencido" ? { kind: "vencida" } : { kind: "proxima", diasRestantes },
+            porFecha: estadoFecha === estado,
+          });
+        }
+      }
+
+      let enviado = false;
+      if (aEnviar.length) {
+        resumen.personas += 1;
+        resumen.mantenimientosIncluidos += aEnviar.length;
+        let title;
+        let body;
+        if (aEnviar.length === 1 && aEnviar[0].porFecha) {
+          ({ title, body } = mensajeMantenimientoPushPorSecretCode(aEnviar[0].item, aEnviar[0].meta));
+        } else if (aEnviar.length === 1) {
+          const a = aEnviar[0];
+          title = a.estado === "vencido" ? "Mantenimiento por kilometraje" : "Se acerca un mantenimiento";
+          body = a.estado === "vencido"
+            ? `Tu ${a.vehCorto} ya llegó al kilometraje de «${a.nombreTipo}». Agéndalo, o actualiza el kilometraje si ya lo hiciste.`
+            : `Tu ${a.vehCorto} está cerca del kilometraje de «${a.nombreTipo}». Te avisamos para que lo organices con tiempo.`;
+        } else {
+          const vehs = [...new Set(aEnviar.map((a) => a.vehCorto))];
+          const lista = (est) => aEnviar.filter((a) => a.estado === est).map((a) => a.nombreTipo);
+          const vencidos = lista("vencido");
+          const proximos = lista("proximo");
+          title = vehs.length === 1
+            ? `Tu ${vehs[0]} tiene ${aEnviar.length} mantenimientos pendientes`
+            : `Tienes ${aEnviar.length} mantenimientos pendientes`;
+          body = [
+            vencidos.length ? `Vencidos: ${vencidos.join(", ")}.` : "",
+            proximos.length ? `Próximos: ${proximos.join(", ")}.` : "",
+            "Toca para verlos y agendarlos.",
+          ].filter(Boolean).join(" ");
+        }
+        // Códigos que la app ya lleva a la pantalla de mantenimiento.
+        const codigo = aEnviar.some((a) => a.estado === "vencido")
+          ? SECRET_CODE_PROXIMO_KM_SUPERADO
+          : SECRET_CODE_PROXIMO_KM_ADVERTENCIA;
+        if (!token) {
+          resumen.sinToken += 1;
+        } else {
+          enviado = await cronKmEnviarPushUsuario(token, title, body, codigo);
+          if (enviado) resumen.avisos += 1;
+          else resumen.fallidos += 1;
+        }
+      }
+
+      // Si el aviso no salió, no se marca como enviado: se intenta mañana.
+      const guardar = { ...nuevos };
+      if (aEnviar.length && !enviado) {
+        aEnviar.forEach((a) => {
+          if (previos[a.clave]) guardar[a.clave] = previos[a.clave];
+          else delete guardar[a.clave];
+        });
+      }
+      if (JSON.stringify(guardar) !== JSON.stringify(previos)) {
+        await userRef.update({ avisos_mantenimiento: guardar });
+      }
+    }
+    console.log("Recordatorios de mantenimiento:", JSON.stringify(resumen));
+  } catch (error) {
+    console.error("Error en recordatorios de mantenimiento:", error?.message || error);
+  }
+  return resumen;
+};
+
 const SECRET_CODE_LICENCIA_VENC = "licencia_fecha_vencimiento";
 const SECRET_CODE_CERT_MEDICO_VENC = "certificado_medico_fecha_vencimiento";
 
@@ -6498,6 +6653,7 @@ module.exports = {
   jobNotificacionesLicenciaYCertificadoMedico,
   jobNotificacionesRcvYTrimestresVehiculos,
   jobNotificacionesVehiculosProximoKm,
+  jobRecordatoriosMantenimiento,
   AsociarPlan,
   updateScheduleDate,
   getPlanesVencidos,

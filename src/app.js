@@ -131,15 +131,11 @@ setTimeout(() => {
 }, 20000);
 setTimeout(actualizarTasaBcv, 15000);
 
-// Diario a las 8:00 (Caracas): pushes de mantenimiento según notificacionesVehiculos activas.
+// Diario a las 8:00 (Caracas): recordatorios de mantenimiento por fecha y por
+// kilometraje, un solo aviso por persona con todo junto. Reemplaza a los dos
+// jobs anteriores, que avisaban por cada mantenimiento todos los días.
 cronSchedule('0 8 * * *', () => {
-  Usuarios.getUsuariosConNotificacionesVehiculos();
-});
-
-// Diario a las 8:00 (Caracas): odómetro vs próximo KM (superado o aviso si faltan 1–3000 km).
-cronSchedule('0 8 * * *', () => {
-  console.log('Ejecutando job diario (proximoKM / odómetro)');
-  Usuarios.jobNotificacionesVehiculosProximoKm();
+  Usuarios.jobRecordatoriosMantenimiento();
 });
 
 
