@@ -4731,7 +4731,7 @@ const getPlanesActivos3Days = async () => {
       return console.log("No se encontraron usuarios");
     }
 
-    const usuarios = result.docs.map((doc) => doc.data());
+    const usuarios = result.docs.map((doc) => ({ ...doc.data(), _id: doc.id }));
 
     const fechaActual = new Date();
     const fechaEn3Dias = new Date();
@@ -4763,7 +4763,7 @@ const getPlanesActivos3Days = async () => {
     // Sin imprimir tokens (son datos del dispositivo). Se omiten los talleres
     // sin token: Firebase rechazaba esos mensajes con messaging/invalid-payload.
     const conToken = usuariosEn3Dias.filter(u => typeof u.token === "string" && u.token.trim() !== "");
-    const resumen = { enviados: 0, sinToken: usuariosEn3Dias.length - conToken.length, tokenVencido: 0, otrosErrores: 0 };
+    const resumen = { enviados: 0, sinToken: usuariosEn3Dias.length - conToken.length, yaAvisados: 0, tokenVencido: 0, otrosErrores: 0 };
     await Promise.all(conToken.map(async usuario => {
 
       const fechaFin = usuario.subscripcion_actual.fecha_fin.toDate();
@@ -4774,12 +4774,25 @@ const getPlanesActivos3Days = async () => {
       const msPorDia = 24 * 60 * 60 * 1000;
       const diasRestantes = Math.round((finDia.getTime() - hoy.getTime()) / msPorDia);
 
+      // Un solo aviso por hito (3 días, 1 día y el día que vence) para cada
+      // plan. Antes corría cada 5 horas sin recordar a quién avisó y un
+      // taller recibía hasta cinco avisos al día durante tres días.
+      const hito = diasRestantes <= 0 ? 0 : diasRestantes === 1 ? 1 : diasRestantes === 3 ? 3 : null;
+      if (hito === null) return;
+      const finMs = fechaFin.getTime();
+      const previo = usuario.aviso_plan_por_vencer || {};
+      const yaEnviados = previo.fecha_fin_ms === finMs && Array.isArray(previo.hitos) ? previo.hitos : [];
+      if (yaEnviados.includes(hito)) {
+        resumen.yaAvisados += 1;
+        return;
+      }
+
       let titlePlazo;
       let bodyPlazo;
       if (diasRestantes <= 0) {
-        titlePlazo = "Suscripción Expirada";
+        titlePlazo = "Tu plan vence hoy";
         bodyPlazo =
-          "Tu plan ha vencido. Tus servicios ya no son visibles en el mapa. Activa un plan hoy mismo.";
+          "Renueva hoy para que tus servicios sigan visibles para los conductores.";
       } else {
         titlePlazo = "¡Mantén tu visibilidad!";
         bodyPlazo =
@@ -4803,6 +4816,10 @@ const getPlanesActivos3Days = async () => {
       try {
         await admin.messaging().send(message);
         resumen.enviados += 1;
+        await db.collection("Usuarios").doc(usuario._id).set(
+          { aviso_plan_por_vencer: { fecha_fin_ms: finMs, hitos: [...yaEnviados, hito] } },
+          { merge: true }
+        );
       } catch (error) {
         if (error?.code === "messaging/registration-token-not-registered") {
           resumen.tokenVencido += 1;

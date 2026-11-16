@@ -88,9 +88,11 @@ cronSchedule('0 */10 * * *', () => {
 
 
 
-// Cada 5 horas (minuto 0): avisos FCM a talleres con plan por vencer en ventana ~3 días (getPlanesActivos3Days).
-cronSchedule('0 */5 * * *', () => {
-  console.log('Ejecutando job cada 5 horas (getPlanesActivos3Days)');
+// Una vez al día, 9:00 a. m.: aviso a talleres con plan por vencer (a 3 días,
+// a 1 día y el día que vence; cada aviso se envía una sola vez por plan).
+// Antes corría cada 5 horas y repetía el aviso hasta cinco veces al día.
+cronSchedule('0 9 * * *', () => {
+  console.log('Ejecutando job diario 9:00 (getPlanesActivos3Days)');
   Usuarios.getPlanesActivos3Days();
 });
 
