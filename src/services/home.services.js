@@ -13,6 +13,7 @@ const { db } = require("../firebase");
 const { getAuth, signInWithEmailAndPassword } = require("firebase/auth");
 const { getFirestore } = require("firebase-admin/firestore");
 const { app } = require("../../firebaseConfig"); // Asegúrate de la ruta correcta
+const { limpiarUsuarioPublico } = require('../middlewares/auth');
 
 const getServicios = async (req, res) => {
   // Cambia el orden de req y res
@@ -542,7 +543,8 @@ const getProductsByCategory = async (req, res) => {
 
     const talleresMap = {};
     talleresSnapshot.forEach(doc => {
-      talleresMap[doc.data().uid] = { id: doc.id, ...doc.data() };
+      // Ruta pública: sin token de notificaciones ni otros campos privados.
+      talleresMap[doc.data().uid] = { id: doc.id, ...limpiarUsuarioPublico(doc.data(), req.sesion, doc.id) };
     });
 
     // 4️⃣ Combinar producto con taller y filtrar solo productos con talleres aprobados
