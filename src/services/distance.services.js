@@ -1,5 +1,6 @@
 // controllers/locationController.js
 const admin = require('firebase-admin');
+const { limpiarUsuarioPublico } = require('../middlewares/auth');
 const db = admin.firestore();
 
 function calcularDistancia(lat1, lon1, lat2, lon2) {
@@ -41,7 +42,8 @@ const getNearby = async (req, res) => {
       const distancia = calcularDistancia(lat, lng, data?.ubicacion?.lat, data?.ubicacion?.lng);
       return {
         id: doc.id,
-        ...data,
+        // Ruta pública: sin token de notificaciones ni otros campos privados.
+        ...limpiarUsuarioPublico(data, req.sesion, doc.id),
         distancia,
       };
     });
@@ -137,7 +139,8 @@ const getNearbyWithCategories = async (req, res) => {
 
         return {
           id: tallerId,
-          ...data,
+          // Ruta pública: sin token de notificaciones ni otros campos privados.
+        ...limpiarUsuarioPublico(data, req.sesion, tallerId),
           distancia,
           categorias: categoriasUnicas,
         };
