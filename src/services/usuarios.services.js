@@ -2521,6 +2521,18 @@ const UpdateClient = async (req, res) => {
     // Recibir los datos del cliente desde el cuerpo de la solicitud
     const { uid, Nombre, cedula, phone, email, base64, imageTodelete, estado } = req.body;
 
+    // Modo conductor (COT-0111): un taller usa la app como conductor con su
+    // misma cuenta. Este guardado es solo para conductores: si llegara de un
+    // taller le cambiaría el tipo de cuenta y el nombre del negocio.
+    if (uid) {
+      const actual = await db.collection("Usuarios").doc(String(uid)).get();
+      if (actual.exists && (actual.data() || {}).typeUser === "Taller") {
+        return res.status(409).json({
+          error: "Esta cuenta es de un taller. Edita tus datos desde el modo taller.",
+        });
+      }
+    }
+
     // Crear el objeto que se actualizará en la colección "Usuarios"
     const updatedUserInfo = {
       nombre: Nombre,
@@ -3721,6 +3733,15 @@ const saveSolicitud = async (req, res) => {
     }
 
 
+    // Modo conductor (COT-0111): un taller puede pedir servicios como
+    // conductor, pero nunca a su propio taller.
+    const uidSolicitante = String(uid_usuario || "").trim();
+    if (uidSolicitante && uid_taller && String(uid_taller).trim() === uidSolicitante) {
+      return res.status(400).json({
+        error: "No puedes pedirle un servicio a tu propio taller.",
+      });
+    }
+
     const solicitudData = {
       nombre_solicitud: nombreSolicitud,
       status: "En espera por aprobación",
@@ -3798,6 +3819,12 @@ const saveSolicitud = async (req, res) => {
           Number.isFinite(t.kmDistance) && t.kmDistance <= RADIO_KM_NOTIFICACION
       );
     }
+    if (uidSolicitante) {
+      talleresCercanos = talleresCercanos.filter((t) => String(t.uid_taller) !== uidSolicitante);
+      talleresParaNotificar = talleresParaNotificar.filter(
+        (t) => String(t.uid_taller) !== uidSolicitante
+      );
+    }
 
     const talleresConToken = talleresParaNotificar.filter(
       (t) => t.token && typeof t.token === "string" && t.token.trim() !== ""
@@ -3848,7 +3875,12 @@ const saveSolicitud = async (req, res) => {
       id: solicitudId,
       codigo_solicitud: solicitudData.codigo_solicitud || "",
       solicitud_images: imageUrls,
-      talleres: talleresCercanos,
+      // Sin token de notificaciones ni campos privados de los talleres.
+      talleres: talleresCercanos.map((t) => ({
+        ...limpiarUsuarioPublico(t, req.sesion, t.uid_taller),
+        uid_taller: t.uid_taller,
+        kmDistance: t.kmDistance,
+      })),
     });
   } catch (error) {
     console.error("Error al guardar solicitud:", error);
@@ -3961,6 +3993,8 @@ const getSolicitudesByUsuarioAndStatus = async (req, res) => {
 
     if (uid_taller !== undefined && uid_taller !== null && uid_taller !== "") {
       const uidTallerTrim = String(uid_taller).trim();
+      // Un taller nunca ve (ni cotiza) lo que pidió como conductor.
+      solicitudes = solicitudes.filter((s) => String(s.uid_usuario || "").trim() !== uidTallerTrim);
       solicitudes = solicitudes.filter((s) => {
         const st = s.uid_taller;
         const vacio = st == null || String(st).trim() === "";
@@ -4187,19 +4221,25 @@ const savePropuesta = async (req, res) => {
 
      body.fecha_propuesta = admin.firestore.Timestamp.now();
 
-    // El presupuesto lleva el número de la solicitud (S-000123).
-    try {
-      const sid = String(body.uid_solicitud || "").trim();
-      if (sid && !body.codigo_solicitud) {
+    // Modo conductor (COT-0111): un taller no cotiza lo que pidió él mismo.
+    // El presupuesto además lleva el número de la solicitud (S-000123).
+    const sid = String(body.uid_solicitud || "").trim();
+    if (sid) {
+      let d = {};
+      try {
         const sol = await db.collection("Solicitudes").doc(sid).get();
-        const d = sol.exists ? sol.data() || {} : {};
-        if (d.codigo_solicitud) {
-          body.codigo_solicitud = d.codigo_solicitud;
-          body.numero_solicitud = d.numero_solicitud;
-        }
+        d = sol.exists ? sol.data() || {} : {};
+      } catch (e) {
+        console.error("savePropuesta solicitud:", e && e.message);
       }
-    } catch (e) {
-      console.error("savePropuesta codigo:", e && e.message);
+      const uidTaller = String((req.sesion && req.sesion.uid) || body.uid_taller || "").trim();
+      if (uidTaller && String(d.uid_usuario || "").trim() === uidTaller) {
+        return res.status(400).json({ error: "No puedes cotizar tu propia solicitud." });
+      }
+      if (!body.codigo_solicitud && d.codigo_solicitud) {
+        body.codigo_solicitud = d.codigo_solicitud;
+        body.numero_solicitud = d.numero_solicitud;
+      }
     }
 
     const docRef = await db.collection("Propuestas").add(body);

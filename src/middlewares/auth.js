@@ -63,6 +63,7 @@ const POLITICA = {
   '/usuarios/AsociarPlan': { custom: 'asociarPlan' },
 
   '/usuarios/getVehiculosByUsuarioUid': owner('uid'),
+  '/usuarios/leerDocumentoVehiculo': AUTH,
   '/usuarios/saveUpdateNotificationUser': owner('uiduser'),
   '/usuarios/updateNotificationUser': owner('uiduser'),
   '/usuarios/deleteVehiculo': owner('uiduser'),

@@ -21,6 +21,8 @@ router.post('/validarRifDocumento', Usuarios.validarRifDocumento);
 router.post('/registroProgreso', require('../services/registroIncompleto').guardarProgreso);
 
 router.post('/actualizarPerfilTaller', require('../services/perfilTaller').actualizarPerfilTaller);
+// Lee la foto del certificado de circulación y devuelve los datos del vehículo.
+router.post('/leerDocumentoVehiculo', require('../services/documentoVehiculo').leerDocumentoVehiculo);
 
 router.post('/resumenTaller', require('../services/resumenTaller').resumenTaller);
 
