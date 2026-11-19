@@ -14,10 +14,14 @@
 // del orden de un centavo de dólar; por eso hay un tope diario por usuario.
 
 const Anthropic = require('@anthropic-ai/sdk');
+const { db } = require('../firebase');
 
 const MODELO = 'claude-opus-5-5';
 const MAX_BYTES = 6 * 1024 * 1024; // imagen ya decodificada
-const TOPE_DIARIO_POR_USUARIO = Number(process.env.LECTURA_VEHICULO_TOPE_DIARIO || 15);
+const TOPE_DIARIO_POR_USUARIO = Number(process.env.LECTURA_VEHICULO_TOPE_DIARIO || 8);
+// Tope global por día (todas las cuentas juntas): freno de gasto.
+const TOPE_DIARIO_TOTAL = Number(process.env.LECTURA_VEHICULO_TOPE_TOTAL || 500);
+const ESPERA_ENTRE_LECTURAS_MS = 20 * 1000;
 const TIPOS = ['Automóvil', 'Camión', 'Moto'];
 
 let cliente = null;
@@ -27,17 +31,25 @@ const obtenerCliente = () => {
   return cliente;
 };
 
-// uid → { dia, usos }
-const usosPorUsuario = new Map();
 const hoy = () => new Date().toISOString().slice(0, 10);
-const consumirCupo = (uid) => {
-  const clave = String(uid || 'anonimo');
-  const actual = usosPorUsuario.get(clave);
-  const registro = actual && actual.dia === hoy() ? actual : { dia: hoy(), usos: 0 };
-  if (registro.usos >= TOPE_DIARIO_POR_USUARIO) return false;
-  registro.usos += 1;
-  usosPorUsuario.set(clave, registro);
-  return true;
+
+// Cupo diario guardado en Firestore (sobrevive a reinicios y sirve con varias
+// instancias): uno por cuenta y otro total.
+const consumirCupo = async (uid) => {
+  const dia = hoy();
+  const refUsuario = db.collection('LecturasDocumentoVehiculo').doc(`${uid}_${dia}`);
+  const refTotal = db.collection('LecturasDocumentoVehiculo').doc(`total_${dia}`);
+  return db.runTransaction(async (tx) => {
+    const [u, t] = await Promise.all([tx.get(refUsuario), tx.get(refTotal)]);
+    const usos = u.exists ? Number(u.data().usos || 0) : 0;
+    const total = t.exists ? Number(t.data().usos || 0) : 0;
+    const ultima = u.exists ? Number(u.data().ultima || 0) : 0;
+    if (usos >= TOPE_DIARIO_POR_USUARIO || total >= TOPE_DIARIO_TOTAL) return 'tope';
+    if (Date.now() - ultima < ESPERA_ENTRE_LECTURAS_MS) return 'espera';
+    tx.set(refUsuario, { uid, dia, usos: usos + 1, ultima: Date.now() }, { merge: true });
+    tx.set(refTotal, { dia, usos: total + 1 }, { merge: true });
+    return 'ok';
+  });
 };
 
 const TEXTO_O_NULO = { anyOf: [{ type: 'string' }, { type: 'null' }] };
@@ -105,15 +117,18 @@ const leerDocumentoVehiculo = async (req, res) => {
   try {
     const crudo = String((req.body && req.body.imagen_base64) || '')
       .replace(/^data:image\/[a-z]+;base64,/i, '')
-      .trim();
+      .replace(/\s+/g, '');
     if (!crudo) return res.status(400).json({ error: 'Falta la foto del documento.' });
+    if (!/^[A-Za-z0-9+/]+={0,2}$/.test(crudo)) {
+      return res.status(400).json({ error: 'No pudimos usar esa foto. Intenta con otra.' });
+    }
 
     const buffer = Buffer.from(crudo, 'base64');
     if (!buffer.length || buffer.length > MAX_BYTES) {
       return res.status(400).json({ error: 'La foto es muy pesada. Intenta con otra.' });
     }
     const mediaType = tipoDeImagen(buffer);
-    if (!mediaType) return res.status(400).json({ error: 'Envía la foto en JPG o PNG.' });
+    if (!mediaType) return res.status(400).json({ error: 'Envía la foto en JPG, PNG o WebP.' });
 
     const client = obtenerCliente();
     if (!client) {
@@ -121,13 +136,25 @@ const leerDocumentoVehiculo = async (req, res) => {
     }
 
     const uid = req.sesion && req.sesion.uid;
-    if (!consumirCupo(uid)) {
+    if (!uid) return res.status(401).json({ error: 'Inicia sesión de nuevo.' });
+    let cupo;
+    try {
+      cupo = await consumirCupo(uid);
+    } catch (e) {
+      console.error('leerDocumentoVehiculo cupo:', e && e.message);
+      return res.status(503).json({ error: 'No pudimos leer el documento ahora. Escribe los datos a mano.' });
+    }
+    if (cupo === 'espera') {
+      return res.status(429).json({ error: 'Espera unos segundos antes de enviar otra foto.' });
+    }
+    if (cupo !== 'ok') {
       return res.status(429).json({ error: 'Ya leímos muchas fotos hoy. Escribe los datos a mano.' });
     }
 
     const respuesta = await client.beta.messages.create({
       model: MODELO,
-      max_tokens: 16000,
+      // Respuesta corta (unos pocos campos); deja margen para el razonamiento.
+      max_tokens: 4000,
       output_config: {
         effort: 'low',
         format: { type: 'json_schema', schema: ESQUEMA },

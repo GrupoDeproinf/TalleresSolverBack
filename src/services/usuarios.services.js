@@ -4224,22 +4224,27 @@ const savePropuesta = async (req, res) => {
     // Modo conductor (COT-0111): un taller no cotiza lo que pidió él mismo.
     // El presupuesto además lleva el número de la solicitud (S-000123).
     const sid = String(body.uid_solicitud || "").trim();
-    if (sid) {
-      let d = {};
-      try {
-        const sol = await db.collection("Solicitudes").doc(sid).get();
-        d = sol.exists ? sol.data() || {} : {};
-      } catch (e) {
-        console.error("savePropuesta solicitud:", e && e.message);
-      }
-      const uidTaller = String((req.sesion && req.sesion.uid) || body.uid_taller || "").trim();
-      if (uidTaller && String(d.uid_usuario || "").trim() === uidTaller) {
-        return res.status(400).json({ error: "No puedes cotizar tu propia solicitud." });
-      }
-      if (!body.codigo_solicitud && d.codigo_solicitud) {
-        body.codigo_solicitud = d.codigo_solicitud;
-        body.numero_solicitud = d.numero_solicitud;
-      }
+    if (!sid) {
+      return res.status(400).json({ error: "uid_solicitud es requerido." });
+    }
+    let sol;
+    try {
+      sol = await db.collection("Solicitudes").doc(sid).get();
+    } catch (e) {
+      console.error("savePropuesta solicitud:", e && e.message);
+      return res.status(503).json({ error: "No pudimos verificar la solicitud. Intenta de nuevo." });
+    }
+    if (!sol.exists) {
+      return res.status(404).json({ error: "La solicitud no existe." });
+    }
+    const d = sol.data() || {};
+    const uidTaller = String((req.sesion && req.sesion.uid) || "").trim();
+    if (uidTaller && String(d.uid_usuario || "").trim() === uidTaller) {
+      return res.status(400).json({ error: "No puedes cotizar tu propia solicitud." });
+    }
+    if (!body.codigo_solicitud && d.codigo_solicitud) {
+      body.codigo_solicitud = d.codigo_solicitud;
+      body.numero_solicitud = d.numero_solicitud;
     }
 
     const docRef = await db.collection("Propuestas").add(body);
