@@ -13,7 +13,7 @@ const { db } = require("../firebase");
 const { getAuth, signInWithEmailAndPassword } = require("firebase/auth");
 const { getFirestore } = require("firebase-admin/firestore");
 const { app } = require("../../firebaseConfig"); // Asegúrate de la ruta correcta
-const { limpiarUsuarioPublico } = require('../middlewares/auth');
+const { limpiarUsuarioPublico, esStaff } = require('../middlewares/auth');
 
 const getServicios = async (req, res) => {
   // Cambia el orden de req y res
@@ -334,10 +334,20 @@ const saveContactService = async (req, res) => {
 
 const getServicesContact = async (req, res) => {
   try {
-    // Obtener todos los documentos de la colección "servicesContact"
-    const serviciosContactSnapshot = await db
-      .collection("servicesContact")
-      .get();
+    // El personal ve todos los contactos. Cualquier otra persona, solo los
+    // suyos (antes la app descargaba los de todos y filtraba en el teléfono).
+    // Sin sesión no se devuelve nada: la app muestra el historial vacío hasta
+    // que la persona vuelva a iniciar sesión.
+    let consulta = db.collection("servicesContact");
+    if (!esStaff(req.sesion)) {
+      const uids = [req.sesion?.uid, req.sesion?.uidAuth]
+        .filter((v) => typeof v === "string" && v.trim() !== "");
+      if (uids.length === 0) {
+        return res.status(200).json([]);
+      }
+      consulta = consulta.where("usuario.id", "in", [...new Set(uids)]);
+    }
+    const serviciosContactSnapshot = await consulta.get();
 
     // Transformar el snapshot en un array de objetos con los datos de los documentos
     const serviciosContact = await Promise.all(

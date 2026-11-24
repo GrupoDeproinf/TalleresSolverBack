@@ -115,7 +115,9 @@ const POLITICA = {
   '/home/savePerfilView': P,
   '/home/saveServiceContactView': P,
   '/home/contactService': P,
-  '/home/getContactService': ADMIN,
+  // El personal ve todos; los demás, solo sus propios contactos (lo filtra
+  // getServicesContact con req.sesion). Antes la app descargaba todos.
+  '/home/getContactService': AUTH,
   '/home/addCommentToService': AUTH,
   '/home/addCommentToTaller': AUTH,
   '/home/notificarContactoTaller': AUTH,
@@ -139,25 +141,59 @@ const STAFF = ['Admin', 'Certificador'];
 const esStaff = sesion => !!sesion && STAFF.includes(sesion.rol);
 
 // ── Identidad y rol ─────────────────────────────────────────────────────────
-const cacheRol = new Map(); // uid → { rol, hasta }
+// La app identifica a cada persona por el id de su ficha en Usuarios (es el
+// `uid` que devuelve /usuarios/authenticateUser, buscado por correo). En casi
+// todas las cuentas ese id es el mismo de Firebase Auth, pero en las cuentas
+// antiguas no. Por eso la sesión lleva los dos:
+//   sesion.uid     → id de la ficha (el que manda la app en el body)
+//   sesion.uidAuth → uid de Firebase Auth (el del token)
+// La ficha se busca primero por el uid de Auth y, si no existe, por el correo
+// de la cuenta de Auth (verificado por Firebase, no el que manda la app). Si
+// hay más de una ficha activa con ese correo no se elige ninguna.
+const cacheIdentidad = new Map(); // uidAuth → { uid, rol, hasta }
 const CACHE_MS = 5 * 60 * 1000;
 
-const rolDe = async (uid, email) => {
-  const c = cacheRol.get(uid);
-  if (c && c.hasta > Date.now()) return c.rol;
+const correoDeAuth = async (uidAuth, emailToken) => {
+  if (emailToken) return String(emailToken).trim().toLowerCase();
+  try {
+    const u = await admin.auth().getUser(uidAuth);
+    return u.email ? String(u.email).trim().toLowerCase() : null;
+  } catch (e) {
+    return null;
+  }
+};
+
+const identidadDe = async (uidAuth, emailToken) => {
+  const c = cacheIdentidad.get(uidAuth);
+  if (c && c.hasta > Date.now()) return { uid: c.uid, rol: c.rol };
+  let uid = uidAuth;
   let rol = null;
   try {
-    const u = await db.collection('Usuarios').doc(uid).get();
-    if (u.exists) rol = u.data()?.typeUser || 'Cliente';
-    if (!rol && email) {
-      const a = await db.collection('Admins').where('email', '==', email).limit(1).get();
-      if (!a.empty) rol = 'Admin';
+    const u = await db.collection('Usuarios').doc(uidAuth).get();
+    if (u.exists) {
+      rol = u.data()?.typeUser || 'Cliente';
+    } else {
+      const email = await correoDeAuth(uidAuth, emailToken);
+      if (email) {
+        const q = await db.collection('Usuarios').where('email', '==', email).limit(5).get();
+        const activas = q.docs.filter(d => d.data()?.status !== 'Eliminado');
+        if (activas.length === 1) {
+          uid = activas[0].id;
+          rol = activas[0].data()?.typeUser || 'Cliente';
+        } else if (activas.length > 1) {
+          console.warn(`[auth] ${activas.length} fichas activas con el mismo correo (uid ${uidAuth}); no se elige ninguna`);
+        }
+        if (!rol) {
+          const a = await db.collection('Admins').where('email', '==', email).limit(1).get();
+          if (!a.empty) rol = 'Admin';
+        }
+      }
     }
   } catch (e) {
-    console.warn('[auth] no se pudo leer el rol', uid, e.message);
+    console.warn('[auth] no se pudo leer la identidad', uidAuth, e.message);
   }
-  cacheRol.set(uid, { rol, hasta: Date.now() + CACHE_MS });
-  return rol;
+  cacheIdentidad.set(uidAuth, { uid, rol, hasta: Date.now() + CACHE_MS });
+  return { uid, rol };
 };
 
 const leerSesion = async req => {
@@ -169,7 +205,8 @@ const leerSesion = async req => {
   if (token.split('.').length !== 3) return null;
   try {
     const d = await admin.auth().verifyIdToken(token);
-    return { uid: d.uid, email: d.email || null, rol: await rolDe(d.uid, d.email) };
+    const { uid, rol } = await identidadDe(d.uid, d.email);
+    return { uid, uidAuth: d.uid, email: d.email || null, rol };
   } catch (e) {
     return null;
   }
@@ -179,7 +216,7 @@ const leerSesion = async req => {
 const reglaAsociarPlan = async (req, sesion) => {
   if (esStaff(sesion)) return null;
   const { uid, plan_uid } = req.body || {};
-  if (sesion && sesion.uid === uid) return null;
+  if (sesion && (sesion.uid === uid || sesion.uidAuth === uid)) return null;
   // Sin sesión solo se permite el plan gratis a un taller recién creado que
   // todavía no tiene suscripción (es el último paso del registro).
   if (String(plan_uid).toLowerCase() !== 'gratis' || !uid) return 'Solo el plan gratis al registrarse';
@@ -212,7 +249,7 @@ const motivoBloqueo = async (regla, req, sesion) => {
   if (regla && regla.owner) {
     const b = req.body || {};
     const valores = regla.owner.map(c => b[c]).filter(v => v != null && v !== '');
-    if (valores.length && !valores.every(v => String(v) === sesion.uid)) {
+    if (valores.length && !valores.every(v => String(v) === sesion.uid || String(v) === sesion.uidAuth)) {
       return `No es su cuenta (${regla.owner.join('/')})`;
     }
   }
