@@ -9,14 +9,21 @@ const datos = {
     // Cuenta normal: el id de la ficha es el uid de Auth.
     'auth-ana': { email: 'ana@prueba.test', typeUser: 'Cliente' },
     // Cuenta antigua: la ficha tiene otro id.
-    'ficha-beto': { email: 'beto@prueba.test', typeUser: 'Cliente' },
-    'ficha-cert': { email: 'cert@prueba.test', typeUser: 'Certificador' },
+    'ficha-beto': { email: 'beto@prueba.test', typeUser: 'Cliente', uid_auth: 'auth-beto' },
+    'ficha-cert': { email: 'cert@prueba.test', typeUser: 'Certificador', uid_auth: 'auth-cert' },
+    // Cuenta antigua todavía sin vincular: se queda sin ficha.
+    'ficha-sinvinculo': { email: 'sinv@prueba.test', typeUser: 'Certificador' },
+    // Ficha eliminada cuyo id es el uid de Auth: no da rol.
+    'auth-borrado': { email: 'borrado@prueba.test', typeUser: 'Certificador', status: 'Eliminado' },
     // Dos fichas activas con el mismo correo: no se elige ninguna.
-    'ficha-dup1': { email: 'dup@prueba.test', typeUser: 'Cliente' },
-    'ficha-dup2': { email: 'dup@prueba.test', typeUser: 'Certificador' },
+    // Dos fichas activas vinculadas a la misma cuenta: no se elige ninguna.
+    'ficha-dup1': { email: 'dup@prueba.test', typeUser: 'Cliente', uid_auth: 'auth-dup' },
+    'ficha-dup2': { email: 'dup@prueba.test', typeUser: 'Certificador', uid_auth: 'auth-dup' },
     // Ficha eliminada con el mismo correo que una activa.
-    'ficha-eva-vieja': { email: 'eva@prueba.test', typeUser: 'Certificador', status: 'Eliminado' },
-    'ficha-eva': { email: 'eva@prueba.test', typeUser: 'Cliente' },
+    'ficha-eva-vieja': { email: 'eva@prueba.test', typeUser: 'Certificador', status: 'Eliminado', uid_auth: 'auth-eva' },
+    'ficha-eva': { email: 'eva@prueba.test', typeUser: 'Cliente', uid_auth: 'auth-eva' },
+    // Un taller se pone el correo de la cuenta sin vincular: no gana nada.
+    'ficha-copion': { email: 'sinv@prueba.test', typeUser: 'Taller' },
     // Certificador antiguo ya vinculado con uid_auth, y un taller que se puso
     // su mismo correo para intentar dejarlo sin identidad.
     'ficha-cert2': { email: 'cert2@prueba.test', typeUser: 'Certificador', uid_auth: 'auth-cert2' },
@@ -66,6 +73,8 @@ const cuentasAuth = {
   'auth-eva': 'eva@prueba.test',
   'auth-jefe': 'jefe@prueba.test',
   'auth-cert2': 'cert2@prueba.test',
+  'auth-sinv': 'sinv@prueba.test',
+  'auth-borrado': 'borrado@prueba.test',
   'auth-sin-correo-en-token': 'beto@prueba.test',
 };
 const admin = {
@@ -141,8 +150,14 @@ const ids = (r) => (Array.isArray(r.data) ? r.data.map((x) => x.id).sort().join(
   r = await llamar('/usuarios/getVehiculosByUsuarioUid', { uidAuth: 'auth-ana', body: { uid: 'ficha-beto' } });
   ok(r.status === 403, 'cuenta normal: no entra a lo de otra persona', r.status);
 
-  r = await llamar('/usuarios/getVehiculosByUsuarioUid', { uidAuth: 'auth-sin-correo-en-token', body: { uid: 'ficha-beto' } });
-  ok(r.status === 'pasa' && r.req.sesion.uid === 'ficha-beto', 'si el token no trae correo, se lee de la cuenta de Auth');
+  r = await llamar('/usuarios/getTalleres', { uidAuth: 'auth-sinv', body: {} });
+  ok(r.status === 403 && r.req.sesion.uid === 'auth-sinv' && !r.req.sesion.rol, 'cuenta antigua sin vincular: sin ficha ni rol (el correo no cuenta)', r.req && r.req.sesion);
+
+  r = await llamar('/usuarios/getVehiculosByUsuarioUid', { uidAuth: 'auth-sinv', body: { uid: 'ficha-copion' } });
+  ok(r.status === 403, 'nadie se cuela por tener el mismo correo en su ficha', r.status);
+
+  r = await llamar('/usuarios/getTalleres', { uidAuth: 'auth-borrado', body: {} });
+  ok(r.status === 403 && !r.req.sesion.rol, 'ficha eliminada: no conserva el rol de personal', r.req && r.req.sesion);
 
   r = await llamar('/usuarios/getTalleres', { uidAuth: 'auth-cert', body: {} });
   ok(r.status === 'pasa' && r.req.sesion.rol === 'Certificador', 'certificador con ficha antigua conserva su rol (rutas de personal)', r.req && r.req.sesion);

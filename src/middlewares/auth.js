@@ -152,10 +152,12 @@ const esStaff = sesion => !!sesion && STAFF.includes(sesion.rol);
 //   2. La ficha con `uid_auth` igual al uid de Auth. Lo graba una sola vez
 //      scripts/vincular-fichas-antiguas.js y ningún punto de la API deja que
 //      el usuario lo cambie, así que no se puede suplantar.
-//   3. Último recurso: el correo de la cuenta de Auth (verificado por
-//      Firebase, no el que manda la app). Como el correo de la ficha sí es
-//      editable, si hay más de una ficha activa con ese correo no se elige
-//      ninguna.
+//   Por correo NO se busca: el correo de la ficha es editable y alguien
+//   podría ponerse el de otra persona. Una cuenta antigua sin uid_auth se
+//   queda sin ficha (sus llamadas propias se rechazan en enforce) hasta que se
+//   vincule. Una ficha Eliminado no da ningún rol.
+//   Admins se sigue buscando por correo: esa colección solo la escribe el
+//   personal.
 const cacheIdentidad = new Map(); // uidAuth → { uid, rol, hasta }
 const CACHE_MS = 5 * 60 * 1000;
 
@@ -177,26 +179,21 @@ const identidadDe = async (uidAuth, emailToken) => {
   try {
     const u = await db.collection('Usuarios').doc(uidAuth).get();
     if (u.exists) {
-      rol = u.data()?.typeUser || 'Cliente';
+      rol = u.data()?.status === 'Eliminado' ? null : u.data()?.typeUser || 'Cliente';
     } else {
-      const v = await db.collection('Usuarios').where('uid_auth', '==', uidAuth).limit(2).get();
+      const v = await db.collection('Usuarios').where('uid_auth', '==', uidAuth).limit(10).get();
       const vinculadas = v.docs.filter(d => d.data()?.status !== 'Eliminado');
-      const email = vinculadas.length === 1 ? null : await correoDeAuth(uidAuth, emailToken);
       if (vinculadas.length === 1) {
         uid = vinculadas[0].id;
         rol = vinculadas[0].data()?.typeUser || 'Cliente';
-      } else if (email) {
-        const q = await db.collection('Usuarios').where('email', '==', email).limit(5).get();
-        const activas = q.docs.filter(d => d.data()?.status !== 'Eliminado');
-        if (activas.length === 1) {
-          uid = activas[0].id;
-          rol = activas[0].data()?.typeUser || 'Cliente';
-        } else if (activas.length > 1) {
-          console.warn(`[auth] ${activas.length} fichas activas con el mismo correo (uid ${uidAuth}); no se elige ninguna`);
+      } else {
+        if (vinculadas.length > 1) {
+          console.warn(`[auth] ${vinculadas.length} fichas activas vinculadas a la misma cuenta (uid ${uidAuth}); no se elige ninguna`);
         }
-        if (!rol) {
+        const email = await correoDeAuth(uidAuth, emailToken);
+        if (email) {
           const a = await db.collection('Admins').where('email', '==', email).limit(1).get();
-          if (!a.empty) rol = 'Admin';
+          if (!a.empty && a.docs[0].data()?.status !== 'Eliminado') rol = 'Admin';
         }
       }
     }
