@@ -147,9 +147,15 @@ const esStaff = sesion => !!sesion && STAFF.includes(sesion.rol);
 // antiguas no. Por eso la sesión lleva los dos:
 //   sesion.uid     → id de la ficha (el que manda la app en el body)
 //   sesion.uidAuth → uid de Firebase Auth (el del token)
-// La ficha se busca primero por el uid de Auth y, si no existe, por el correo
-// de la cuenta de Auth (verificado por Firebase, no el que manda la app). Si
-// hay más de una ficha activa con ese correo no se elige ninguna.
+// La ficha se busca, en este orden:
+//   1. Usuarios/{uid de Auth} (casi todas las cuentas).
+//   2. La ficha con `uid_auth` igual al uid de Auth. Lo graba una sola vez
+//      scripts/vincular-fichas-antiguas.js y ningún punto de la API deja que
+//      el usuario lo cambie, así que no se puede suplantar.
+//   3. Último recurso: el correo de la cuenta de Auth (verificado por
+//      Firebase, no el que manda la app). Como el correo de la ficha sí es
+//      editable, si hay más de una ficha activa con ese correo no se elige
+//      ninguna.
 const cacheIdentidad = new Map(); // uidAuth → { uid, rol, hasta }
 const CACHE_MS = 5 * 60 * 1000;
 
@@ -173,8 +179,13 @@ const identidadDe = async (uidAuth, emailToken) => {
     if (u.exists) {
       rol = u.data()?.typeUser || 'Cliente';
     } else {
-      const email = await correoDeAuth(uidAuth, emailToken);
-      if (email) {
+      const v = await db.collection('Usuarios').where('uid_auth', '==', uidAuth).limit(2).get();
+      const vinculadas = v.docs.filter(d => d.data()?.status !== 'Eliminado');
+      const email = vinculadas.length === 1 ? null : await correoDeAuth(uidAuth, emailToken);
+      if (vinculadas.length === 1) {
+        uid = vinculadas[0].id;
+        rol = vinculadas[0].data()?.typeUser || 'Cliente';
+      } else if (email) {
         const q = await db.collection('Usuarios').where('email', '==', email).limit(5).get();
         const activas = q.docs.filter(d => d.data()?.status !== 'Eliminado');
         if (activas.length === 1) {

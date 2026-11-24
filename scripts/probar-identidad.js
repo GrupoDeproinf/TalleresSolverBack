@@ -17,6 +17,10 @@ const datos = {
     // Ficha eliminada con el mismo correo que una activa.
     'ficha-eva-vieja': { email: 'eva@prueba.test', typeUser: 'Certificador', status: 'Eliminado' },
     'ficha-eva': { email: 'eva@prueba.test', typeUser: 'Cliente' },
+    // Certificador antiguo ya vinculado con uid_auth, y un taller que se puso
+    // su mismo correo para intentar dejarlo sin identidad.
+    'ficha-cert2': { email: 'cert2@prueba.test', typeUser: 'Certificador', uid_auth: 'auth-cert2' },
+    'ficha-intruso': { email: 'cert2@prueba.test', typeUser: 'Taller' },
   },
   Admins: { 'admin-doc': { email: 'jefe@prueba.test' } },
   servicesContact: {
@@ -61,6 +65,7 @@ const cuentasAuth = {
   'auth-dup': 'dup@prueba.test',
   'auth-eva': 'eva@prueba.test',
   'auth-jefe': 'jefe@prueba.test',
+  'auth-cert2': 'cert2@prueba.test',
   'auth-sin-correo-en-token': 'beto@prueba.test',
 };
 const admin = {
@@ -150,6 +155,9 @@ const ids = (r) => (Array.isArray(r.data) ? r.data.map((x) => x.id).sort().join(
 
   r = await llamar('/usuarios/getTalleres', { uidAuth: 'auth-eva', body: {} });
   ok(r.status === 403 && r.req.sesion.uid === 'ficha-eva', 'la ficha eliminada no cuenta: se usa la activa', r.req && r.req.sesion);
+
+  r = await llamar('/usuarios/getTalleres', { uidAuth: 'auth-cert2', body: {} });
+  ok(r.status === 'pasa' && r.req.sesion.uid === 'ficha-cert2' && r.req.sesion.rol === 'Certificador', 'ficha vinculada con uid_auth: el correo repetido de otro no la afecta', r.req && r.req.sesion);
 
   r = await llamar('/usuarios/GetUsers', { uidAuth: 'auth-jefe', body: {} });
   ok(r.status === 'pasa' && r.req.sesion.rol === 'Admin', 'admin (en Admins por correo) sigue entrando');
