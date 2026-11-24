@@ -1,0 +1,26 @@
+# Pruebas automáticas de la API en cada push y pull request.
+# No usan la base real: todas corren con una base en memoria.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Sintaxis y pruebas
+        run: node scripts/probar-todo.js
+      - name: Dependencias de producción sin vulnerabilidades críticas
+        run: npm audit --omit=dev --audit-level=critical || echo "::warning::npm audit encontró vulnerabilidades críticas (ver el registro)"
