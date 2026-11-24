@@ -1586,6 +1586,7 @@ const SaveTallerExtended = async (req, res) => {
  * y mande un ID token verificable en cada llamada (middlewares/auth.js).
  * Si falla no se bloquea el inicio de sesión: la app sigue como antes.
  */
+const { elegirFicha } = require("./elegirFicha");
 const crearTokenSesion = async uid => {
   try {
     return await admin.auth().createCustomToken(uid);
@@ -1650,14 +1651,12 @@ const authenticateUser = async (req, res) => {
         });
       }
     } else {
-      // Si se encuentra en "Usuarios", devolver los datos del usuario y el UID del documento
-      const userData = result.docs.map((doc) => ({
-        uid: doc.id, // Incluir el UID del documento
-        ...doc.data(),
-      }));
+      // Si se encuentra en "Usuarios", devolver los datos de SU ficha (con
+      // varias fichas para el mismo correo, la de su cuenta: ver elegirFicha).
+      const ficha = elegirFicha(result.docs, user.uid);
       return res.status(200).send({
         message: "Usuario autenticado exitosamente",
-        userData: userData[0], // Enviar el primer documento encontrado con el UID
+        userData: { uid: ficha.id, ...ficha.data() }, // Ficha elegida con su UID
         customToken: await crearTokenSesion(user.uid),
       });
     }
