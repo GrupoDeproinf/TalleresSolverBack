@@ -112,7 +112,6 @@ const sendEmail = async (email, html, subject) => {
 const auth = getAuth(app); // Obtener la instancia de autenticación
 // const db = getFirestore(); // Inicializar Firestore
 
-const nodemailer = require("nodemailer");
 
 const getUsuarios = async (req, res) => {
   try {
