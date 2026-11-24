@@ -58,7 +58,7 @@ const db = {
     doc: (id) => ({
       get: async () => {
         lecturas += 1;
-        return { exists: !!(datos[n] || {})[id], data: () => (datos[n] || {})[id] };
+        return { id, exists: !!(datos[n] || {})[id], data: () => (datos[n] || {})[id] };
       },
     }),
   }),

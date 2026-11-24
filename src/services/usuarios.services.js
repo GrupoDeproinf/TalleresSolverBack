@@ -1586,7 +1586,7 @@ const SaveTallerExtended = async (req, res) => {
  * y mande un ID token verificable en cada llamada (middlewares/auth.js).
  * Si falla no se bloquea el inicio de sesión: la app sigue como antes.
  */
-const { elegirFicha } = require("./elegirFicha");
+const { fichaDeCuenta } = require("./fichaDeCuenta");
 const crearTokenSesion = async uid => {
   try {
     return await admin.auth().createCustomToken(uid);
@@ -1620,46 +1620,38 @@ const authenticateUser = async (req, res) => {
       return res.status(404).send({ message: "Usuario no encontrado" });
     }
 
-    // Buscar en la colección "Usuarios" por email
-    const result = await db
-      .collection("Usuarios")
-      .where("email", "==", email)
-      .get();
-
-    if (result.empty) {
-      // Si no se encuentra en "Usuarios", buscar en "Admins"
-      const resultAdmin = await db
-        .collection("Admins")
-        .where("email", "==", email)
-        .get();
-
-      if (resultAdmin.empty) {
-        // Si tampoco se encuentra en "Admins", devolver un error 404
-        return res.status(404).send({
-          message: "Usuario no encontrado ni en Usuarios ni en Admins",
-        });
-      } else {
-        // Si se encuentra en "Admins", devolver los datos del usuario y el UID del documento
-        const adminData = resultAdmin.docs.map((doc) => ({
-          uid: doc.id, // Incluir el UID del documento
-          ...doc.data(),
-        }));
-        return res.status(200).send({
-          message: "Usuario autenticado exitosamente como Admin",
-          userData: adminData[0], // Enviar el primer documento encontrado con el UID
-          customToken: await crearTokenSesion(user.uid),
-        });
-      }
-    } else {
-      // Si se encuentra en "Usuarios", devolver los datos de SU ficha (con
-      // varias fichas para el mismo correo, la de su cuenta: ver elegirFicha).
-      const ficha = elegirFicha(result.docs, user.uid);
+    // La ficha de Usuarios de ESTA cuenta (la misma que reconoce la
+    // seguridad de la API; nunca por correo: ver fichaDeCuenta).
+    const { ficha, varias } = await fichaDeCuenta(db, user.uid);
+    if (ficha) {
       return res.status(200).send({
         message: "Usuario autenticado exitosamente",
-        userData: { uid: ficha.id, ...ficha.data() }, // Ficha elegida con su UID
+        userData: { ...ficha.data(), uid: ficha.id },
         customToken: await crearTokenSesion(user.uid),
       });
     }
+    if (varias) {
+      console.warn(`[login] varias fichas activas vinculadas a la misma cuenta (uid ${user.uid})`);
+    }
+
+    // Sin ficha en Usuarios: personal registrado en "Admins" (por correo; esa
+    // colección solo la escribe el personal).
+    const resultAdmin = await db
+      .collection("Admins")
+      .where("email", "==", email)
+      .get();
+
+    if (resultAdmin.empty) {
+      return res.status(404).send({
+        message: "Usuario no encontrado ni en Usuarios ni en Admins",
+      });
+    }
+    const adminDoc = resultAdmin.docs[0];
+    return res.status(200).send({
+      message: "Usuario autenticado exitosamente como Admin",
+      userData: { uid: adminDoc.id, ...adminDoc.data() }, // como antes
+      customToken: await crearTokenSesion(user.uid),
+    });
   } catch (error) {
     // Manejo de errores
     console.error("Error al autenticar al usuario:", error);
