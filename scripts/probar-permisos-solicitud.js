@@ -124,6 +124,17 @@ const NEGADO = MODO === 'enforce' ? 403 : 200;
   ok(r.status === NEGADO, `propuestas de una solicitud ajena: ${NEGADO}`, r.status);
   r = await L('/usuarios/getPropuestasBySolicitud', U.getPropuestasBySolicitud, 'cert', { uid_solicitud: 'sol-ana' });
   ok(r.status === 200 && r.data.length === 2, 'el personal ve todas', r.data);
+  datos.Propuestas.huerfana = { uid_solicitud: 'no-existe', uid_taller: 'taller-1' };
+  r = await L('/usuarios/getPropuestasBySolicitud', U.getPropuestasBySolicitud, 'taller-1', { uid_solicitud: 'no-existe' });
+  ok(r.status === NEGADO, `propuestas de una solicitud que no existe: ${NEGADO}`, r.status);
+
+  console.log('Estados de propuesta');
+  datos = nuevaBase();
+  r = await L('/usuarios/updatePropuesta', U.updatePropuesta, 'ana', { uid_propuesta: 'p1', status: 'Completada' });
+  ok(r.status === 400, 'solo se acepta aceptada o rechazada', r);
+  datos.Solicitudes['sol-ana'].status = 'Cancelado';
+  r = await L('/usuarios/updatePropuesta', U.updatePropuesta, 'ana', { uid_propuesta: 'p1', status: 'aceptada' });
+  ok(r.status === 409 && datos.Propuestas.p1.status === 'Cotizado', 'no se acepta una propuesta de una solicitud cancelada', r);
 
   console.log('Fecha de visita');
   r = await L('/usuarios/updateScheduleDate', U.updateScheduleDate, 'beto', { uid: 'ana', scheduled_visit: '01-12-2026' });
@@ -135,7 +146,8 @@ const NEGADO = MODO === 'enforce' ? 403 : 200;
     console.log('Límite de peticiones');
     const pedir = (ip, ruta) => new Promise((resolve) => {
       const corte = ruta.lastIndexOf('/');
-      const req = { method: 'POST', baseUrl: '/api' + ruta.slice(0, corte), path: ruta.slice(corte), headers: ip ? { 'x-forwarded-for': `${ip}, 10.0.0.1` } : {}, ip: '127.0.0.1' };
+      const xff = ip && ip.includes(',') ? ip : ip ? `10.0.0.1, ${ip}` : '';
+      const req = { method: 'POST', baseUrl: '/api' + ruta.slice(0, corte), path: ruta.slice(corte), headers: xff ? { 'x-forwarded-for': xff } : {}, ip: '127.0.0.1' };
       limites(req, resFalsa(resolve), () => resolve({ status: 'pasa' }));
     });
     const P = silenciar(pedir);
@@ -148,8 +160,10 @@ const NEGADO = MODO === 'enforce' ? 403 : 200;
     ok(ultimo.status === 'pasa', 'otra IP no se ve afectada');
     ultimo = await P('200.1.1.1', '/usuarios/getPlanes');
     ok(ultimo.status === 'pasa', 'la misma IP sigue usando el resto de la API');
-    for (let i = 0; i < SENSIBLE + 5; i += 1) ultimo = await P('', '/usuarios/authenticateUser');
-    ok(ultimo.status === 'pasa', 'sin X-Forwarded-For (IP del propio servidor) no se limita');
+    // El cliente no puede inventarse otra IP poniendo valores delante.
+    for (let i = 0; i < SENSIBLE; i += 1) ultimo = await P(`1.2.3.${i}, 200.9.9.9`, '/usuarios/restorePass');
+    ultimo = await P('5.5.5.5, 200.9.9.9', '/usuarios/restorePass');
+    ok(ultimo.status === 429, 'cuenta la IP que añade nginx (la última), no la que inventa el cliente', ultimo);
   }
 
   console.log(fallos ? `\n${fallos} prueba(s) fallaron` : '\nTodas las pruebas pasaron');

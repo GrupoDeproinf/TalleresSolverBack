@@ -4094,7 +4094,9 @@ const getPropuestasBySolicitud = async (req, res) => {
     if (!esStaff(req.sesion)) {
       const solSnap = await db.collection("Solicitudes").doc(uid_solicitud.trim()).get();
       const sol = solSnap.exists ? solSnap.data() : null;
-      if (!esConductorDe(req.sesion, sol)) {
+      if (!sol) {
+        if (negar(req, res, "propuestas de una solicitud que no existe")) return;
+      } else if (!esConductorDe(req.sesion, sol)) {
         const propias = propuestas.filter((p) => esTallerDe(req.sesion, p));
         if (propias.length || esTallerDe(req.sesion, sol)) {
           propuestas = propias;
@@ -4356,6 +4358,9 @@ const updatePropuesta = async (req, res) => {
 
     const propuestaData = propuestaSnap.data();
     const statusLower = status.trim().toLowerCase();
+    if (statusLower !== "aceptada" && statusLower !== "rechazada") {
+      return res.status(400).json({ error: "status debe ser aceptada o rechazada." });
+    }
 
     // Aceptar o rechazar una propuesta es decisión del conductor dueño de la
     // solicitud (o del personal).
@@ -4364,6 +4369,9 @@ const updatePropuesta = async (req, res) => {
       const solSnap = uidSol ? await db.collection("Solicitudes").doc(uidSol).get() : null;
       const sol = solSnap && solSnap.exists ? solSnap.data() : null;
       if (!esConductorDe(req.sesion, sol) && negar(req, res, "no es el conductor de la solicitud")) return;
+      if (statusLower === "aceptada" && sol && sol.status === "Cancelado") {
+        return res.status(409).json({ error: "Esta solicitud está cancelada." });
+      }
     }
 
     const updatePropuestaData = {

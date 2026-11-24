@@ -5,9 +5,11 @@
 // - Sensibles (entrar, registrarse, recuperar contraseña, validar RIF):
 //   20 por minuto y por IP, para frenar pruebas de contraseñas y altas masivas.
 //
-// La IP sale de X-Forwarded-For (la pone nginx). Si no llega y la IP es la del
-// propio servidor (127.0.0.1), no se limita: si no, todos los usuarios
-// compartirían la misma cuenta y se bloquearían entre sí.
+// La IP es el ÚLTIMO valor de X-Forwarded-For: el que añade nginx con la IP
+// que realmente ve. Los valores anteriores los puede inventar el cliente.
+// Si la cabecera no llega, se usa la IP de la conexión (en el peor caso, la de
+// nginx para todos: con el tráfico actual, ~1.500 llamadas por semana, ni así
+// se alcanzan los límites).
 // La lectura con IA tiene además su propia cuota por usuario (documentoVehiculo).
 
 const VENTANA_MS = 60 * 1000;
@@ -26,10 +28,9 @@ const RUTAS_SENSIBLES = new Set([
 const contadores = new Map(); // clave → { n, desde }
 
 const ipDe = (req) => {
-  const xff = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
-  return xff || req.ip || (req.socket && req.socket.remoteAddress) || '';
+  const partes = String(req.headers['x-forwarded-for'] || '').split(',').map((x) => x.trim()).filter(Boolean);
+  return partes[partes.length - 1] || req.ip || (req.socket && req.socket.remoteAddress) || 'desconocida';
 };
-const esLocal = (ip) => ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1' || ip === '';
 
 const contar = (clave, ahora) => {
   const c = contadores.get(clave);
@@ -50,7 +51,6 @@ setInterval(() => {
 const limites = (req, res, next) => {
   if (req.method === 'OPTIONS') return next();
   const ip = ipDe(req);
-  if (esLocal(ip)) return next();
   const ruta = (req.baseUrl + req.path).replace(/^\/api/, '').replace(/\/$/, '');
   const ahora = Date.now();
   const sensible = RUTAS_SENSIBLES.has(ruta);
