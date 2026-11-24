@@ -89,7 +89,7 @@ const POLITICA = {
   '/usuarios/savePropuesta': AUTH,
   '/usuarios/updateSolicitudStatus': AUTH,
   '/usuarios/updatePropuesta': AUTH,
-  '/usuarios/updateScheduleDate': AUTH,
+  '/usuarios/updateScheduleDate': owner('uid'), // escribe en Usuarios/{uid}
   '/usuarios/saveOrUpdateService': AUTH,
   '/usuarios/deleteService': owner('uid_taller'),
   '/usuarios/getNotificaciones': AUTH,
@@ -252,6 +252,9 @@ const motivoBloqueo = async (regla, req, sesion) => {
   if (regla && regla.owner) {
     const b = req.body || {};
     const valores = regla.owner.map(c => b[c]).filter(v => v != null && v !== '');
+    // Sin el dato del dueño por ahora se deja pasar, pero se registra para
+    // saber qué llamadas de la app lo omiten antes de exigirlo.
+    if (!valores.length) console.warn(`[auth:falta-campo] ${req.method} ${req.baseUrl + req.path} sin ${regla.owner.join('/')} (uid ${sesion.uid})`);
     if (valores.length && !valores.every(v => String(v) === sesion.uid || String(v) === sesion.uidAuth)) {
       return `No es su cuenta (${regla.owner.join('/')})`;
     }

@@ -34,7 +34,9 @@ let ok=0,fail=0;const t=(n,c)=>{c?ok++:fail++;console.log((c?'✓':'✗')+' '+n)
  t('hora12', I.hora12('17:00')==='5:00 p. m.' && I.hora12('12:00')==='12:00 p. m.' && I.hora12('08:00')==='8:00 a. m.');
  const d=await call(C.disponibilidad,{uid_taller:'T1'}); t('Disponibilidad 14 días', d.st===200&&d.js.dias.length===14);
  t('Domingos sin horas', d.js.dias.filter(x=>I.diaSemana(x.fecha)==='domingo').every(x=>!x.abierto));
- const F='2026-10-06', H='10:00'; // martes futuro
+ // Fechas futuras calculadas (antes eran fijas de oct 2026 y la prueba caducó).
+ const prox=(dia)=>{const d=new Date(Date.now()-4*3600e3);d.setUTCDate(d.getUTCDate()+7+((dia-d.getUTCDay()+7)%7));return d.toISOString().slice(0,10)};
+ const F=prox(2), H='10:00'; // martes futuro
  const c1=await call(C.crear,{uid_usuario:'U1',uid_taller:'T1',nombre_servicio:'Cambio de aceite',fecha:F,hora:H,vehiculo:{vehiculo_marca:'Toyota',vehiculo_placa:'ab123cd'}});
  t('Crear cita → 201 pendiente', c1.st===201&&c1.js.estado==='pendiente');
  t('Push al taller "Nueva cita"', pushes.some(p=>p.token==='tokT'&&p.data.secretCode==='CitaNueva'));
@@ -43,7 +45,7 @@ let ok=0,fail=0;const t=(n,c)=>{c?ok++:fail++;console.log((c?'✓':'✗')+' '+n)
  const c3=await call(C.crear,{uid_usuario:'U3',uid_taller:'T1',fecha:F,hora:H}); t('3º auto misma hora → 409 OCUPADO', c3.st===409&&c3.js.codigo==='OCUPADO');
  const dup=await call(C.crear,{uid_usuario:'U1',uid_taller:'T1',fecha:F,hora:'11:00'}); t('Mismo conductor, mismo taller y día → 409 DUPLICADA', dup.st===409&&dup.js.codigo==='DUPLICADA');
  const fh=await call(C.crear,{uid_usuario:'U3',uid_taller:'T1',fecha:F,hora:'18:00'}); t('Fuera de horario → 409', fh.st===409&&fh.js.codigo==='FUERA_DE_HORARIO');
- const dom=await call(C.crear,{uid_usuario:'U3',uid_taller:'T1',fecha:'2026-10-04',hora:'10:00'}); t('Domingo → 409', dom.st===409);
+ const dom=await call(C.crear,{uid_usuario:'U3',uid_taller:'T1',fecha:prox(0),hora:'10:00'}); t('Domingo → 409', dom.st===409);
  const disp=await call(C.disponibilidad,{uid_taller:'T1',fecha:F}); t('10:00 ya no aparece libre', disp.js.dias[0].horas.find(h=>h.hora===H).libre===false);
  const id=c1.js.id;
  const x1=await call(C.actualizar,{id,accion:'confirmar',uid:'U1'}); t('Conductor no puede confirmar → 400', x1.st===400);

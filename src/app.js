@@ -14,33 +14,24 @@ const distance = require('./routes/distance.routes');
 const citas = require('./routes/citas.routes');
 const Citas = require('./services/citas.services');
 const { autenticacion, MODO: AUTH_MODE } = require('./middlewares/auth');
+const { limites } = require('./middlewares/limites');
 
 const app = express();
 
-// Cabeceras CORS permisivas (origen *; ajustar en producción si hace falta)
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Authorization, X-API-KEY, Origin, X-Requested-With, Content-Type, Accept, Access-Control-Allow-Request-Method"
-  );
-  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE");
-  res.header("Allow", "GET, POST, OPTIONS, PUT, DELETE");
-  next();
-});
-
-
-// Paquete cors: orígenes explícitos para el front (además del middleware anterior).
-// El navegador manda el Origin SIN "/" final: con "/" nunca coincidía y hoy
-// todo pasa solo gracias al "*" de arriba. Así queda listo para quitar el "*".
+// CORS: solo estos orígenes web pueden llamar a la API desde el navegador
+// (antes se respondía "*" a cualquiera). La app móvil no usa CORS, así que
+// no le afecta. El panel se sirve en app.solversapp.com y en Firebase Hosting.
 app.use(
   cors({
     origin: [
       "https://app.solversapp.com",
+      "https://talleres-solvers-app.web.app",
+      "https://talleres-solvers-app.firebaseapp.com",
       "https://solversapp.com",
       "https://www.solversapp.com",
       "http://localhost:5173",
     ],
+    allowedHeaders: ["Authorization", "Content-Type", "Accept", "X-Requested-With"],
     methods: ["GET", "POST", "OPTIONS", "PUT", "DELETE"],
   })
 );
@@ -62,6 +53,8 @@ app.get('/', async (req, res) => {
 
 // Seguridad: verifica la sesión y aplica la regla de cada ruta (ver middlewares/auth.js).
 console.log(`[auth] modo ${AUTH_MODE}`);
+// Límite de peticiones por IP antes de verificar la sesión (ver middlewares/limites.js).
+app.use('/api', limites);
 app.use('/api', autenticacion);
 
 app.use('/api/usuarios', usuarios);

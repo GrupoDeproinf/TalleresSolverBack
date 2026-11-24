@@ -1587,6 +1587,7 @@ const SaveTallerExtended = async (req, res) => {
  * Si falla no se bloquea el inicio de sesión: la app sigue como antes.
  */
 const { fichaDeCuenta } = require("./fichaDeCuenta");
+const { esConductorDe, esTallerDe, negar } = require("./permisosSolicitud");
 const crearTokenSesion = async uid => {
   try {
     return await admin.auth().createCustomToken(uid);
@@ -4048,11 +4049,14 @@ const getSolicitudByServicioUid = async (req, res) => {
       return res.status(200).json(null);
     }
 
+    const datos = docSnap.data();
+    if (!esStaff(req.sesion) && !esConductorDe(req.sesion, datos) && !esTallerDe(req.sesion, datos)) {
+      if (negar(req, res, "solicitud ajena")) return;
+    }
     const solicitud = {
       id: docSnap.id,
-      ...docSnap.data(),
+      ...datos,
     };
-
     return res.status(200).json(solicitud);
   } catch (error) {
     console.error("Error al obtener solicitud por uid_servicio:", error);
@@ -4081,11 +4085,25 @@ const getPropuestasBySolicitud = async (req, res) => {
       return res.status(200).json([]);
     }
 
-    const propuestas = propuestasSnapshot.docs.map((doc) => {
+    let propuestas = propuestasSnapshot.docs.map((doc) => {
       const data = doc.data();
       const { id: _idDoc, ...rest } = data;
       return { id: doc.id, ...rest };
     });
+
+    // El conductor dueño y el personal ven todas; un taller, solo las suyas.
+    if (!esStaff(req.sesion)) {
+      const solSnap = await db.collection("Solicitudes").doc(uid_solicitud.trim()).get();
+      const sol = solSnap.exists ? solSnap.data() : null;
+      if (!esConductorDe(req.sesion, sol)) {
+        const propias = propuestas.filter((p) => esTallerDe(req.sesion, p));
+        if (propias.length || esTallerDe(req.sesion, sol)) {
+          propuestas = propias;
+        } else if (negar(req, res, "propuestas de una solicitud ajena")) {
+          return;
+        }
+      }
+    }
 
     return res.status(200).json(propuestas);
   } catch (error) {
@@ -4275,6 +4293,16 @@ const updateSolicitudStatus = async (req, res) => {
       return res.status(404).json({ error: "Solicitud no encontrada." });
     }
 
+    // Solo el conductor dueño (o el personal) cambia su solicitud, y desde la
+    // app lo único que puede hacer es cancelarla (antes cualquier sesión
+    // cambiaba cualquier solicitud a cualquier estado).
+    if (!esStaff(req.sesion)) {
+      if (status.trim() !== "Cancelado") {
+        return res.status(400).json({ error: "Solo puedes cancelar tu solicitud." });
+      }
+      if (!esConductorDe(req.sesion, solicitudSnap.data()) && negar(req, res, "no es el conductor de la solicitud")) return;
+    }
+
     await solicitudRef.update({ status: status.trim() });
 
     // Luego de actualizar la solicitud, rechazar todas las propuestas asociadas
@@ -4330,6 +4358,15 @@ const updatePropuesta = async (req, res) => {
     const propuestaData = propuestaSnap.data();
     const statusLower = status.trim().toLowerCase();
 
+    // Aceptar o rechazar una propuesta es decisión del conductor dueño de la
+    // solicitud (o del personal).
+    if (!esStaff(req.sesion)) {
+      const uidSol = String(propuestaData.uid_solicitud || "").trim();
+      const solSnap = uidSol ? await db.collection("Solicitudes").doc(uidSol).get() : null;
+      const sol = solSnap && solSnap.exists ? solSnap.data() : null;
+      if (!esConductorDe(req.sesion, sol) && negar(req, res, "no es el conductor de la solicitud")) return;
+    }
+
     const updatePropuestaData = {
       status: statusLower === "aceptada" ? "Aceptada" : "Rechazada",
     };
@@ -4378,12 +4415,8 @@ const updatePropuesta = async (req, res) => {
 
       solicitudUpdate.status = esInspeccion ? "Inspección aceptada" : "Aceptada";
       solicitudUpdate.uid_taller = uid_taller != null ? uid_taller : "";
-
-      for (const key of Object.keys(body)) {
-        if (key !== "uid_propuesta" && key !== "status") {
-          solicitudUpdate[key] = body[key];
-        }
-      }
+      // Antes se copiaba a la solicitud cualquier otro campo del body (hasta
+      // su dueño o su estado). La app solo manda uid_propuesta y status.
       await solicitudRef.update(solicitudUpdate);
 
       await notifyTallerPropuestaAceptada(uid_taller, { esInspeccion });
@@ -5261,7 +5294,10 @@ const deleteUserFromAuth = async (req, res) => {
 };
 
 const updateScheduleDate = async (req, res) => {
-  const { uid, scheduled_visit } = req.body;
+  const { uid, scheduled_visit } = req.body || {};
+  if (!uid || typeof uid !== "string") {
+    return res.status(400).send({ message: "uid es requerido" });
+  }
 
   await db.collection("Usuarios").doc(uid).update({ scheduled_visit: scheduled_visit });
 
