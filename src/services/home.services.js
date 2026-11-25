@@ -382,6 +382,8 @@ const getServicesContact = async (req, res) => {
     // Fuera los contactos de negocios que ya no existen o están dados de
     // baja (depuración del 20 nov 2026): el conductor no debe verlos en su
     // historial. Solo se ocultan; los documentos siguen en servicesContact.
+    const normalizar = (v) =>
+      String(v ?? "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     const tallerDe = (c) =>
       String(c.uid_taller || c.taller_uid || c.servicio?.uid_taller || "").trim();
     const uidsTaller = [...new Set(serviciosContact.map(tallerDe).filter(Boolean))];
@@ -390,7 +392,8 @@ const getServicesContact = async (req, res) => {
       const refs = uidsTaller.slice(i, i + 300).map((u) => db.collection("Usuarios").doc(u));
       const docs = await db.getAll(...refs);
       docs.forEach((d) => {
-        if (d.exists && String(d.data()?.status || "").trim().toLowerCase() !== "eliminado") {
+        const x = d.exists ? d.data() || {} : null;
+        if (x && normalizar(x.typeUser) === "taller" && normalizar(x.status) !== "eliminado") {
           activos.add(d.id);
         }
       });

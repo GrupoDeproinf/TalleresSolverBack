@@ -10,6 +10,7 @@ const datos = {
     espera: { uid: 'espera', typeUser: 'Taller', status: 'En espera por aprobación' },
     baja: { uid: 'baja', typeUser: 'Taller', status: 'Eliminado' },
     baja2: { uid: 'baja2', typeUser: 'Taller', status: ' eliminado ' },
+    raro: { uid: 'raro', typeUser: ' taller ', status: 'Aprobado' },
     conductor: { uid: 'conductor', typeUser: 'Cliente' },
   },
   Servicios: {
@@ -22,6 +23,8 @@ const datos = {
     c4: { usuario: { id: 'conductor' }, uid_servicio: 's1' }, // sin campo de taller: lo toma del servicio
     c5: { usuario: { id: 'conductor' }, uid_servicio: 's2' },
     c6: { usuario: { id: 'otro' }, uid_servicio: 's1', uid_taller: 'activo' },
+    c7: { usuario: { id: 'conductor' }, uid_servicio: 's1', uid_taller: 'conductor' }, // apunta a alguien que no es taller
+    c8: { usuario: { id: 'conductor' }, uid_servicio: 's1', uid_taller: 'raro' }, // typeUser con espacios
   },
 };
 const campo = (o, r) => r.split('.').reduce((x, k) => (x == null ? x : x[k]), o);
@@ -63,10 +66,10 @@ const ok = (cond, msg) => { console.log(`${cond ? '✔' : '✘'} ${msg}`); if (!
 
   const conductor = await llamar(getServicesContact, { body: {}, sesion: { uid: 'conductor', rol: 'Cliente' } });
   const cs = conductor.d.map((c) => c.id).sort();
-  ok(JSON.stringify(cs) === '["c1","c4"]', `historial del conductor sin negocios borrados ni dados de baja (${cs})`);
+  ok(JSON.stringify(cs) === '["c1","c4","c8"]', `historial del conductor sin negocios borrados ni dados de baja (${cs})`);
 
   const personal = await llamar(getServicesContact, { body: {}, sesion: { uid: 'x', rol: 'Admin' } });
-  ok(JSON.stringify(personal.d.map((c) => c.id).sort()) === '["c1","c4","c6"]', 'el personal tampoco ve contactos de negocios dados de baja');
+  ok(JSON.stringify(personal.d.map((c) => c.id).sort()) === '["c1","c4","c6","c8"]', 'el personal tampoco ve contactos de negocios dados de baja');
 
   if (fallos) { console.log(`${fallos} fallo(s)`); process.exit(1); }
   console.log('Todo bien');
