@@ -379,8 +379,29 @@ const getServicesContact = async (req, res) => {
       })
     );
 
+    // Fuera los contactos de negocios que ya no existen o están dados de
+    // baja (depuración del 20 nov 2026): el conductor no debe verlos en su
+    // historial. Solo se ocultan; los documentos siguen en servicesContact.
+    const tallerDe = (c) =>
+      String(c.uid_taller || c.taller_uid || c.servicio?.uid_taller || "").trim();
+    const uidsTaller = [...new Set(serviciosContact.map(tallerDe).filter(Boolean))];
+    const activos = new Set();
+    for (let i = 0; i < uidsTaller.length; i += 300) {
+      const refs = uidsTaller.slice(i, i + 300).map((u) => db.collection("Usuarios").doc(u));
+      const docs = await db.getAll(...refs);
+      docs.forEach((d) => {
+        if (d.exists && String(d.data()?.status || "").trim().toLowerCase() !== "eliminado") {
+          activos.add(d.id);
+        }
+      });
+    }
+    const visibles = serviciosContact.filter((c) => {
+      const uid = tallerDe(c);
+      return uid === "" || activos.has(uid);
+    });
+
     // Enviar los datos como respuesta
-    res.status(200).json(serviciosContact);
+    res.status(200).json(visibles);
   } catch (error) {
     console.error("Error obteniendo servicios y detalles:", error);
     res.status(500).send("Error obteniendo servicios y detalles.");

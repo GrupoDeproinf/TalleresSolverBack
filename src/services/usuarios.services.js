@@ -2235,6 +2235,13 @@ const restorePass = async (req, res) => {
 
 
 
+const esTallerEliminado = (usuario) =>
+  String(usuario?.status ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") === "eliminado";
+
 const getTalleres = async (req, res) => {
   try {
 
@@ -2260,6 +2267,13 @@ const getTalleres = async (req, res) => {
     }
 
     let usuarios = result.docs.map((doc) => doc.data());
+
+    // Los negocios dados de baja (status "Eliminado", p. ej. los de la
+    // depuración del 20 nov 2026) no se muestran al certificador: solo se
+    // ocultan, el documento sigue en Usuarios.
+    if (todos === true) {
+      usuarios = usuarios.filter((usuario) => !esTallerEliminado(usuario));
+    }
 
     // Filtrar en memoria según el estado
     if (Array.isArray(estado)) {
