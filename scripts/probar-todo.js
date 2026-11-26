@@ -32,7 +32,7 @@ console.log(`Sintaxis: ${archivos.length} archivos revisados`);
 
 // 2. Pruebas.
 const pruebas = fs.readdirSync(dir).filter((f) => /^probar-.*\.js$/.test(f) && f !== 'probar-todo.js' && !EN_VIVO.has(f));
-const modos = { 'probar-permisos-solicitud.js': ['enforce', 'report'] };
+const modos = { 'probar-permisos-solicitud.js': ['enforce', 'report'], 'probar-dueno-obligatorio.js': ['enforce', 'report'] };
 for (const f of pruebas) {
   for (const modo of modos[f] || [null]) {
     const env = { ...process.env };

@@ -3179,6 +3179,17 @@ const saveOrUpdateService = async (req, res) => {
     } = req.body;
 
 
+    // SEC-04: editar un servicio que ya existe solo puede su taller (o el
+    // personal), y no se puede pasar a otro taller.
+    if (id && !esStaff(req.sesion)) {
+      const actual = await db.collection("Servicios").doc(String(id)).get();
+      if (actual.exists) {
+        const dueno = (actual.data() || {}).uid_taller;
+        if (!esTallerDe(req.sesion, { uid_taller: dueno }) && negar(req, res, "servicio de otro taller")) return;
+        if (dueno && uid_taller && String(dueno) !== String(uid_taller) && negar(req, res, "cambiar el taller de un servicio")) return;
+      }
+    }
+
     const serviceData = {
       categoria,
       descripcion,
@@ -3446,7 +3457,13 @@ const deleteService = async (req, res) => {
     }
 
     const serviceData = snap.data();
-    const ownerUid = uid_taller || serviceData.uid_taller;
+    // SEC-04: solo su taller (o el personal) lo borra. Antes bastaba con
+    // conocer el id del servicio.
+    if (!esStaff(req.sesion) && !esTallerDe(req.sesion, serviceData)) {
+      if (negar(req, res, "servicio de otro taller")) return;
+    }
+    // El cupo se devuelve al dueño real del servicio, no al que diga el body.
+    const ownerUid = serviceData.uid_taller || uid_taller;
 
     // Servicio activo → liberar cupo (mismo ajuste que despublicar en el edit).
     if (serviceData.estatus === true && ownerUid) {

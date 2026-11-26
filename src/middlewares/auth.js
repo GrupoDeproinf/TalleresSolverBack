@@ -69,7 +69,7 @@ const POLITICA = {
   '/usuarios/updateNotificationUser': owner('uiduser'),
   '/usuarios/deleteVehiculo': owner('uiduser'),
   '/usuarios/updateVehiculoKm': owner('uid_user'),
-  '/usuarios/saveOrUpdateVehiculo': AUTH,
+  '/usuarios/saveOrUpdateVehiculo': owner('uiduser'), // escribe en Usuarios/{uiduser}/Vehiculos
   '/usuarios/deleteUserFromAuth': owner('uid'),
   '/usuarios/UpdateClient': owner('uid'),
   '/usuarios/UpdateTaller': owner('uid'),
@@ -78,7 +78,7 @@ const POLITICA = {
   '/usuarios/SaveTallerAll': owner('uid'),
   '/usuarios/UpdateUsuariosAll': owner('uid'),
   '/usuarios/UpdateTallerUsuarioDocs': owner('uid'),
-  '/usuarios/updateUsuarioDocumentacionConductor': AUTH,
+  '/usuarios/updateUsuarioDocumentacionConductor': owner('uid'), // escribe en Usuarios/{uid}
   '/usuarios/ReportarPagoData': owner('uid'),
   '/usuarios/saveSolicitud': owner('uid_usuario'),
   '/usuarios/getSolicitudesByUsuario': owner('uid_usuario'),
@@ -90,7 +90,9 @@ const POLITICA = {
   '/usuarios/updateSolicitudStatus': AUTH,
   '/usuarios/updatePropuesta': AUTH,
   '/usuarios/updateScheduleDate': owner('uid'), // escribe en Usuarios/{uid}
-  '/usuarios/saveOrUpdateService': AUTH,
+  // Servicios: además, el servicio que ya existe debe ser de ese taller
+  // (lo comprueban saveOrUpdateService y deleteService).
+  '/usuarios/saveOrUpdateService': owner('uid_taller'),
   '/usuarios/deleteService': owner('uid_taller'),
   '/usuarios/getNotificaciones': AUTH,
   // Push: con `uid_destino` el servidor busca el token (lo normal). Mandar un
@@ -252,10 +254,11 @@ const motivoBloqueo = async (regla, req, sesion) => {
   if (regla && regla.owner) {
     const b = req.body || {};
     const valores = regla.owner.map(c => b[c]).filter(v => v != null && v !== '');
-    // Sin el dato del dueño por ahora se deja pasar, pero se registra para
-    // saber qué llamadas de la app lo omiten antes de exigirlo.
-    if (!valores.length) console.warn(`[auth:falta-campo] ${req.method} ${req.baseUrl + req.path} sin ${regla.owner.join('/')} (uid ${sesion.uid})`);
-    if (valores.length && !valores.every(v => String(v) === sesion.uid || String(v) === sesion.uidAuth)) {
+    // SEC-04: sin el dato del dueño no se puede saber de quién es la cuenta,
+    // así que se rechaza (antes se dejaba pasar). Todas las llamadas de la
+    // app 1.4.13 lo mandan; en report solo queda en el registro.
+    if (!valores.length) return `Falta el dueño (${regla.owner.join('/')})`;
+    if (!valores.every(v => String(v) === sesion.uid || String(v) === sesion.uidAuth)) {
       return `No es su cuenta (${regla.owner.join('/')})`;
     }
   }
