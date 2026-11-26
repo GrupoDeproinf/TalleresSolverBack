@@ -109,7 +109,7 @@ const POLITICA = {
   '/home/getServices': P,
   '/home/getServicesByCategory': P,
   '/home/getServiciosPaginados': P,
-  '/home/getSubscriptionById': AUTH,
+  '/home/getSubscriptionById': owner('uid'), // suscripciones (pagos) del propio taller
   '/home/getProductsByCategory': P,
   '/home/getCommentsByService': P,
   '/home/getCommentsByTaller': P,

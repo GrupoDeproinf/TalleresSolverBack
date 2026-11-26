@@ -14,6 +14,7 @@ const { getAuth, signInWithEmailAndPassword } = require("firebase/auth");
 const { getFirestore } = require("firebase-admin/firestore");
 const { app } = require("../../firebaseConfig"); // Asegúrate de la ruta correcta
 const { limpiarUsuarioPublico, esStaff } = require('../middlewares/auth');
+const { resenaPublica, errorPuntuacion, autorDeResena, autorPublico: autorPublicoDe } = require('./resenas');
 
 const getServicios = async (req, res) => {
   // Cambia el orden de req y res
@@ -640,10 +641,8 @@ const getCommentsByService = async (req, res) => {
       return res.status(200).json([]);
     }
 
-    const comments = commentsSnapshot.docs.map((commentDoc) => ({
-      id: commentDoc.id,
-      ...commentDoc.data(),
-    }));
+    // Lectura pública: sin el correo ni otros datos privados del autor.
+    const comments = commentsSnapshot.docs.map(resenaPublica);
 
     // Responder con los comentarios encontrados
     return res.status(200).json(comments);
@@ -682,10 +681,8 @@ const getCommentsByTaller = async (req, res) => {
       return res.status(200).json([]);
     }
 
-    const comments = commentsSnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    // Lectura pública: sin el correo ni otros datos privados del autor.
+    const comments = commentsSnapshot.docs.map(resenaPublica);
 
     return res.status(200).json(comments);
   } catch (error) {
@@ -712,6 +709,11 @@ const addCommentToService = async (req, res) => {
         error: 'El objeto "usuario" con el campo "userId" es obligatorio.',
       });
     }
+    if (!uid_service || typeof uid_service !== "string") {
+      return res.status(400).json({ error: '"uid_service" es obligatorio.' });
+    }
+    const errorNota = errorPuntuacion(puntuacion);
+    if (errorNota) return res.status(400).json({ error: errorNota });
 
     const etiquetasNormalizadas = Array.isArray(etiquetas_rapidas)
       ? etiquetas_rapidas
@@ -730,13 +732,19 @@ const addCommentToService = async (req, res) => {
         .json({ error: "No se encontró un servicio con este ID de documento." });
     }
 
+    // El taller es el del servicio, no el que diga el body.
+    const servicio = serviceDoc.data() || {};
+    const tallerDelServicio = servicio.uid_taller || uid_taller || "";
+    const autor = await autorDeResena(req, res, usuario, tallerDelServicio);
+    if (!autor) return;
+
     // Crear un nuevo comentario en la subcolección "calificaciones"
     const newComment = {
-      comentario: comentario ?? "",
-      puntuacion,
-      nombre_taller,
-      uid_taller,
-      usuario, // Incluye el objeto `usuario` tal cual
+      comentario: typeof comentario === "string" ? comentario.slice(0, 2000) : "",
+      puntuacion: Number(puntuacion),
+      nombre_taller: servicio.taller || nombre_taller || "",
+      uid_taller: tallerDelServicio,
+      usuario: autor.usuario,
       etiquetas_rapidas: etiquetasNormalizadas,
       fecha_creacion: new Date(), // Fecha de creación
     };
@@ -746,7 +754,7 @@ const addCommentToService = async (req, res) => {
     // Responder con éxito
     return res.status(201).json({
       message: "Comentario agregado exitosamente.",
-      comment: newComment,
+      comment: { ...newComment, usuario: autorPublicoDe(newComment.usuario) },
     });
   } catch (error) {
     console.error("Error al agregar comentario:", error);
@@ -775,6 +783,8 @@ const addCommentToTaller = async (req, res) => {
         error: 'El objeto "usuario" con el campo "uid" es obligatorio.',
       });
     }
+    const errorNota = errorPuntuacion(puntuacion);
+    if (errorNota) return res.status(400).json({ error: errorNota });
 
     const etiquetasNormalizadas = Array.isArray(etiquetas_rapidas)
       ? etiquetas_rapidas
@@ -793,12 +803,19 @@ const addCommentToTaller = async (req, res) => {
         .json({ error: "No se encontró un taller con este ID en Usuarios." });
     }
 
+    const taller = tallerDoc.data() || {};
+    if (String(taller.typeUser || "").trim().toLowerCase() !== "taller") {
+      return res.status(404).json({ error: "No se encontró un taller con este ID en Usuarios." });
+    }
+    const autor = await autorDeResena(req, res, usuario, uid_taller);
+    if (!autor) return;
+
     const newComment = {
-      comentario:        comentario ?? "",
-      puntuacion,
-      nombre_taller:     nombre_taller ?? "",
+      comentario:        typeof comentario === "string" ? comentario.slice(0, 2000) : "",
+      puntuacion:        Number(puntuacion),
+      nombre_taller:     taller.nombre || nombre_taller || "",
       uid_taller,
-      usuario,
+      usuario:           autor.usuario,
       etiquetas_rapidas: etiquetasNormalizadas,
       fecha_creacion:    new Date(),
     };
@@ -808,7 +825,7 @@ const addCommentToTaller = async (req, res) => {
 
     return res.status(201).json({
       message: "Calificación del taller agregada exitosamente.",
-      comment: newComment,
+      comment: { ...newComment, usuario: autorPublicoDe(newComment.usuario) },
     });
   } catch (error) {
     console.error("addCommentToTaller error:", error);
