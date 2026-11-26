@@ -105,11 +105,18 @@ const resena = (extra) => ({ uid_service: 's1', comentario: 'Muy bien', puntuaci
   r = await L('/home/addCommentToService', H.addCommentToService, 'ana', resena({ uid_taller: 'taller-2', nombre_taller: 'Otro' }));
   g = nuevas(SC)[0];
   ok(r.status === 201 && g.uid_taller === 'taller-1' && g.nombre_taller === 'Taller Uno', 'el taller es el del servicio, no el del body', g);
-  for (const p of [0, 6, 1000, 'abc', null]) {
+  for (const p of [0, 6, 1000, 'abc', null, true, [5], ' 5 ', '']) {
     datos = nuevaBase();
     r = await L('/home/addCommentToService', H.addCommentToService, 'ana', resena({ puntuacion: p }));
     ok(r.status === 400 && nuevas(SC).length === 0, `puntuación ${JSON.stringify(p)}: 400`, r);
   }
+  datos = nuevaBase();
+  r = await L('/home/addCommentToService', H.addCommentToService, 'ana', resena({ puntuacion: '4' }));
+  ok(r.status === 201 && nuevas(SC)[0].puntuacion === 4, 'puntuación "4" (texto limpio) se acepta y se guarda como número', r);
+  datos = nuevaBase();
+  datos.Servicios.s9 = { nombre_servicio: 'Sin taller' };
+  r = await L('/home/addCommentToService', H.addCommentToService, 'taller-2', resena({ uid_service: 's9', uid_taller: 'taller-1', usuario: { uid: 'taller-2' } }));
+  ok(r.status === 409, 'servicio sin taller: 409 (no se usa el uid_taller del body)', r);
   datos = nuevaBase();
   r = await L('/home/addCommentToService', H.addCommentToService, 'taller-1', resena({ usuario: { uid: 'taller-1' } }));
   ok(r.status === NEGADO, `el taller reseña su propio servicio: ${NEGADO}`, r);

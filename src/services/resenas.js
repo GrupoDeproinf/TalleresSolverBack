@@ -40,8 +40,12 @@ const resenaPublica = (doc) => {
 
 /** null si es válida; si no, el mensaje de error (400). */
 const errorPuntuacion = (puntuacion) => {
-  const n = Number(puntuacion);
-  if (puntuacion === "" || puntuacion == null || !Number.isFinite(n) || n < 1 || n > 5) {
+  // Solo números o texto con un número limpio ("4", "4.5"); nada de true, [5]
+  // ni " 5 " (Number() los aceptaría).
+  const n = typeof puntuacion === "number" ? puntuacion
+    : typeof puntuacion === "string" && /^\d+(\.\d+)?$/.test(puntuacion) ? Number(puntuacion)
+      : NaN;
+  if (!Number.isFinite(n) || n < 1 || n > 5) {
     return "La puntuación debe ser un número del 1 al 5.";
   }
   return null;

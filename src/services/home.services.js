@@ -115,7 +115,9 @@ const getLatLngFromUbicacion = (ubicacion) => {
 const calculateAverageScore = (comments) => {
   if (!Array.isArray(comments) || comments.length === 0) return 0;
   const totalScore = comments.reduce(
-    (sum, comment) => sum + (comment?.puntuacion || 0),
+    // Las reseñas viejas pueden traer la puntuación como texto ("5"): sin
+    // convertirla, la suma concatenaba ("054") y el promedio salía en 5.
+    (sum, comment) => sum + (Number(String(comment?.puntuacion ?? "").replace(",", ".")) || 0),
     0,
   );
   const averageScore = totalScore / comments.length;
@@ -732,9 +734,13 @@ const addCommentToService = async (req, res) => {
         .json({ error: "No se encontró un servicio con este ID de documento." });
     }
 
-    // El taller es el del servicio, no el que diga el body.
+    // El taller es el del servicio, nunca el que diga el body (si no, se
+    // podría atribuir la reseña a otro taller o saltarse la autorreseña).
     const servicio = serviceDoc.data() || {};
-    const tallerDelServicio = servicio.uid_taller || uid_taller || "";
+    const tallerDelServicio = String(servicio.uid_taller || "").trim();
+    if (!tallerDelServicio) {
+      return res.status(409).json({ error: "Este servicio no tiene taller asignado." });
+    }
     const autor = await autorDeResena(req, res, usuario, tallerDelServicio);
     if (!autor) return;
 
