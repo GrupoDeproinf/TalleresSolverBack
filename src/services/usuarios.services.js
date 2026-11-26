@@ -3180,13 +3180,13 @@ const saveOrUpdateService = async (req, res) => {
 
 
     // SEC-04: editar un servicio que ya existe solo puede su taller (o el
-    // personal), y no se puede pasar a otro taller.
+    // personal). Que el uid_taller del body sea de la sesión lo exige la
+    // regla owner; aquí se mira el dueño guardado. Una cuenta antigua puede
+    // usar su id de ficha o su uid de Auth: valen los dos.
     if (id && !esStaff(req.sesion)) {
       const actual = await db.collection("Servicios").doc(String(id)).get();
-      if (actual.exists) {
-        const dueno = (actual.data() || {}).uid_taller;
-        if (!esTallerDe(req.sesion, { uid_taller: dueno }) && negar(req, res, "servicio de otro taller")) return;
-        if (dueno && uid_taller && String(dueno) !== String(uid_taller) && negar(req, res, "cambiar el taller de un servicio")) return;
+      if (actual.exists && !esTallerDe(req.sesion, actual.data() || {})) {
+        if (negar(req, res, "servicio de otro taller")) return;
       }
     }
 

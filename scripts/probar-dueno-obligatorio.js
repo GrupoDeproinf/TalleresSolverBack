@@ -14,9 +14,12 @@ const nuevaBase = () => ({
     'taller-1': { typeUser: 'Taller', subscripcion_actual: { cantidad_servicios: '3' } },
     'taller-2': { typeUser: 'Taller', subscripcion_actual: { cantidad_servicios: '3' } },
     cert: { typeUser: 'Certificador' },
+    // Cuenta antigua: el id de la ficha no es el uid de Auth.
+    'taller-viejo': { typeUser: 'Taller', uid_auth: 'auth-viejo' },
   },
   Servicios: {
     s1: { uid_taller: 'taller-1', nombre_servicio: 'Cambio de aceite', estatus: false },
+    s2: { uid_taller: 'taller-viejo', nombre_servicio: 'Frenos', estatus: false },
   },
 });
 let datos = nuevaBase();
@@ -117,7 +120,17 @@ const NEGADO = ENF ? 403 : 200;
   r = await L('/usuarios/saveOrUpdateService', U.saveOrUpdateService, 'cert', { id: 's1', uid_taller: 'taller-1', nombre_servicio: 'Revisado', estatus: false });
   ok(r.status === 200 && datos.Servicios.s1.nombre_servicio === 'Revisado', 'el personal lo edita', r);
 
+  datos = nuevaBase();
+  r = await L('/usuarios/saveOrUpdateService', U.saveOrUpdateService, 'auth-viejo', { id: 's2', uid_taller: 'auth-viejo', nombre_servicio: 'Frenos y discos', estatus: false });
+  ok(r.status === 200 && datos.Servicios.s2.nombre_servicio === 'Frenos y discos', 'cuenta antigua: edita con su uid de Auth un servicio guardado con el id de ficha', r);
+  datos = nuevaBase();
+  r = await L('/usuarios/saveOrUpdateService', U.saveOrUpdateService, 'auth-viejo', { id: 's2', uid_taller: 'taller-viejo', nombre_servicio: 'Frenos y discos', estatus: false });
+  ok(r.status === 200, 'cuenta antigua: también con su id de ficha', r);
+
   console.log('Borrar un servicio');
+  datos = nuevaBase();
+  r = await L('/usuarios/deleteService', U.deleteService, 'auth-viejo', { id: 's2', uid_taller: 'auth-viejo' });
+  ok(r.status === 200 && !datos.Servicios.s2, 'cuenta antigua: borra su servicio con su uid de Auth', r);
   datos = nuevaBase();
   r = await L('/usuarios/deleteService', U.deleteService, 'taller-2', { id: 's1', uid_taller: 'taller-2' });
   ok(r.status === NEGADO, `otro taller lo borra: ${NEGADO}`, r);
